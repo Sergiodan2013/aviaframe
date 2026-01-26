@@ -1,0 +1,13 @@
+{
+  "name": "@aviaframe/widget",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "build": "echo \"Building widget...\" && mkdir -p dist && cp -R src/* dist/ || true",
+    "test": "jest --runInBand",
+    "lint": "eslint src tests"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

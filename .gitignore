@@ -1,0 +1,18 @@
+# Node
+node_modules/
+npm-debug.log
+.env
+
+# Build output
+dist/
+build/
+
+# Terraform
+.terraform/
+
+# Editor
+.vscode/
+.idea/
+
+# Misc
+.DS_Store
