@@ -1,0 +1,202 @@
+{
+  "name": "DRCT Order Issue Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "drct/order/issue",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c70",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "drct-order-issue"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate issue request\nconst body = $input.item.json.body;\n\nif (!body || !body.order_id) {\n  throw new Error('Missing required field: order_id');\n}\n\n// Validate order_id format (should be string and non-empty)\nif (typeof body.order_id !== 'string' || body.order_id.trim() === '') {\n  throw new Error('order_id must be a non-empty string');\n}\n\nreturn {\n  order_id: body.order_id.trim(),\n  payment_confirmation: body.payment_confirmation || null\n};"
+      },
+      "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d70",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DRCT_API_URL }}/orders/{{ $json.order_id }}/issue",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-API-KEY",
+              "value": "={{ $env.DRCT_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 60000
+        },
+        "jsonBody": "={{ JSON.stringify({\n  payment_confirmation: $json.payment_confirmation\n}) }}"
+      },
+      "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e70",
+      "name": "DRCT Issue Order API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform issue response\nconst response = $input.item.json;\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'ISSUED',\n  pnr: response.pnr || null,\n  tickets: (response.tickets || []).map(ticket => ({\n    ticket_number: ticket.ticket_number,\n    passenger: ticket.passenger,\n    status: ticket.status || 'ISSUED',\n    issued_at: ticket.issued_at || new Date().toISOString()\n  })),\n  etickets: response.etickets || [],\n  booking_reference: response.booking_reference || response.pnr,\n  issued_at: response.issued_at || new Date().toISOString(),\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_issue'\n  }\n};"
+      },
+      "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f70",
+      "name": "Transform Issue Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "responseCode": 200
+        }
+      },
+      "id": "e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a70",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'VALIDATION_ERROR',\n    message: $json.message || 'Invalid request data'\n  }\n}) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "f6a7b8c9-0d1e-2f3a-4b5c-6d7e8f9a0b70",
+      "name": "Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [470, 480]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'ISSUE_FAILED',\n    message: 'Failed to issue tickets',\n    details: $json\n  }\n}) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "a7b8c9d0-1e2f-3a4b-5c6d-7e8f9a0b1c70",
+      "name": "Issue Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [690, 480]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "DRCT Issue Order API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DRCT Issue Order API": {
+      "main": [
+        [
+          {
+            "node": "Transform Issue Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Issue Response": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2026-01-27T00:00:00.000Z",
+      "updatedAt": "2026-01-27T00:00:00.000Z",
+      "id": "1",
+      "name": "DRCT"
+    },
+    {
+      "createdAt": "2026-01-27T00:00:00.000Z",
+      "updatedAt": "2026-01-27T00:00:00.000Z",
+      "id": "4",
+      "name": "Order"
+    },
+    {
+      "createdAt": "2026-01-27T00:00:00.000Z",
+      "updatedAt": "2026-01-27T00:00:00.000Z",
+      "id": "5",
+      "name": "Issue"
+    }
+  ],
+  "meta": {
+    "instanceId": "local"
+  },
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 0,
+  "active": false
+}

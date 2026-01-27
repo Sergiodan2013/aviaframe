@@ -1,0 +1,181 @@
+{
+  "name": "DRCT Search Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "drct/search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b8c0c7e8-8f3a-4e5a-9e1a-1e8f9c7a3e1a",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "drct-search"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DRCT_API_URL }}/offers/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-API-KEY",
+              "value": "={{ $env.DRCT_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "name": "DRCT Search API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform DRCT API response\nconst response = $input.item.json;\n\n// Extract search results\nconst offers = response.offers || [];\n\n// Transform each offer to our format\nconst transformedOffers = offers.map(offer => ({\n  id: offer.id,\n  price: {\n    total: offer.price?.total || 0,\n    currency: offer.price?.currency || 'RUB',\n    base: offer.price?.base || 0,\n    taxes: offer.price?.taxes || 0\n  },\n  segments: offer.segments?.map(segment => ({\n    origin: segment.origin,\n    destination: segment.destination,\n    departure: segment.departure,\n    arrival: segment.arrival,\n    carrier: segment.carrier,\n    flight_number: segment.flight_number,\n    aircraft: segment.aircraft,\n    duration: segment.duration\n  })) || [],\n  baggage: offer.baggage || {},\n  fare_family: offer.fare_family || 'ECONOMY',\n  available_seats: offer.available_seats || 0\n}));\n\nreturn {\n  search_id: response.search_id || 'unknown',\n  offers: transformedOffers,\n  metadata: {\n    total_offers: transformedOffers.length,\n    timestamp: new Date().toISOString(),\n    api_version: response.api_version || '1.0'\n  }\n};"
+      },
+      "id": "c5d6e7f8-9a0b-1c2d-3e4f-5a6b7c8d9e0f",
+      "name": "Transform Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "responseCode": 200
+        }
+      },
+      "id": "d7e8f9a0-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.statusCode }}",
+              "operation": "equals",
+              "value2": "200"
+            }
+          ]
+        }
+      },
+      "id": "e8f9a0b1-2c3d-4e5f-6a7b-8c9d0e1f2a3b",
+      "name": "Check API Response",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to fetch search results from DRCT API',\n    details: $json\n  }\n}) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "f9a0b1c2-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [690, 480]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "DRCT Search API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DRCT Search API": {
+      "main": [
+        [
+          {
+            "node": "Transform Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2026-01-27T00:00:00.000Z",
+      "updatedAt": "2026-01-27T00:00:00.000Z",
+      "id": "1",
+      "name": "DRCT"
+    },
+    {
+      "createdAt": "2026-01-27T00:00:00.000Z",
+      "updatedAt": "2026-01-27T00:00:00.000Z",
+      "id": "2",
+      "name": "Search"
+    }
+  ],
+  "meta": {
+    "instanceId": "local"
+  },
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 0,
+  "active": false
+}

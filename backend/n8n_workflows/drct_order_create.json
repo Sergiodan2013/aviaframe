@@ -1,0 +1,196 @@
+{
+  "name": "DRCT Order Create Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "drct/order/create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6f",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "drct-order-create"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate order creation request\nconst body = $input.item.json.body;\n\n// Required fields validation\nconst requiredFields = ['offer_id', 'passengers', 'contacts'];\nconst missingFields = [];\n\nfor (const field of requiredFields) {\n  if (!body || !body[field]) {\n    missingFields.push(field);\n  }\n}\n\nif (missingFields.length > 0) {\n  throw new Error(`Missing required fields: ${missingFields.join(', ')}`);\n}\n\n// Validate passengers array\nif (!Array.isArray(body.passengers) || body.passengers.length === 0) {\n  throw new Error('passengers must be a non-empty array');\n}\n\n// Validate each passenger\nfor (let i = 0; i < body.passengers.length; i++) {\n  const passenger = body.passengers[i];\n  const passengerRequired = ['first_name', 'last_name', 'date_of_birth', 'document'];\n  \n  for (const field of passengerRequired) {\n    if (!passenger[field]) {\n      throw new Error(`Passenger ${i + 1}: missing ${field}`);\n    }\n  }\n  \n  // Validate document\n  if (!passenger.document.type || !passenger.document.number) {\n    throw new Error(`Passenger ${i + 1}: invalid document data`);\n  }\n}\n\n// Validate contacts\nif (!body.contacts.email || !body.contacts.phone) {\n  throw new Error('contacts must include email and phone');\n}\n\nreturn {\n  offer_id: body.offer_id,\n  passengers: body.passengers,\n  contacts: body.contacts,\n  payment_method: body.payment_method || 'CARD',\n  metadata: body.metadata || {}\n};"
+      },
+      "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7f",
+      "name": "Validate Order Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DRCT_API_URL }}/orders",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-API-KEY",
+              "value": "={{ $env.DRCT_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        },
+        "jsonBody": "={{ JSON.stringify({\n  offer_id: $json.offer_id,\n  passengers: $json.passengers,\n  contacts: $json.contacts,\n  payment_method: $json.payment_method,\n  metadata: $json.metadata\n}) }}"
+      },
+      "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8g",
+      "name": "DRCT Create Order API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform order creation response\nconst response = $input.item.json;\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'CREATED',\n  pnr: response.pnr || null,\n  price: {\n    total: response.price?.total || 0,\n    currency: response.price?.currency || 'RUB'\n  },\n  passengers: response.passengers || [],\n  segments: response.segments || [],\n  payment: {\n    method: response.payment?.method || 'CARD',\n    status: response.payment?.status || 'PENDING',\n    deadline: response.payment?.deadline || null\n  },\n  created_at: response.created_at || new Date().toISOString(),\n  expires_at: response.expires_at || null,\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_create'\n  }\n};"
+      },
+      "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9b",
+      "name": "Transform Order Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "responseCode": 201
+        }
+      },
+      "id": "e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0c",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'VALIDATION_ERROR',\n    message: $json.message || 'Invalid order data',\n    details: $json\n  }\n}) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "f6a7b8c9-0d1e-2f3a-4b5c-6d7e8f9a0b1d",
+      "name": "Validation Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [470, 480]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to create order',\n    details: $json\n  }\n}) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "a7b8c9d0-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
+      "name": "API Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [690, 480]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Order Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Order Data": {
+      "main": [
+        [
+          {
+            "node": "DRCT Create Order API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DRCT Create Order API": {
+      "main": [
+        [
+          {
+            "node": "Transform Order Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Order Response": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2026-01-27T00:00:00.000Z",
+      "updatedAt": "2026-01-27T00:00:00.000Z",
+      "id": "1",
+      "name": "DRCT"
+    },
+    {
+      "createdAt": "2026-01-27T00:00:00.000Z",
+      "updatedAt": "2026-01-27T00:00:00.000Z",
+      "id": "4",
+      "name": "Order"
+    }
+  ],
+  "meta": {
+    "instanceId": "local"
+  },
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 0,
+  "active": false
+}
