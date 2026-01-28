@@ -28,16 +28,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.DRCT_API_URL }}/orders",
+        "url": "https://sandbox-api.drct.aero/orders",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.DRCT_API_KEY }}"
-            },
             {
               "name": "DRCT-Version",
               "value": "2021-06-01"

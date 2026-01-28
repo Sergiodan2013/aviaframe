@@ -28,16 +28,12 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "={{ $env.DRCT_API_URL }}/offers/{{ $json.offer_id }}/price",
+        "url": "=https://sandbox-api.drct.aero/offers/{{ $json.offer_id }}/price",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.DRCT_API_KEY }}"
-            },
             {
               "name": "DRCT-Version",
               "value": "2021-06-01"
