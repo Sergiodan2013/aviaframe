@@ -25,16 +25,18 @@ const TEST_DATA = {
   search: {
     origin: 'MOW',
     destination: 'LED',
-    departure_date: '2026-03-15',
+    depart_date: '2026-03-15',  // Changed from departure_date to depart_date
     return_date: '2026-03-20',
-    passengers: {
-      adults: 1,
-      children: 0,
-      infants: 0
-    }
+    adults: 1,  // Moved from passengers object to top level
+    children: 0,
+    infants: 0,
+    cabin_class: 'economy'
   },
   price: {
-    offer_id: 'test-offer-12345'
+    offer_id: 'test-offer-12345',
+    passengers: [
+      { type: 'ADT' }
+    ]
   },
   order_create: {
     offer_id: 'test-offer-12345',
@@ -46,10 +48,10 @@ const TEST_DATA = {
         date_of_birth: '1990-01-01',
         gender: 'M',
         document: {
-          type: 'PASSPORT',
+          type: 'passport',  // lowercase
           number: '1234567890',
           expiry_date: '2030-01-01',
-          citizenship: 'RU'
+          issuing_country: 'RU'  // Changed from citizenship to issuing_country
         }
       }
     ],
@@ -129,7 +131,7 @@ async function checkN8nAvailability() {
   }
 }
 
-async function testWorkflow(name, endpoint, data, expectedFields = []) {
+async function testWorkflow(name, endpoint, data, expectedFields = [], extraHeaders = {}) {
   logSection(`Testing: ${name}`);
 
   const url = `${WEBHOOK_BASE}${endpoint}`;
@@ -141,7 +143,8 @@ async function testWorkflow(name, endpoint, data, expectedFields = []) {
     const response = await axios.post(url, data, {
       timeout: TIMEOUT,
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...extraHeaders
       },
       validateStatus: () => true // Don't throw on any status
     });
@@ -153,8 +156,12 @@ async function testWorkflow(name, endpoint, data, expectedFields = []) {
     if (response.status >= 200 && response.status < 300) {
       logSuccess(`Request successful (${response.status})`);
 
+      // Pretty print response first
+      log('\nResponse:', colors.blue);
+      console.log(JSON.stringify(response.data, null, 2));
+
       // Validate response structure
-      if (expectedFields.length > 0) {
+      if (expectedFields.length > 0 && typeof response.data === 'object' && response.data !== null) {
         const missingFields = expectedFields.filter(field =>
           !(field in response.data)
         );
@@ -164,11 +171,9 @@ async function testWorkflow(name, endpoint, data, expectedFields = []) {
         } else {
           logWarning(`Missing fields: ${missingFields.join(', ')}`);
         }
+      } else if (expectedFields.length > 0) {
+        logWarning('Response is not an object, cannot validate fields');
       }
-
-      // Pretty print response
-      log('\nResponse:', colors.blue);
-      console.log(JSON.stringify(response.data, null, 2));
 
       return {
         success: true,
@@ -263,7 +268,8 @@ async function runAllTests() {
     'DRCT Order Create',
     '/drct/order/create',
     TEST_DATA.order_create,
-    ['order_id', 'status', 'price', 'passengers']
+    ['order_id', 'status', 'price', 'passengers'],
+    { 'Idempotency-Key': `test-create-${Date.now()}` }
   );
   results.tests.push({ name: 'Order Create', ...createResult });
   if (createResult.success) results.passed++;
@@ -275,7 +281,8 @@ async function runAllTests() {
     'DRCT Order Issue',
     '/drct/order/issue',
     TEST_DATA.order_issue,
-    ['order_id', 'status', 'tickets']
+    ['order_id', 'status', 'tickets'],
+    { 'Idempotency-Key': `test-issue-${Date.now()}` }
   );
   results.tests.push({ name: 'Order Issue', ...issueResult });
   if (issueResult.success) results.passed++;
