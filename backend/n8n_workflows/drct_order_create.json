@@ -54,7 +54,8 @@
         "options": {
           "response": {
             "response": {
-              "responseFormat": "json"
+              "responseFormat": "json",
+              "neverError": true
             }
           },
           "timeout": 60000
