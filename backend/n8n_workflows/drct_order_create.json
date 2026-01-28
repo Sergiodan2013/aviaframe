@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validate order creation request\nconst body = $input.item.json.body;\n\n// Required fields validation\nconst requiredFields = ['offer_id', 'passengers', 'contacts'];\nconst missingFields = [];\n\nfor (const field of requiredFields) {\n  if (!body || !body[field]) {\n    missingFields.push(field);\n  }\n}\n\nif (missingFields.length > 0) {\n  throw new Error(`Missing required fields: ${missingFields.join(', ')}`);\n}\n\n// Validate passengers array\nif (!Array.isArray(body.passengers) || body.passengers.length === 0) {\n  throw new Error('passengers must be a non-empty array');\n}\n\n// Validate each passenger\nfor (let i = 0; i < body.passengers.length; i++) {\n  const passenger = body.passengers[i];\n  const passengerRequired = ['first_name', 'last_name', 'date_of_birth', 'document'];\n  \n  for (const field of passengerRequired) {\n    if (!passenger[field]) {\n      throw new Error(`Passenger ${i + 1}: missing ${field}`);\n    }\n  }\n  \n  // Validate document\n  if (!passenger.document.type || !passenger.document.number) {\n    throw new Error(`Passenger ${i + 1}: invalid document data`);\n  }\n}\n\n// Validate contacts\nif (!body.contacts.email || !body.contacts.phone) {\n  throw new Error('contacts must include email and phone');\n}\n\nreturn {\n  offer_id: body.offer_id,\n  passengers: body.passengers,\n  contacts: body.contacts,\n  payment_method: body.payment_method || 'CARD',\n  metadata: body.metadata || {}\n};"
+        "jsCode": "// Validate order creation request and extract Idempotency-Key\nconst body = $input.item.json.body;\nconst headers = $input.item.json.headers;\n\nif (!body) {\n  throw new Error('Request body is required');\n}\n\n// Required fields validation\nconst requiredFields = ['offer_id', 'passengers', 'contacts'];\nconst missingFields = [];\n\nfor (const field of requiredFields) {\n  if (!body[field]) {\n    missingFields.push(field);\n  }\n}\n\nif (missingFields.length > 0) {\n  throw new Error(`Missing required fields: ${missingFields.join(', ')}`);\n}\n\n// Validate passengers array\nif (!Array.isArray(body.passengers) || body.passengers.length === 0) {\n  throw new Error('passengers must be a non-empty array');\n}\n\n// Validate each passenger\nfor (let i = 0; i < body.passengers.length; i++) {\n  const passenger = body.passengers[i];\n  const passengerRequired = ['first_name', 'last_name', 'date_of_birth', 'document'];\n  \n  for (const field of passengerRequired) {\n    if (!passenger[field]) {\n      throw new Error(`Passenger ${i + 1}: missing ${field}`);\n    }\n  }\n  \n  // Validate document\n  if (!passenger.document.type || !passenger.document.number) {\n    throw new Error(`Passenger ${i + 1}: invalid document data (type and number required)`);\n  }\n}\n\n// Validate contacts\nif (!body.contacts.email || !body.contacts.phone) {\n  throw new Error('contacts must include email and phone');\n}\n\n// Extract Idempotency-Key from request headers\nconst idempotencyKey = headers['idempotency-key'] || headers['Idempotency-Key'];\n\nif (!idempotencyKey) {\n  throw new Error('Idempotency-Key header is required for order creation');\n}\n\nconsole.log(`[Validate] Order creation request validated`);\nconsole.log(`[Validate] Offer ID: ${body.offer_id}`);\nconsole.log(`[Validate] Passengers: ${body.passengers.length}`);\nconsole.log(`[Validate] Idempotency-Key: ${idempotencyKey}`);\n\nreturn {\n  offer_id: body.offer_id,\n  passengers: body.passengers,\n  contacts: body.contacts,\n  payment_method: body.payment_method || 'CARD',\n  metadata: body.metadata || {},\n  idempotency_key: idempotencyKey\n};"
       },
       "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7f",
       "name": "Validate Order Data",
@@ -35,25 +35,34 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.DRCT_API_KEY }}"
             },
             {
-              "name": "X-API-KEY",
-              "value": "={{ $env.DRCT_API_KEY }}"
+              "name": "DRCT-Version",
+              "value": "2021-06-01"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.idempotency_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  offer_id: $json.offer_id,\n  passengers: $json.passengers,\n  contacts: $json.contacts,\n  payment_method: $json.payment_method,\n  metadata: $json.metadata\n}) }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           },
-          "timeout": 30000
-        },
-        "jsonBody": "={{ JSON.stringify({\n  offer_id: $json.offer_id,\n  passengers: $json.passengers,\n  contacts: $json.contacts,\n  payment_method: $json.payment_method,\n  metadata: $json.metadata\n}) }}"
+          "timeout": 60000
+        }
       },
       "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8g",
       "name": "DRCT Create Order API",
@@ -63,7 +72,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Transform order creation response\nconst response = $input.item.json;\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'CREATED',\n  pnr: response.pnr || null,\n  price: {\n    total: response.price?.total || 0,\n    currency: response.price?.currency || 'RUB'\n  },\n  passengers: response.passengers || [],\n  segments: response.segments || [],\n  payment: {\n    method: response.payment?.method || 'CARD',\n    status: response.payment?.status || 'PENDING',\n    deadline: response.payment?.deadline || null\n  },\n  created_at: response.created_at || new Date().toISOString(),\n  expires_at: response.expires_at || null,\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_create'\n  }\n};"
+        "jsCode": "// Transform DRCT order creation response to Aviaframe format\nconst response = $input.item.json;\n\nconsole.log('[Transform] DRCT order creation response received');\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'CREATED',\n  pnr: response.pnr || null,\n  price: {\n    total: response.price?.total || 0,\n    currency: response.price?.currency || 'USD',\n    breakdown: response.price?.breakdown || {}\n  },\n  passengers: response.passengers || [],\n  segments: response.segments || [],\n  payment: {\n    method: response.payment?.method || 'CARD',\n    status: response.payment?.status || 'PENDING',\n    deadline: response.payment?.deadline || null\n  },\n  created_at: response.created_at || new Date().toISOString(),\n  expires_at: response.expires_at || null,\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_create'\n  }\n};"
       },
       "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9b",
       "name": "Transform Order Response",
@@ -110,7 +119,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to create order',\n    details: $json\n  }\n}) }}",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to create order',\n    details: $json.error || $json.message || 'Unknown error'\n  }\n}) }}",
         "options": {
           "responseCode": 500
         }
@@ -190,7 +199,7 @@
     "instanceId": "local"
   },
   "pinData": {},
-  "versionId": "1",
+  "versionId": "2",
   "triggerCount": 0,
   "active": false
 }

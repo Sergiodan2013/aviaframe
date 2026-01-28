@@ -1,0 +1,813 @@
+openapi: 3.0.3
+info:
+  title: Aviaframe Backend API
+  version: 0.1.0
+  description: 'Backend API for Aviaframe (flight search & booking) acting as a secure
+    proxy/orchestrator for DRCT API.
+
+
+    Key rules:
+
+    - DRCT bearer tokens MUST stay server-side only.
+
+    - Use DRCT-Version: 2021-06-01 for all DRCT calls.
+
+    - Use Idempotency-Key for order create/issue operations.
+
+    - Mask PII in logs and responses where not needed.
+
+    '
+servers:
+- url: http://localhost:3000
+  description: Local dev
+- url: https://api.aviaframe.example
+  description: Production (replace)
+tags:
+- name: Auth
+  description: Public authentication for Aviaframe clients (NOT DRCT auth)
+- name: Search
+  description: Search offers via DRCT
+- name: Offers
+  description: Offer operations (price, rules)
+- name: Orders
+  description: Create/issue/cancel orders via DRCT
+- name: Reporting
+  description: Reporting endpoints (tickets)
+- name: Health
+  description: Health and readiness
+paths:
+  /healthz:
+    get:
+      tags:
+      - Health
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/search:
+    post:
+      tags:
+      - Search
+      summary: Search flight offers (proxy to DRCT POST /offers_search)
+      description: 'Calls DRCT POST /offers_search in Sandbox/Production depending
+        on server config.
+
+        Applies gzip decoding if enabled and returns normalized search results.
+
+        '
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OffersSearchRequest'
+      responses:
+        '200':
+          description: Offers found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OffersSearchResponse'
+        '422':
+          description: No offers found / validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        5XX:
+          description: Upstream error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/offers/{offerId}/price:
+    patch:
+      tags:
+      - Offers
+      summary: Price an offer (proxy to DRCT PATCH /offers/{id}/price)
+      parameters:
+      - name: offerId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Offer priced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '422':
+          description: Invalid offer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/offers/{offerId}/fare_rules:
+    get:
+      tags:
+      - Offers
+      summary: Get offer fare rules (proxy to DRCT GET /offers/{id}/fare_rules)
+      parameters:
+      - name: offerId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Fare rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FareRule'
+        '422':
+          description: Invalid offer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '501':
+          description: Not implemented by provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/orders:
+    post:
+      tags:
+      - Orders
+      summary: Create order (proxy to DRCT POST /orders)
+      description: Must be called with Idempotency-Key header.
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          maxLength: 255
+        description: Client-generated unique idempotency key (UUID v4 recommended).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/orders/{orderId}:
+    get:
+      tags:
+      - Orders
+      summary: Get order (proxy to DRCT GET /orders/{id})
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    delete:
+      tags:
+      - Orders
+      summary: Cancel order (proxy to DRCT DELETE /orders/{id})
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Order cancelled/deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/orders/{orderId}/issue:
+    post:
+      tags:
+      - Orders
+      summary: Issue order (proxy to DRCT POST /orders/{id}/issue)
+      description: Must be called with Idempotency-Key header.
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          maxLength: 255
+        description: Client-generated unique idempotency key (UUID v4 recommended).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueOrderRequest'
+      responses:
+        '200':
+          description: Order issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: Validation/price changed/provider error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/orders/{orderId}/fare_rules:
+    get:
+      tags:
+      - Orders
+      summary: Get order fare rules (proxy to DRCT GET /orders/{id}/fare_rules)
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Fare rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FareRule'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '501':
+          description: Not implemented by provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/reporting/tickets:
+    get:
+      tags:
+      - Reporting
+      summary: List reporting tickets (proxy to DRCT GET /reporting/tickets)
+      parameters:
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: Defaults to start of today.
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: Defaults to end of today.
+      responses:
+        '200':
+          description: Tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReportingTicket'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+      required:
+      - status
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: price_changed
+            message:
+              type: string
+              example: The booking has been changed. Update the reservation and try
+                again.
+          required:
+          - code
+          - message
+      required:
+      - error
+    OffersSearchRequest:
+      type: object
+      required:
+      - flights
+      - passengers
+      properties:
+        flights:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FlightSearchLeg'
+        passengers:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PassengerSearch'
+        filters:
+          $ref: '#/components/schemas/OffersSearchFilters'
+    FlightSearchLeg:
+      type: object
+      required:
+      - departure_airport_code
+      - arrival_airport_code
+      - departure_date
+      properties:
+        departure_airport_code:
+          type: string
+          pattern: ^[A-Z]{3}$
+          example: WAW
+        arrival_airport_code:
+          type: string
+          pattern: ^[A-Z]{3}$
+          example: FRA
+        departure_date:
+          type: string
+          format: date
+          example: '2025-10-20'
+    PassengerSearch:
+      type: object
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - ADT
+          - CHD
+          - INF
+          example: ADT
+    OffersSearchFilters:
+      type: object
+      properties:
+        carriers:
+          type: array
+          items:
+            type: string
+            pattern: ^[\dA-Z]{2}$
+            example: LH
+    OffersSearchResponse:
+      type: object
+      description: Normalized response (you can keep DRCT raw response as 'raw' if
+        preferred).
+      properties:
+        offers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Offer'
+        raw:
+          type: object
+          additionalProperties: true
+      required:
+      - offers
+    MoneyAmount:
+      type: object
+      required:
+      - amount
+      - currency
+      properties:
+        amount:
+          type: number
+          format: float
+          example: 100.0
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          example: EUR
+    Offer:
+      type: object
+      properties:
+        id:
+          type: string
+          example: LH_6322c0cc1af833380f7e7bc5
+        expire_at:
+          type: string
+          format: date-time
+          example: '2022-09-20T14:46:15+03:00'
+        channel:
+          type: string
+          example: Lufthansa Group
+        price:
+          $ref: '#/components/schemas/MoneyAmount'
+        price_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriceDetail'
+        passengers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Passenger'
+        flights:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flight'
+        fares:
+          type: array
+          items:
+            $ref: '#/components/schemas/Fare'
+    PriceDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - ADT
+          - CHD
+          - INF
+        count:
+          type: integer
+          minimum: 1
+          example: 1
+        price:
+          $ref: '#/components/schemas/MoneyAmount'
+        fare:
+          type: object
+          additionalProperties: true
+        taxes:
+          type: object
+          additionalProperties: true
+    Passenger:
+      type: object
+      properties:
+        id:
+          type: string
+          example: PAX1
+        type:
+          type: string
+          enum:
+          - ADT
+          - CHD
+          - INF
+        individual:
+          type: object
+          additionalProperties: true
+        infant_ref:
+          type: string
+          nullable: true
+    Flight:
+      type: object
+      properties:
+        journey_time:
+          type: integer
+          minimum: 1
+          example: 9600
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Segment'
+    Segment:
+      type: object
+      properties:
+        id:
+          type: string
+        departure_airport:
+          type: object
+          additionalProperties: true
+        arrival_airport:
+          type: object
+          additionalProperties: true
+        carrier:
+          type: object
+          additionalProperties: true
+        operating_carrier:
+          type: object
+          additionalProperties: true
+        departure_date:
+          type: string
+        departure_time:
+          type: string
+        arrival_date:
+          type: string
+        arrival_time:
+          type: string
+        flight_number:
+          type: string
+        duration:
+          type: integer
+        transfer_time:
+          type: integer
+        status:
+          type: string
+    Fare:
+      type: object
+      properties:
+        id:
+          type: string
+        segments:
+          type: array
+          items:
+            type: string
+        passengers:
+          type: array
+          items:
+            type: string
+        price_class_name:
+          type: string
+        fare_basis_code:
+          type: string
+        class_of_service:
+          type: string
+        cabin_class:
+          type: string
+        baggage:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        changes:
+          type: object
+          additionalProperties: true
+        cancellation:
+          type: object
+          additionalProperties: true
+    FareRule:
+      type: object
+      required:
+      - route
+      - name
+      - text
+      properties:
+        route:
+          type: string
+          example: FRA-CDG
+        name:
+          type: string
+          example: Day and/or Time Application
+        text:
+          type: string
+          example: NO DAY/TIME TRAVEL RESTRICTIONS
+        category:
+          type: string
+          example: APP
+    CreateOrderRequest:
+      type: object
+      required:
+      - offer_id
+      - passengers
+      properties:
+        offer_id:
+          type: string
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 9
+          items:
+            $ref: '#/components/schemas/OrderPassengerInput'
+    OrderPassengerInput:
+      type: object
+      required:
+      - id
+      - type
+      - individual
+      properties:
+        id:
+          type: string
+          example: PAX1
+        type:
+          type: string
+          enum:
+          - ADT
+          - CHD
+          - INF
+        individual:
+          type: object
+          additionalProperties: true
+        phone:
+          type: string
+          example: '+442079460000'
+        email:
+          type: string
+          format: email
+          example: example@mail.com
+        document:
+          type: object
+          additionalProperties: true
+    IssueOrderRequest:
+      type: object
+      properties:
+        reshop:
+          type: boolean
+          default: false
+        form_of_payment:
+          $ref: '#/components/schemas/FormOfPayment'
+    FormOfPayment:
+      type: object
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - cash
+          - credit_card
+          default: cash
+        credit_card:
+          type: object
+          nullable: true
+          additionalProperties: true
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        channel:
+          type: string
+        locator:
+          type: string
+        status:
+          type: string
+          enum:
+          - new
+          - voided
+          - issued
+          - refunded
+          - deleted
+        airline_locators:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        cancel_before:
+          type: string
+          format: date-time
+        passengers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Passenger'
+        flights:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flight'
+        fares:
+          type: array
+          items:
+            $ref: '#/components/schemas/Fare'
+        phones:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        emails:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        tickets:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        documents:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        price:
+          $ref: '#/components/schemas/MoneyAmount'
+        price_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriceDetail'
+        deleted_at:
+          type: string
+          format: date-time
+    ReportingTicket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: string
+        status:
+          type: string
+          enum:
+          - issued
+          - void
+          - reissued
+          - refund
+          - exchanged
+        locator:
+          type: string
+        type:
+          type: string
+          enum:
+          - Ticket
+          - EMD
+        booked_at:
+          type: string
+          format: date-time
+        last_transaction_at:
+          type: string
+          format: date-time
+        total_price:
+          $ref: '#/components/schemas/MoneyAmount'
+        fare:
+          type: object
+          additionalProperties: true
+        taxes:
+          type: object
+          additionalProperties: true
+        commission:
+          type: number
+        commission_equivalent:
+          type: number
+        originator:
+          type: object
+          additionalProperties: true
+        company:
+          type: object
+          additionalProperties: true
+        ticketing_office:
+          type: string
+        booking_office:
+          type: string
+        channel:
+          type: string
+        passenger:
+          type: object
+          additionalProperties: true
+        segments:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+externalDocs:
+  description: DRCT API Reference (Stoplight)
+  url: https://drct.stoplight.io/docs/api/

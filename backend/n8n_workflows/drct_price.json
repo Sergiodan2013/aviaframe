@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validate request body\nconst body = $input.item.json.body;\n\nif (!body || !body.offer_id) {\n  throw new Error('Missing required field: offer_id');\n}\n\nreturn { \n  offer_id: body.offer_id,\n  passengers: body.passengers || []\n};"
+        "jsCode": "// Validate price request\nconst body = $input.item.json.body;\n\nif (!body) {\n  throw new Error('Request body is required');\n}\n\nif (!body.offer_id) {\n  throw new Error('Missing required field: offer_id');\n}\n\nif (!Array.isArray(body.passengers) || body.passengers.length === 0) {\n  throw new Error('passengers array is required and cannot be empty');\n}\n\n// Validate each passenger has required fields\nfor (let i = 0; i < body.passengers.length; i++) {\n  const passenger = body.passengers[i];\n  \n  if (!passenger.type) {\n    throw new Error(`Passenger ${i + 1}: type is required (ADT, CHD, INF)`);\n  }\n  \n  // For price requests, passengers should have type at minimum\n  // Full details (documents, etc.) may be optional depending on DRCT requirements\n}\n\nconsole.log(`[Validate] Price request for offer: ${body.offer_id}`);\nconsole.log(`[Validate] Passengers: ${body.passengers.length}`);\n\nreturn { \n  offer_id: body.offer_id,\n  passengers: body.passengers\n};"
       },
       "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
       "name": "Validate Request",
@@ -27,32 +27,38 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.DRCT_API_URL }}/offers/price",
+        "method": "PATCH",
+        "url": "={{ $env.DRCT_API_URL }}/offers/{{ $json.offer_id }}/price",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.DRCT_API_KEY }}"
             },
             {
-              "name": "X-API-KEY",
-              "value": "={{ $env.DRCT_API_KEY }}"
+              "name": "DRCT-Version",
+              "value": "2021-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ passengers: $json.passengers }) }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
-          }
-        },
-        "jsonBody": "={{ JSON.stringify({\n  offer_id: $json.offer_id,\n  passengers: $json.passengers\n}) }}"
+          },
+          "timeout": 30000
+        }
       },
       "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
       "name": "DRCT Price API",
@@ -62,10 +68,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Transform price response\nconst response = $input.item.json;\n\nreturn {\n  offer_id: response.offer_id,\n  price: {\n    total: response.price?.total || 0,\n    currency: response.price?.currency || 'RUB',\n    breakdown: {\n      base_fare: response.price?.base_fare || 0,\n      taxes: response.price?.taxes || 0,\n      fees: response.price?.fees || 0,\n      surcharges: response.price?.surcharges || 0\n    },\n    per_passenger: response.price?.per_passenger || []\n  },\n  expiration: response.expiration || null,\n  rules: response.rules || {},\n  timestamp: new Date().toISOString()\n};"
+        "jsCode": "// Transform DRCT price response to Aviaframe format\nconst response = $input.item.json;\n\nconsole.log('[Transform] DRCT price response received');\n\nreturn {\n  offer_id: response.offer_id || response.id,\n  price: {\n    total: response.price?.total || 0,\n    currency: response.price?.currency || 'USD',\n    breakdown: {\n      base_fare: response.price?.base_fare || response.price?.base || 0,\n      taxes: response.price?.taxes || 0,\n      fees: response.price?.fees || 0,\n      surcharges: response.price?.surcharges || 0\n    },\n    per_passenger: response.price?.per_passenger || []\n  },\n  expiration: response.expiration || response.expires_at || null,\n  rules: response.rules || {},\n  fare_details: response.fare_details || {},\n  timestamp: new Date().toISOString()\n};"
       },
       "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
-      "name": "Transform Price",
+      "name": "Transform Price Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [910, 300]
@@ -105,6 +111,20 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [470, 480]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to get price from DRCT API',\n    details: $json.error || $json.message || 'Unknown error'\n  }\n}) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "a7b8c9d0-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
+      "name": "API Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [690, 480]
     }
   ],
   "connections": {
@@ -134,14 +154,14 @@
       "main": [
         [
           {
-            "node": "Transform Price",
+            "node": "Transform Price Response",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Transform Price": {
+    "Transform Price Response": {
       "main": [
         [
           {
@@ -175,7 +195,7 @@
     "instanceId": "local"
   },
   "pinData": {},
-  "versionId": "1",
+  "versionId": "2",
   "triggerCount": 0,
   "active": false
 }

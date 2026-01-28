@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validate cancel request\nconst body = $input.item.json.body;\n\nif (!body || !body.order_id) {\n  throw new Error('Missing required field: order_id');\n}\n\n// Validate order_id format\nif (typeof body.order_id !== 'string' || body.order_id.trim() === '') {\n  throw new Error('order_id must be a non-empty string');\n}\n\nreturn {\n  order_id: body.order_id.trim(),\n  reason: body.reason || 'USER_REQUEST',\n  refund_requested: body.refund_requested !== false // default to true\n};"
+        "jsCode": "// Validate cancel request\nconst body = $input.item.json.body;\n\nif (!body) {\n  throw new Error('Request body is required');\n}\n\nif (!body.order_id) {\n  throw new Error('Missing required field: order_id');\n}\n\n// Validate order_id format\nif (typeof body.order_id !== 'string' || body.order_id.trim() === '') {\n  throw new Error('order_id must be a non-empty string');\n}\n\nconsole.log(`[Validate] Cancel request for order: ${body.order_id}`);\n\nreturn {\n  order_id: body.order_id.trim(),\n  reason: body.reason || 'USER_REQUEST',\n  refund_requested: body.refund_requested !== false // default to true\n};"
       },
       "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d71",
       "name": "Validate Cancel Request",
@@ -27,24 +27,30 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.DRCT_API_URL }}/orders/{{ $json.order_id }}/cancel",
+        "method": "DELETE",
+        "url": "={{ $env.DRCT_API_URL }}/orders/{{ $json.order_id }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.DRCT_API_KEY }}"
             },
             {
-              "name": "X-API-KEY",
-              "value": "={{ $env.DRCT_API_KEY }}"
+              "name": "DRCT-Version",
+              "value": "2021-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  reason: $json.reason,\n  refund_requested: $json.refund_requested\n}) }}",
         "options": {
           "response": {
             "response": {
@@ -52,8 +58,7 @@
             }
           },
           "timeout": 30000
-        },
-        "jsonBody": "={{ JSON.stringify({\n  reason: $json.reason,\n  refund_requested: $json.refund_requested\n}) }}"
+        }
       },
       "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e71",
       "name": "DRCT Cancel Order API",
@@ -63,7 +68,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Transform cancel response\nconst response = $input.item.json;\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'CANCELLED',\n  cancelled_at: response.cancelled_at || new Date().toISOString(),\n  refund: {\n    status: response.refund?.status || 'PENDING',\n    amount: response.refund?.amount || 0,\n    currency: response.refund?.currency || 'RUB',\n    estimated_date: response.refund?.estimated_date || null,\n    penalties: response.refund?.penalties || 0\n  },\n  tickets: (response.tickets || []).map(ticket => ({\n    ticket_number: ticket.ticket_number,\n    status: ticket.status || 'CANCELLED',\n    passenger: ticket.passenger\n  })),\n  reason: response.reason || 'USER_REQUEST',\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_cancel'\n  }\n};"
+        "jsCode": "// Transform DRCT cancel response to Aviaframe format\nconst response = $input.item.json;\n\nconsole.log('[Transform] DRCT order cancellation response received');\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'CANCELLED',\n  cancelled_at: response.cancelled_at || new Date().toISOString(),\n  refund: {\n    status: response.refund?.status || 'PENDING',\n    amount: response.refund?.amount || 0,\n    currency: response.refund?.currency || 'USD',\n    estimated_date: response.refund?.estimated_date || null,\n    penalties: response.refund?.penalties || 0\n  },\n  tickets: (response.tickets || []).map(ticket => ({\n    ticket_number: ticket.ticket_number,\n    status: ticket.status || 'CANCELLED',\n    passenger: ticket.passenger\n  })),\n  reason: response.reason || 'USER_REQUEST',\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_cancel'\n  }\n};"
       },
       "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f71",
       "name": "Transform Cancel Response",
@@ -110,13 +115,13 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'CANCEL_FAILED',\n    message: 'Failed to cancel order',\n    details: $json\n  }\n}) }}",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to cancel order',\n    details: $json.error || $json.message || 'Unknown error'\n  }\n}) }}",
         "options": {
           "responseCode": 500
         }
       },
       "id": "a7b8c9d0-1e2f-3a4b-5c6d-7e8f9a0b1c71",
-      "name": "Cancel Error",
+      "name": "API Error Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [690, 480]
@@ -196,7 +201,7 @@
     "instanceId": "local"
   },
   "pinData": {},
-  "versionId": "1",
+  "versionId": "2",
   "triggerCount": 0,
   "active": false
 }

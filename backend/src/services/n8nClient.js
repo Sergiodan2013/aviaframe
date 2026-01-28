@@ -1,6 +1,7 @@
 // n8n Client Service
 // Universal client for sending requests to n8n workflows via webhooks
 
+const crypto = require('crypto');
 const { logDRCTRequest, generateCorrelationId } = require('./drctLogger');
 
 /**
@@ -192,12 +193,20 @@ async function drctPrice(priceParams, tenantId) {
  * @returns {Promise<Object>} - Order results
  */
 async function drctCreateOrder(orderParams, tenantId, bookingId) {
+  // Generate Idempotency-Key to prevent duplicate orders
+  const idempotencyKey = crypto.randomUUID();
+
   return sendRequest({
     workflowPath: '/drct/order/create',
     payload: orderParams,
     requestType: 'order_create',
     tenantId,
-    bookingId
+    bookingId,
+    options: {
+      headers: {
+        'Idempotency-Key': idempotencyKey
+      }
+    }
   });
 }
 
@@ -209,12 +218,20 @@ async function drctCreateOrder(orderParams, tenantId, bookingId) {
  * @returns {Promise<Object>} - Issue results
  */
 async function drctIssue(issueParams, tenantId, bookingId) {
+  // Generate Idempotency-Key to prevent duplicate ticket issuance
+  const idempotencyKey = crypto.randomUUID();
+
   return sendRequest({
     workflowPath: '/drct/order/issue',
     payload: issueParams,
     requestType: 'issue',
     tenantId,
-    bookingId
+    bookingId,
+    options: {
+      headers: {
+        'Idempotency-Key': idempotencyKey
+      }
+    }
   });
 }
 

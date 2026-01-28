@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validate issue request\nconst body = $input.item.json.body;\n\nif (!body || !body.order_id) {\n  throw new Error('Missing required field: order_id');\n}\n\n// Validate order_id format (should be string and non-empty)\nif (typeof body.order_id !== 'string' || body.order_id.trim() === '') {\n  throw new Error('order_id must be a non-empty string');\n}\n\nreturn {\n  order_id: body.order_id.trim(),\n  payment_confirmation: body.payment_confirmation || null\n};"
+        "jsCode": "// Validate ticket issue request and extract Idempotency-Key\nconst body = $input.item.json.body;\nconst headers = $input.item.json.headers;\n\nif (!body) {\n  throw new Error('Request body is required');\n}\n\nif (!body.order_id) {\n  throw new Error('Missing required field: order_id');\n}\n\n// Validate order_id format (should be string and non-empty)\nif (typeof body.order_id !== 'string' || body.order_id.trim() === '') {\n  throw new Error('order_id must be a non-empty string');\n}\n\n// Extract Idempotency-Key from request headers\nconst idempotencyKey = headers['idempotency-key'] || headers['Idempotency-Key'];\n\nif (!idempotencyKey) {\n  throw new Error('Idempotency-Key header is required for ticket issuance');\n}\n\nconsole.log(`[Validate] Ticket issue request for order: ${body.order_id}`);\nconsole.log(`[Validate] Idempotency-Key: ${idempotencyKey}`);\n\nreturn {\n  order_id: body.order_id.trim(),\n  payment_confirmation: body.payment_confirmation || null,\n  idempotency_key: idempotencyKey\n};"
       },
       "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d70",
       "name": "Validate Request",
@@ -35,16 +35,26 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.DRCT_API_KEY }}"
             },
             {
-              "name": "X-API-KEY",
-              "value": "={{ $env.DRCT_API_KEY }}"
+              "name": "DRCT-Version",
+              "value": "2021-06-01"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.idempotency_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  payment_confirmation: $json.payment_confirmation\n}) }}",
         "options": {
           "response": {
             "response": {
@@ -52,8 +62,7 @@
             }
           },
           "timeout": 60000
-        },
-        "jsonBody": "={{ JSON.stringify({\n  payment_confirmation: $json.payment_confirmation\n}) }}"
+        }
       },
       "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e70",
       "name": "DRCT Issue Order API",
@@ -63,7 +72,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Transform issue response\nconst response = $input.item.json;\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'ISSUED',\n  pnr: response.pnr || null,\n  tickets: (response.tickets || []).map(ticket => ({\n    ticket_number: ticket.ticket_number,\n    passenger: ticket.passenger,\n    status: ticket.status || 'ISSUED',\n    issued_at: ticket.issued_at || new Date().toISOString()\n  })),\n  etickets: response.etickets || [],\n  booking_reference: response.booking_reference || response.pnr,\n  issued_at: response.issued_at || new Date().toISOString(),\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_issue'\n  }\n};"
+        "jsCode": "// Transform DRCT issue response to Aviaframe format\nconst response = $input.item.json;\n\nconsole.log('[Transform] DRCT ticket issue response received');\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'ISSUED',\n  pnr: response.pnr || null,\n  tickets: (response.tickets || []).map(ticket => ({\n    ticket_number: ticket.ticket_number,\n    passenger: ticket.passenger,\n    status: ticket.status || 'ISSUED',\n    issued_at: ticket.issued_at || new Date().toISOString()\n  })),\n  etickets: response.etickets || [],\n  booking_reference: response.booking_reference || response.pnr,\n  issued_at: response.issued_at || new Date().toISOString(),\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_issue'\n  }\n};"
       },
       "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f70",
       "name": "Transform Issue Response",
@@ -110,13 +119,13 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'ISSUE_FAILED',\n    message: 'Failed to issue tickets',\n    details: $json\n  }\n}) }}",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to issue tickets',\n    details: $json.error || $json.message || 'Unknown error'\n  }\n}) }}",
         "options": {
           "responseCode": 500
         }
       },
       "id": "a7b8c9d0-1e2f-3a4b-5c6d-7e8f9a0b1c70",
-      "name": "Issue Error",
+      "name": "API Error Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [690, 480]
@@ -196,7 +205,7 @@
     "instanceId": "local"
   },
   "pinData": {},
-  "versionId": "1",
+  "versionId": "2",
   "triggerCount": 0,
   "active": false
 }

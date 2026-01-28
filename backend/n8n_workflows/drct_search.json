@@ -17,51 +17,64 @@
     },
     {
       "parameters": {
+        "jsCode": "// Transform Aviaframe format to DRCT API format\nconst body = $input.item.json.body;\n\nif (!body) {\n  throw new Error('Request body is required');\n}\n\n// Validate required fields\nif (!body.origin || !body.destination || !body.depart_date) {\n  throw new Error('origin, destination, and depart_date are required');\n}\n\n// Ensure date format is YYYY-MM-DD\nfunction formatDate(dateStr) {\n  if (!dateStr) return null;\n  // If already in YYYY-MM-DD format, return as is\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(dateStr)) {\n    return dateStr;\n  }\n  // Try to parse and format\n  const date = new Date(dateStr);\n  if (isNaN(date.getTime())) {\n    throw new Error(`Invalid date format: ${dateStr}`);\n  }\n  return date.toISOString().split('T')[0];\n}\n\n// Build flights array\nconst flights = [];\n\n// Outbound flight\nflights.push({\n  departure_airport_code: body.origin.toUpperCase(),\n  arrival_airport_code: body.destination.toUpperCase(),\n  departure_date: formatDate(body.depart_date)\n});\n\n// Return flight (if provided)\nif (body.return_date) {\n  flights.push({\n    departure_airport_code: body.destination.toUpperCase(),\n    arrival_airport_code: body.origin.toUpperCase(),\n    departure_date: formatDate(body.return_date)\n  });\n}\n\n// Build passengers array\nconst passengers = [];\n\n// Add adults (default to 1 if not provided)\nconst adults = body.adults || 1;\nfor (let i = 0; i < adults; i++) {\n  passengers.push({ type: \"ADT\" });\n}\n\n// Add children\nconst children = body.children || 0;\nfor (let i = 0; i < children; i++) {\n  passengers.push({ type: \"CHD\" });\n}\n\n// Add infants\nconst infants = body.infants || 0;\nfor (let i = 0; i < infants; i++) {\n  passengers.push({ type: \"INF\" });\n}\n\n// Build DRCT request\nconst drctRequest = {\n  flights: flights,\n  passengers: passengers\n};\n\n// Add filters if cabin_class is provided\nif (body.cabin_class) {\n  drctRequest.filters = {\n    cabin_class: body.cabin_class.toLowerCase()\n  };\n}\n\nconsole.log('[Transform] Converted to DRCT format:', JSON.stringify(drctRequest, null, 2));\n\nreturn drctRequest;"
+      },
+      "id": "a0b1c2d3-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Transform to DRCT Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
         "method": "POST",
-        "url": "={{ $env.DRCT_API_URL }}/offers/search",
+        "url": "={{ $env.DRCT_API_URL }}/offers_search",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.DRCT_API_KEY }}"
             },
             {
-              "name": "X-API-KEY",
-              "value": "={{ $env.DRCT_API_KEY }}"
+              "name": "DRCT-Version",
+              "value": "2021-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": []
-        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
-          }
-        },
-        "jsonBody": "={{ JSON.stringify($json.body) }}"
+          },
+          "timeout": 30000
+        }
       },
       "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
       "name": "DRCT Search API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [470, 300]
+      "position": [690, 300]
     },
     {
       "parameters": {
-        "jsCode": "// Transform DRCT API response\nconst response = $input.item.json;\n\n// Extract search results\nconst offers = response.offers || [];\n\n// Transform each offer to our format\nconst transformedOffers = offers.map(offer => ({\n  id: offer.id,\n  price: {\n    total: offer.price?.total || 0,\n    currency: offer.price?.currency || 'RUB',\n    base: offer.price?.base || 0,\n    taxes: offer.price?.taxes || 0\n  },\n  segments: offer.segments?.map(segment => ({\n    origin: segment.origin,\n    destination: segment.destination,\n    departure: segment.departure,\n    arrival: segment.arrival,\n    carrier: segment.carrier,\n    flight_number: segment.flight_number,\n    aircraft: segment.aircraft,\n    duration: segment.duration\n  })) || [],\n  baggage: offer.baggage || {},\n  fare_family: offer.fare_family || 'ECONOMY',\n  available_seats: offer.available_seats || 0\n}));\n\nreturn {\n  search_id: response.search_id || 'unknown',\n  offers: transformedOffers,\n  metadata: {\n    total_offers: transformedOffers.length,\n    timestamp: new Date().toISOString(),\n    api_version: response.api_version || '1.0'\n  }\n};"
+        "jsCode": "// Transform DRCT API response to Aviaframe format\nconst response = $input.item.json;\n\nconsole.log('[Transform] DRCT response received');\n\n// Extract search results\nconst offers = response.offers || [];\n\nconsole.log(`[Transform] Processing ${offers.length} offers`);\n\n// Transform each offer to Aviaframe format\nconst transformedOffers = offers.map(offer => ({\n  id: offer.id,\n  price: {\n    total: offer.price?.total || 0,\n    currency: offer.price?.currency || 'USD',\n    base: offer.price?.base || 0,\n    taxes: offer.price?.taxes || 0\n  },\n  segments: offer.segments?.map(segment => ({\n    origin: segment.origin,\n    destination: segment.destination,\n    departure: segment.departure,\n    arrival: segment.arrival,\n    carrier: segment.carrier,\n    flight_number: segment.flight_number,\n    aircraft: segment.aircraft,\n    duration: segment.duration\n  })) || [],\n  baggage: offer.baggage || {},\n  fare_family: offer.fare_family || 'ECONOMY',\n  available_seats: offer.available_seats || 0\n}));\n\nreturn {\n  search_id: response.search_id || 'unknown',\n  offers: transformedOffers,\n  metadata: {\n    total_offers: transformedOffers.length,\n    timestamp: new Date().toISOString(),\n    api_version: response.api_version || '1.0'\n  }\n};"
       },
       "id": "c5d6e7f8-9a0b-1c2d-3e4f-5a6b7c8d9e0f",
       "name": "Transform Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [690, 300]
+      "position": [910, 300]
     },
     {
       "parameters": {
@@ -83,30 +96,12 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [910, 300]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "string": [
-            {
-              "value1": "={{ $json.statusCode }}",
-              "operation": "equals",
-              "value2": "200"
-            }
-          ]
-        }
-      },
-      "id": "e8f9a0b1-2c3d-4e5f-6a7b-8c9d0e1f2a3b",
-      "name": "Check API Response",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [690, 300]
+      "position": [1130, 300]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to fetch search results from DRCT API',\n    details: $json\n  }\n}) }}",
+        "responseBody": "={{ JSON.stringify({\n  error: {\n    code: 'DRCT_API_ERROR',\n    message: 'Failed to fetch search results from DRCT API',\n    details: $json.error || $json.message || 'Unknown error'\n  }\n}) }}",
         "options": {
           "responseCode": 500
         }
@@ -120,6 +115,17 @@
   ],
   "connections": {
     "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Transform to DRCT Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform to DRCT Format": {
       "main": [
         [
           {
@@ -175,7 +181,7 @@
     "instanceId": "local"
   },
   "pinData": {},
-  "versionId": "1",
+  "versionId": "2",
   "triggerCount": 0,
   "active": false
 }
