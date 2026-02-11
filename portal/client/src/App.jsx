@@ -395,6 +395,8 @@ function App() {
 
       // Check if response is double-serialized (string instead of object)
       let parsedData = response.data;
+
+      // Case 1: response.data is a string
       if (typeof response.data === 'string') {
         console.warn('⚠️ Response is a STRING, attempting to parse...');
         try {
@@ -403,6 +405,18 @@ function App() {
         } catch (e) {
           console.error('❌ Failed to parse response:', e);
           throw new Error('Invalid JSON response from server');
+        }
+      }
+
+      // Case 2: response.data.data exists and is a string (n8n nested JSON)
+      if (parsedData && typeof parsedData.data === 'string') {
+        console.warn('⚠️ Nested data field is a STRING, attempting to parse...');
+        try {
+          parsedData = JSON.parse(parsedData.data);
+          console.log('✅ Successfully parsed nested JSON string');
+        } catch (e) {
+          console.error('❌ Failed to parse nested data:', e);
+          throw new Error('Invalid nested JSON response from server');
         }
       }
 
