@@ -21,7 +21,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   });
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl || 'https://example.supabase.co', supabaseAnonKey || 'dummy-key');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
