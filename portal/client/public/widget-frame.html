@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aviaframe Widget</title>
+  <style>
+    :root {
+      --bg: #f7f9ff;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #dbe1ef;
+      --primary: #2563eb;
+      --primary-strong: #1d4ed8;
+      --danger: #dc2626;
+      --ok: #16a34a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #f6f9ff 0%, #eef4ff 100%);
+      color: var(--text);
+    }
+    .wrap { padding: 16px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 6px 22px rgba(17, 24, 39, 0.06);
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+    p { margin: 0; color: var(--muted); font-size: 13px; }
+    .grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .full { grid-column: 1 / -1; }
+    label {
+      display: block;
+      font-size: 12px;
+      color: #4b5563;
+      margin-bottom: 4px;
+    }
+    input, button {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    button {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: var(--primary-strong); }
+    button[disabled] { opacity: .6; cursor: not-allowed; }
+    .status {
+      margin-top: 10px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .err { color: var(--danger); }
+    .ok { color: var(--ok); }
+    .meta {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px dashed var(--border);
+      font-size: 12px;
+      color: #374151;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Book Flight</h1>
+      <p>Embedded Aviaframe widget for partner agency websites.</p>
+      <div id="sessionStatus" class="status"></div>
+      <div id="sessionMeta" class="meta" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>Origin</label>
+          <input id="origin" value="RUH" />
+        </div>
+        <div>
+          <label>Destination</label>
+          <input id="destination" value="DXB" />
+        </div>
+        <div>
+          <label>Airline code</label>
+          <input id="airlineCode" value="SV" />
+        </div>
+        <div>
+          <label>Flight number</label>
+          <input id="flightNumber" value="SV590" />
+        </div>
+        <div>
+          <label>Total price</label>
+          <input id="totalPrice" type="number" step="0.01" value="120" />
+        </div>
+        <div>
+          <label>Currency</label>
+          <input id="currency" value="SAR" />
+        </div>
+        <div>
+          <label>Client email</label>
+          <input id="email" value="client@example.com" />
+        </div>
+        <div>
+          <label>Client phone</label>
+          <input id="phone" value="+966500000000" />
+        </div>
+        <div class="full">
+          <button id="bookBtn">Create Test Order</button>
+        </div>
+      </div>
+      <div id="orderStatus" class="status"></div>
+      <div id="orderMeta" class="meta" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script>
+    const qs = new URLSearchParams(window.location.search);
+    const agencyKey = qs.get('agency_key') || '';
+    const backendBase = (qs.get('backend_base') || '/api/backend').replace(/\/$/, '');
+    const parentHost = (() => {
+      try {
+        if (document.referrer) return new URL(document.referrer).hostname;
+      } catch {}
+      return '';
+    })();
+
+    let widgetToken = null;
+
+    const sessionStatus = document.getElementById('sessionStatus');
+    const sessionMeta = document.getElementById('sessionMeta');
+    const orderStatus = document.getElementById('orderStatus');
+    const orderMeta = document.getElementById('orderMeta');
+    const bookBtn = document.getElementById('bookBtn');
+
+    function setStatus(el, text, kind) {
+      el.className = 'status ' + (kind || '');
+      el.textContent = text || '';
+    }
+
+    async function createSession() {
+      setStatus(sessionStatus, 'Initializing widget session...', '');
+      try {
+        const resp = await fetch(`${backendBase}/widget/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agency_key: agencyKey,
+            origin_host: parentHost || window.location.hostname
+          })
+        });
+        const payload = await resp.json();
+        if (!resp.ok) {
+          throw new Error(payload?.error?.message || `Widget session failed (${resp.status})`);
+        }
+        widgetToken = payload.widget_token;
+        setStatus(sessionStatus, `Connected to agency: ${payload?.agency?.name || 'N/A'}`, 'ok');
+        sessionMeta.style.display = 'block';
+        sessionMeta.textContent = JSON.stringify({
+          agency: payload.agency,
+          expires_in: payload.expires_in,
+          origin_host: parentHost || window.location.hostname
+        }, null, 2);
+      } catch (e) {
+        setStatus(sessionStatus, e.message, 'err');
+      }
+    }
+
+    async function createOrder() {
+      if (!widgetToken) {
+        setStatus(orderStatus, 'Session is not initialized', 'err');
+        return;
+      }
+      setStatus(orderStatus, 'Creating order...', '');
+      bookBtn.disabled = true;
+      try {
+        const body = {
+          origin_host: parentHost || window.location.hostname,
+          contacts: {
+            email: document.getElementById('email').value.trim(),
+            phone: document.getElementById('phone').value.trim()
+          },
+          offer: {
+            origin: document.getElementById('origin').value.trim().toUpperCase(),
+            destination: document.getElementById('destination').value.trim().toUpperCase(),
+            airline_code: document.getElementById('airlineCode').value.trim().toUpperCase(),
+            airline_name: document.getElementById('airlineCode').value.trim().toUpperCase(),
+            flight_number: document.getElementById('flightNumber').value.trim(),
+            departure_time: new Date().toISOString()
+          },
+          pricing: {
+            base_price: Number(document.getElementById('totalPrice').value || 0),
+            taxes: 0,
+            baggage_price: 0,
+            total_price: Number(document.getElementById('totalPrice').value || 0),
+            currency: document.getElementById('currency').value.trim().toUpperCase()
+          },
+          passengers: []
+        };
+
+        const resp = await fetch(`${backendBase}/widget/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${widgetToken}`
+          },
+          body: JSON.stringify(body)
+        });
+        const payload = await resp.json();
+        if (!resp.ok) {
+          throw new Error(payload?.error?.message || `Order create failed (${resp.status})`);
+        }
+        setStatus(orderStatus, `Order created: ${payload?.order?.order_number || payload?.order?.id}`, 'ok');
+        orderMeta.style.display = 'block';
+        orderMeta.textContent = JSON.stringify(payload, null, 2);
+      } catch (e) {
+        setStatus(orderStatus, e.message, 'err');
+      } finally {
+        bookBtn.disabled = false;
+      }
+    }
+
+    bookBtn.addEventListener('click', createOrder);
+    createSession();
+  </script>
+</body>
+</html>

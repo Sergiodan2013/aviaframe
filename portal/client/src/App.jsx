@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import axios from 'axios';
 import SearchForm from './components/SearchForm';
 import FlightCard from './components/FlightCard';
@@ -12,7 +12,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import { Plane, AlertCircle, TestTube2, User, LogOut, CheckCircle, BookOpen, Shield } from 'lucide-react';
 import { mockFlightData } from './mock/flightData';
 import { drctApi, formatDRCTError, calculateBaggagePrice } from './lib/drctApi';
-import { supabase } from './lib/supabase';
+import { supabase, getProfile } from './lib/supabase';
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
@@ -21,11 +21,12 @@ function App() {
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [useMockData, setUseMockData] = useState(false);
   const [selectedAirlines, setSelectedAirlines] = useState([]);
+  const [quickFilter, setQuickFilter] = useState('all');
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Page navigation state
-  const [currentPage, setCurrentPage] = useState('search'); // 'search', 'bookings', 'admin'
+  const [currentPage, setCurrentPage] = useState('search'); // 'search', 'bookings', 'admin', 'adminAgency'
   const [bookingsRefreshKey, setBookingsRefreshKey] = useState(0);
 
   // Booking flow state
@@ -35,17 +36,95 @@ function App() {
   const [booking, setBooking] = useState(null);
   const [lastSearchData, setLastSearchData] = useState(null);
   const [suggestedDates, setSuggestedDates] = useState([]);
+  const profileRefreshInFlightRef = useRef({});
+
+  const readOrdersCache = () => {
+    try {
+      const raw = localStorage.getItem('avia_orders_cache');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeOrdersCache = (orders) => {
+    try {
+      localStorage.setItem('avia_orders_cache', JSON.stringify(orders));
+    } catch {
+      // noop
+    }
+  };
 
   // Check for existing user session on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error('Failed to parse user from localStorage');
+    let mounted = true;
+    const readSessionWithRetry = async (attempts = 3) => {
+      let lastError = null;
+      for (let i = 0; i < attempts; i += 1) {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (!error) return { data, error: null };
+          lastError = error;
+          const msg = String(error?.message || '').toLowerCase();
+          if (!msg.includes('abort')) break;
+        } catch (err) {
+          lastError = err;
+          const msg = String(err?.message || '').toLowerCase();
+          if (!msg.includes('abort')) break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150));
       }
-    }
+      return { data: null, error: lastError };
+    };
+
+    const bootstrap = async () => {
+      try {
+        const { data, error } = await readSessionWithRetry(3);
+        if (error || !data?.session?.user) {
+          const msg = String(error?.message || '').toLowerCase();
+          if (msg.includes('abort')) {
+            return;
+          }
+          localStorage.removeItem('user');
+          if (mounted) setUser(null);
+          return;
+        }
+
+        const sessionUser = data.session.user;
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            if (parsed?.id === sessionUser.id) {
+              if (mounted) setUser(parsed);
+              return;
+            }
+          } catch {
+            // noop
+          }
+        }
+
+        const fallbackUser = {
+          id: sessionUser.id,
+          email: sessionUser.email,
+          name: (sessionUser.email || '').split('@')[0],
+          provider: sessionUser.app_metadata?.provider || 'email',
+          role: 'user',
+          roleFetchedAt: Date.now()
+        };
+        localStorage.setItem('user', JSON.stringify(fallbackUser));
+        if (mounted) setUser(fallbackUser);
+      } catch {
+        localStorage.removeItem('user');
+        if (mounted) setUser(null);
+      }
+    };
+    bootstrap();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Listen for auth state changes (Magic Link callback)
@@ -54,12 +133,48 @@ function App() {
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
 
-        if (event === 'SIGNED_IN' && session?.user) {
+        if (['SIGNED_IN', 'INITIAL_SESSION', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event) && session?.user) {
+          let role = 'user';
+          let roleFetchedAt = 0;
+          try {
+            const raw = localStorage.getItem('user');
+            if (raw) {
+              const cached = JSON.parse(raw);
+              if (cached?.id === session.user.id && cached?.role) {
+                role = cached.role;
+                roleFetchedAt = Number(cached.roleFetchedAt || 0);
+              }
+            }
+          } catch {
+            // noop
+          }
+
+          const now = Date.now();
+          const staleMs = 10 * 60 * 1000;
+          const needsRefresh = !role || role === 'user' || (now - roleFetchedAt > staleMs);
+
+          if (needsRefresh && !profileRefreshInFlightRef.current[session.user.id]) {
+            profileRefreshInFlightRef.current[session.user.id] = true;
+            try {
+              const { data: profile, error: profileError } = await getProfile(session.user.id);
+              if (profile?.role) {
+                role = profile.role;
+                roleFetchedAt = Date.now();
+              } else if (profileError?.message) {
+                console.info('Profile role not refreshed:', profileError.message);
+              }
+            } finally {
+              profileRefreshInFlightRef.current[session.user.id] = false;
+            }
+          }
+
           const user = {
             id: session.user.id,
             email: session.user.email,
             name: session.user.email.split('@')[0],
-            provider: session.user.app_metadata?.provider || 'email'
+            provider: session.user.app_metadata?.provider || 'email',
+            role,
+            roleFetchedAt: roleFetchedAt || Date.now()
           };
 
           localStorage.setItem('user', JSON.stringify(user));
@@ -79,16 +194,173 @@ function App() {
     };
   }, []);
 
-  // Filter flights based on selected airlines
-  const filteredFlights = useMemo(() => {
-    if (selectedAirlines.length === 0) {
-      return flights;
+  const getStopsCount = (offer) => {
+    const directStops = Number(offer?.stops);
+    if (Number.isFinite(directStops)) return Math.max(0, directStops);
+    const segCount = Array.isArray(offer?.segments) ? offer.segments.length : 0;
+    if (segCount > 0) return Math.max(0, segCount - 1);
+    return 0;
+  };
+
+  const getCheckedBaggageQty = (offer) => {
+    const bag = offer?.baggage;
+    if (bag?.type === 'checked') return Number(bag.quantity || 0);
+    if (Array.isArray(offer?.fare_details?.baggage)) {
+      const checked = offer.fare_details.baggage.find((b) => b?.type === 'checked');
+      if (checked) return Number(checked.quantity || 0);
     }
-    return flights.filter(flight => {
-      const airlineCode = flight.airline_code || flight.airline;
-      return selectedAirlines.includes(airlineCode);
+    if (Array.isArray(offer?.baggage)) {
+      const checked = offer.baggage.find((b) => b?.type === 'checked');
+      if (checked) return Number(checked.quantity || 0);
+    }
+    return 0;
+  };
+
+  const toCode = (v) => (typeof v === 'string' ? v.trim().toUpperCase() : null);
+
+  const parseMaybeJson = (v) => {
+    if (!v) return null;
+    if (typeof v === 'object') return v;
+    if (typeof v !== 'string') return null;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return null;
+    }
+  };
+
+  const buildOffersFromRawDRCT = (rawPayload, searchData) => {
+    const raw = parseMaybeJson(rawPayload) || {};
+    const body = parseMaybeJson(raw.body) || raw;
+    const flightOptions = Array.isArray(body.flights_options) ? body.flights_options : [];
+    const segmentList = Array.isArray(body.segments) ? body.segments : [];
+    const fareList = Array.isArray(body.fares) ? body.fares : [];
+
+    if (!flightOptions.length) return [];
+
+    const segmentById = Object.fromEntries(segmentList.filter((s) => s?.id).map((s) => [s.id, s]));
+    const fareById = Object.fromEntries(fareList.filter((f) => f?.id).map((f) => [f.id, f]));
+
+    const toSegmentVm = (seg) => {
+      const originCode = seg?.departure_airport?.code || null;
+      const destinationCode = seg?.arrival_airport?.code || null;
+      return {
+        id: seg?.id || null,
+        origin: seg?.departure_city?.name || seg?.departure_airport?.name || originCode,
+        origin_code: originCode,
+        destination: seg?.arrival_city?.name || seg?.arrival_airport?.name || destinationCode,
+        destination_code: destinationCode,
+        departure: [seg?.departure_date, seg?.departure_time].filter(Boolean).join(' ') || null,
+        arrival: [seg?.arrival_date, seg?.arrival_time].filter(Boolean).join(' ') || null,
+        carrier: {
+          airline_code: seg?.carrier?.airline_code || null,
+          airline_name: seg?.carrier?.airline_name || null,
+        },
+        flight_number: seg?.flight_number || null,
+      };
+    };
+
+    const expanded = [];
+    flightOptions.forEach((option, optionIdx) => {
+      const optionFlights = Array.isArray(option?.flights) ? option.flights : [];
+      const outboundIds = Array.isArray(optionFlights[0]?.segments) ? optionFlights[0].segments : [];
+      const returnIds = Array.isArray(optionFlights[1]?.segments) ? optionFlights[1].segments : [];
+      const outboundSegs = outboundIds.map((id) => segmentById[id]).filter(Boolean);
+      const returnSegs = returnIds.map((id) => segmentById[id]).filter(Boolean);
+      const allSegs = [...outboundSegs, ...returnSegs];
+
+      const offers = Array.isArray(option?.offers) ? option.offers : [];
+      offers.forEach((offer, offerIdx) => {
+        const outFirst = outboundSegs[0] || allSegs[0] || null;
+        const outLast = outboundSegs[outboundSegs.length - 1] || allSegs[allSegs.length - 1] || null;
+        const inFirst = returnSegs[0] || null;
+        const inLast = returnSegs[returnSegs.length - 1] || null;
+
+        const airlineCode = outFirst?.carrier?.airline_code || 'XX';
+        const airlineName = outFirst?.carrier?.airline_name || airlineCode;
+        const fareRefs = Array.isArray(offer?.fares) ? offer.fares : [];
+        const resolvedFare = fareRefs
+          .map((f) => (f?.id ? fareById[f.id] || f : f))
+          .find((f) => Array.isArray(f?.baggage));
+        const baggage = Array.isArray(resolvedFare?.baggage) ? resolvedFare.baggage : [];
+
+        expanded.push({
+          offer_id: offer?.id || `offer_${optionIdx}_${offerIdx}`,
+          id: offer?.id || `offer_${optionIdx}_${offerIdx}`,
+          price: {
+            total: Number(offer?.price?.amount || 0),
+            amount: Number(offer?.price?.amount || 0),
+            currency: offer?.price?.currency || 'UAH',
+          },
+          airline_code: airlineCode,
+          airline_name: airlineName,
+          airline: airlineCode,
+          logo_url: airlineCode !== 'XX' ? `https://pics.avs.io/200/80/${airlineCode}.png` : null,
+          origin: outFirst?.departure_airport?.code || toCode(searchData?.origin) || null,
+          origin_city: outFirst?.departure_city?.name || null,
+          destination: outLast?.arrival_airport?.code || toCode(searchData?.destination) || null,
+          destination_city: outLast?.arrival_city?.name || null,
+          departure_time: [outFirst?.departure_date, outFirst?.departure_time].filter(Boolean).join(' ') || null,
+          arrival_time: [outLast?.arrival_date, outLast?.arrival_time].filter(Boolean).join(' ') || null,
+          return_origin: inFirst?.departure_airport?.code || null,
+          return_origin_city: inFirst?.departure_city?.name || null,
+          return_destination: inLast?.arrival_airport?.code || null,
+          return_destination_city: inLast?.arrival_city?.name || null,
+          return_departure_time: [inFirst?.departure_date, inFirst?.departure_time].filter(Boolean).join(' ') || null,
+          return_arrival_time: [inLast?.arrival_date, inLast?.arrival_time].filter(Boolean).join(' ') || null,
+          stops: Math.max(0, outboundSegs.length ? outboundSegs.length - 1 : allSegs.length - 1),
+          baggage,
+          segments: allSegs.map(toSegmentVm),
+          _searchOrigin: toCode(searchData?.origin) || null,
+          _searchDestination: toCode(searchData?.destination) || null,
+          _searchReturnDate: searchData?.return_date || null,
+        });
+      });
     });
-  }, [flights, selectedAirlines]);
+
+    return expanded;
+  };
+
+  // Filter flights based on selected airlines and quick filters
+  const filteredFlights = useMemo(() => {
+    let result = flights;
+
+    if (selectedAirlines.length > 0) {
+      result = result.filter((flight) => {
+        const airlineCode = flight.airline_code || flight.airline;
+        return selectedAirlines.includes(airlineCode);
+      });
+    }
+
+    if (quickFilter === 'nonstop') {
+      result = result.filter((flight) => getStopsCount(flight) === 0);
+    } else if (quickFilter === 'one_stop') {
+      result = result.filter((flight) => getStopsCount(flight) === 1);
+    } else if (quickFilter === 'baggage') {
+      result = result.filter((flight) => getCheckedBaggageQty(flight) > 0);
+    }
+
+    return result;
+  }, [flights, selectedAirlines, quickFilter]);
+
+  const quickFilterStats = useMemo(() => {
+    const groups = {
+      all: flights,
+      nonstop: flights.filter((f) => getStopsCount(f) === 0),
+      one_stop: flights.filter((f) => getStopsCount(f) === 1),
+      baggage: flights.filter((f) => getCheckedBaggageQty(f) > 0),
+    };
+    const minPrice = (items) => {
+      if (!items.length) return null;
+      return Math.min(...items.map((f) => Number(f?.price?.total || 0)).filter((n) => Number.isFinite(n)));
+    };
+    return {
+      all: { count: groups.all.length, minPrice: minPrice(groups.all) },
+      nonstop: { count: groups.nonstop.length, minPrice: minPrice(groups.nonstop) },
+      one_stop: { count: groups.one_stop.length, minPrice: minPrice(groups.one_stop) },
+      baggage: { count: groups.baggage.length, minPrice: minPrice(groups.baggage) },
+    };
+  }, [flights]);
 
   // Handle offer selection - check auth first, then proceed to passenger form
   const handleOfferSelect = (offer) => {
@@ -129,7 +401,7 @@ function App() {
         const offer = JSON.parse(pendingOffer);
         handleOfferSelect(offer);
         localStorage.removeItem('pendingOffer');
-      } catch (e) {
+      } catch {
         console.error('Failed to parse pending offer');
       }
     }
@@ -256,6 +528,41 @@ function App() {
         currency: selectedOffer.price?.currency || 'UAH'
       };
 
+      // Local fallback cache (used when Supabase list is slow/unavailable)
+      const cachedOrder = {
+        id: n8nResponse?.id || `local_${Date.now()}`,
+        order_number: n8nResponse.order_number || n8nResponse.booking_reference || `ORD-${Date.now()}`,
+        drct_order_id: n8nResponse.drct_order_id || n8nResponse.booking_reference || null,
+        user_id: user?.id || null,
+        contact_email: data.email,
+        contact_phone: data.phone,
+        passenger_count: 1,
+        origin: selectedOffer.origin,
+        destination: selectedOffer.destination,
+        departure_time: selectedOffer.departure_time,
+        arrival_time: selectedOffer.arrival_time,
+        airline_code: selectedOffer.airline_code || selectedOffer.airline,
+        airline_name: selectedOffer.airline_name,
+        flight_number: selectedOffer.flight_number || null,
+        total_price: (selectedOffer.price?.total || 0) + baggagePrice.amount,
+        currency: selectedOffer.price?.currency || 'UAH',
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        raw_offer_data: selectedOffer
+      };
+      const currentCache = readOrdersCache();
+      const nextCache = [cachedOrder, ...currentCache];
+      const uniq = [];
+      const seen = new Set();
+      for (const o of nextCache) {
+        const k = `${o.order_number || ''}::${o.drct_order_id || ''}::${o.user_id || ''}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        uniq.push(o);
+      }
+      writeOrdersCache(uniq.slice(0, 200));
+
       setBooking(bookingData);
 
       // Refresh bookings list when user visits it next time
@@ -311,14 +618,31 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Navigate to Admin Dashboard
+  // Navigate to Staff Dashboard
   const handleGoToAdmin = () => {
     if (!user) {
       setIsAuthModalOpen(true);
       return;
     }
-    // Check if user is admin (you can add role check here)
+    // Staff roles only
+    if (!['admin', 'super_admin', 'agent'].includes(user.role)) {
+      setError('У вас нет прав доступа к админ-панели');
+      return;
+    }
     setCurrentPage('admin');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleGoToAgencyAdmin = () => {
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!['admin', 'super_admin'].includes(user.role)) {
+      setError('У вас нет прав доступа к режиму админа агентства');
+      return;
+    }
+    setCurrentPage('adminAgency');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -357,6 +681,7 @@ function App() {
     setSearchPerformed(false);
     setFlights([]);
     setSelectedAirlines([]); // Reset filters on new search
+    setQuickFilter('all');
     setSuggestedDates([]); // Clear previous suggestions
     setLastSearchData(searchData); // Store search params for retry
 
@@ -373,7 +698,8 @@ function App() {
     }
 
     try {
-      const searchUrl = import.meta.env.VITE_N8N_SEARCH_URL || '/webhook/drct/search';
+      // Default to n8n test webhook in local development.
+      const searchUrl = import.meta.env.VITE_N8N_SEARCH_URL || '/api/n8n/webhook-test/drct/search';
 
       console.log('=== Flight Search Started ===');
       console.log('Search payload:', JSON.stringify(searchData, null, 2));
@@ -399,12 +725,17 @@ function App() {
       // Case 1: response.data is a string
       if (typeof response.data === 'string') {
         console.warn('⚠️ Response is a STRING, attempting to parse...');
+        if (response.data.trim() === '') {
+          console.warn('⚠️ Empty string response from n8n. Treating as empty offers list.');
+          parsedData = { offers: [] };
+        } else {
         try {
           parsedData = JSON.parse(response.data);
           console.log('✅ Successfully parsed JSON string');
         } catch (e) {
           console.error('❌ Failed to parse response:', e);
-          throw new Error('Invalid JSON response from server');
+            throw new Error('Invalid JSON response from server');
+          }
         }
       }
 
@@ -436,6 +767,10 @@ function App() {
         console.log(`✅ Found ${parsedData.offers.length} offers`);
         console.log('Offers array:', parsedData.offers);
         resultFlights = parsedData.offers;
+      } else if (parsedData?.body?.flights_options || parsedData?.flights_options) {
+        const rebuilt = buildOffersFromRawDRCT(parsedData, searchData);
+        console.log(`✅ Rebuilt ${rebuilt.length} offers from raw DRCT body`);
+        resultFlights = rebuilt;
       } else if (Array.isArray(parsedData)) {
         console.log(`✅ Found ${parsedData.length} flights (array format)`);
         resultFlights = parsedData;
@@ -443,6 +778,149 @@ function App() {
         console.warn('⚠️ Unexpected response format:', parsedData);
         resultFlights = [];
       }
+
+      const isValidCode = (v) => {
+        if (!v || typeof v !== 'string') return false;
+        const x = v.trim().toUpperCase();
+        return x !== '' && x !== 'N/A' && x !== 'XX' && x !== 'UNKNOWN';
+      };
+
+      // Normalize route/airline/time fallbacks so UI does not show XX/N/A
+      // when upstream transform partially misses mappings.
+      resultFlights = resultFlights.map((offer) => {
+        const segments = Array.isArray(offer?.segments) ? offer.segments : [];
+        const firstSeg = segments[0];
+        const lastSeg = segments[segments.length - 1];
+
+        const normalizedOrigin = isValidCode(offer?.origin)
+          ? offer.origin
+          : (
+              firstSeg?.origin ||
+              firstSeg?.departure_airport?.code ||
+              firstSeg?.departure?.iataCode ||
+              searchData.origin ||
+              'N/A'
+            );
+
+        const normalizedDestination = isValidCode(offer?.destination)
+          ? offer.destination
+          : (
+              lastSeg?.destination ||
+              lastSeg?.arrival_airport?.code ||
+              lastSeg?.arrival?.iataCode ||
+              searchData.destination ||
+              'N/A'
+            );
+
+        const normalizedDepartureTime =
+          offer?.departure_time && offer.departure_time !== 'N/A'
+            ? offer.departure_time
+            : (
+                firstSeg?.departure ||
+                [firstSeg?.departure_date, firstSeg?.departure_time].filter(Boolean).join(' ') ||
+                null
+              );
+
+        const normalizedArrivalTime =
+          offer?.arrival_time && offer.arrival_time !== 'N/A'
+            ? offer.arrival_time
+            : (
+                lastSeg?.arrival ||
+                [lastSeg?.arrival_date, lastSeg?.arrival_time].filter(Boolean).join(' ') ||
+                null
+              );
+
+        const segCarrier = firstSeg?.carrier || {};
+        const normalizedAirlineCode = isValidCode(offer?.airline_code)
+          ? offer.airline_code
+          : (
+              isValidCode(offer?.airline)
+                ? offer.airline
+                : (segCarrier?.airline_code || null)
+            );
+
+        const normalizedAirlineName =
+          (offer?.airline_name && offer.airline_name !== 'Unknown Airline' && offer.airline_name !== 'N/A')
+            ? offer.airline_name
+            : (segCarrier?.airline_name || normalizedAirlineCode || 'Unknown Airline');
+
+        return {
+          ...offer,
+          origin: normalizedOrigin,
+          destination: normalizedDestination,
+          departure_time: normalizedDepartureTime,
+          arrival_time: normalizedArrivalTime,
+          airline_code: normalizedAirlineCode || offer?.airline_code || 'XX',
+          airline_name: normalizedAirlineName,
+          airline: normalizedAirlineCode || offer?.airline || 'XX',
+          logo_url:
+            normalizedAirlineCode && normalizedAirlineCode !== 'XX'
+              ? `https://pics.avs.io/200/80/${normalizedAirlineCode}.png`
+              : offer?.logo_url || null,
+          _searchOrigin: searchData.origin || null,
+          _searchDestination: searchData.destination || null,
+          _searchReturnDate: searchData.return_date || null,
+        };
+      });
+
+      // Hard dedupe in 2 passes:
+      // 1) exact duplicate payloads (same segment ids + same price)
+      // 2) same visible card (same route/time/airline/baggage/stops + same price)
+      const pass1 = [];
+      const seen1 = new Set();
+      for (const offer of resultFlights) {
+        const segIds = (Array.isArray(offer?.segments) ? offer.segments : [])
+          .map((s) => s?.id || '')
+          .join('|');
+        const exactKey = [
+          offer?.id || offer?.offer_id || '',
+          segIds,
+          Number(offer?.price?.amount || offer?.price?.total || 0),
+          offer?.price?.currency || ''
+        ].join('::');
+        if (seen1.has(exactKey)) continue;
+        seen1.add(exactKey);
+        pass1.push(offer);
+      }
+
+      const norm = (v) => String(v ?? '').trim().toUpperCase();
+      const pass2 = [];
+      const seen2 = new Set();
+      for (const offer of pass1) {
+        const checkedBagQty = (() => {
+          if (Array.isArray(offer?.baggage)) {
+            const b = offer.baggage.find((x) => x?.type === 'checked');
+            return Number(b?.quantity || 0);
+          }
+          if (offer?.baggage?.type === 'checked') return Number(offer.baggage.quantity || 0);
+          return 0;
+        })();
+
+        const segs = Array.isArray(offer?.segments) ? offer.segments : [];
+        const f = segs[0] || {};
+        const l = segs[segs.length - 1] || {};
+        const visibleKey = [
+          norm(offer?.airline_code || offer?.airline || f?.carrier?.airline_code),
+          norm(offer?.origin || f?.origin_code || f?.origin),
+          norm(offer?.destination || l?.destination_code || l?.destination),
+          norm(offer?.departure_time || f?.departure),
+          norm(offer?.arrival_time || l?.arrival),
+          norm(offer?.return_origin),
+          norm(offer?.return_destination),
+          norm(offer?.return_departure_time),
+          norm(offer?.return_arrival_time),
+          String(offer?.stops ?? ''),
+          String(checkedBagQty),
+          Number(offer?.price?.amount || offer?.price?.total || 0),
+          offer?.price?.currency || ''
+        ].join('::');
+
+        if (seen2.has(visibleKey)) continue;
+        seen2.add(visibleKey);
+        pass2.push(offer);
+      }
+
+      resultFlights = pass2;
 
       setFlights(resultFlights);
 
@@ -529,18 +1007,32 @@ function App() {
                     <BookOpen size={18} />
                     Мои бронирования
                   </button>
-                  {/* Admin Dashboard button - you can add role check here */}
-                  <button
-                    onClick={handleGoToAdmin}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      currentPage === 'admin'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Shield size={18} />
-                    Админ
-                  </button>
+                  {['admin', 'super_admin', 'agent'].includes(user.role) && (
+                    <button
+                      onClick={handleGoToAdmin}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        currentPage === 'admin'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Shield size={18} />
+                      {user.role === 'agent' ? 'Агентство' : 'Админ'}
+                    </button>
+                  )}
+                  {['admin', 'super_admin'].includes(user.role) && (
+                    <button
+                      onClick={handleGoToAgencyAdmin}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        currentPage === 'adminAgency'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Shield size={18} />
+                      Админ агентства
+                    </button>
+                  )}
                 </>
               )}
 
@@ -583,6 +1075,11 @@ function App() {
         {/* Page: Admin Dashboard */}
         {currentPage === 'admin' && (
           <AdminDashboard user={user} onBackToHome={handleBackToHome} />
+        )}
+
+        {/* Page: Agency Admin View (under same super-admin creds) */}
+        {currentPage === 'adminAgency' && (
+          <AdminDashboard user={user} onBackToHome={handleBackToHome} viewMode="agency_admin" />
         )}
 
         {/* Page: Search/Booking Flow */}
@@ -650,6 +1147,38 @@ function App() {
                   </span>
                 </div>
 
+                {/* Quick Filters */}
+                <div className="mb-5 grid grid-cols-1 md:grid-cols-4 gap-3">
+                  {[
+                    { id: 'all', label: 'Все' },
+                    { id: 'nonstop', label: 'Без пересадок' },
+                    { id: 'one_stop', label: '1 пересадка' },
+                    { id: 'baggage', label: 'С багажом' },
+                  ].map((item) => {
+                    const stat = quickFilterStats[item.id];
+                    const active = quickFilter === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setQuickFilter(item.id)}
+                        className={`text-left rounded-lg border p-3 transition-all ${
+                          active
+                            ? 'border-blue-500 bg-blue-50 shadow-sm'
+                            : 'border-gray-200 bg-white hover:border-blue-300'
+                        }`}
+                      >
+                        <div className={`text-sm font-semibold ${active ? 'text-blue-700' : 'text-gray-700'}`}>
+                          {item.label}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {stat?.count || 0} рейс(ов)
+                          {Number.isFinite(stat?.minPrice) ? ` · от ${stat.minPrice} UAH` : ''}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {/* Airline Filter */}
                 <AirlineFilter
                   offers={flights}
@@ -679,7 +1208,10 @@ function App() {
                       Try selecting different airlines or clear all filters.
                     </p>
                     <button
-                      onClick={() => setSelectedAirlines([])}
+                      onClick={() => {
+                        setSelectedAirlines([]);
+                        setQuickFilter('all');
+                      }}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md transition-colors"
                     >
                       Clear Filters
