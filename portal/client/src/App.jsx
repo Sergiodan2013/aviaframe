@@ -544,8 +544,9 @@ function App() {
       };
 
       // Local fallback cache (used when Supabase list is slow/unavailable)
+      const resolvedOrderId = n8nResponse?.id || n8nResponse?.order_id || null;
       const cachedOrder = {
-        id: n8nResponse?.id || `local_${Date.now()}`,
+        id: resolvedOrderId || `local_${Date.now()}`,
         order_number: n8nResponse.order_number || n8nResponse.booking_reference || `ORD-${Date.now()}`,
         drct_order_id: n8nResponse.drct_order_id || n8nResponse.booking_reference || null,
         user_id: user?.id || null,

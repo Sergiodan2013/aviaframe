@@ -688,6 +688,11 @@ const isUuid = (value) => (
 export const getOrderPaymentInstructions = async (orderRef) => {
   const inputOrderId = typeof orderRef === 'string' ? orderRef : (orderRef?.id || null);
   const inputOrderNumber = typeof orderRef === 'object' ? (orderRef?.order_number || null) : null;
+  const inputDrctOrderId = typeof orderRef === 'object' ? (orderRef?.drct_order_id || null) : null;
+  const inputEmail = typeof orderRef === 'object' ? (orderRef?.contact_email || null) : null;
+  const inputOrigin = typeof orderRef === 'object' ? (orderRef?.origin || null) : null;
+  const inputDestination = typeof orderRef === 'object' ? (orderRef?.destination || null) : null;
+  const inputDepartureTime = typeof orderRef === 'object' ? (orderRef?.departure_time || null) : null;
 
   if (inputOrderId && isUuid(inputOrderId)) {
     const { data, error } = await backendApiRequest(`/orders/${inputOrderId}/payment-instructions`, {
@@ -712,7 +717,7 @@ export const getOrderPaymentInstructions = async (orderRef) => {
   if (inputOrderId && isUuid(inputOrderId)) {
     const resp = await supabase
       .from('orders')
-      .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email')
+      .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email,drct_order_id,origin,destination,departure_time,created_at')
       .eq('id', inputOrderId)
       .single();
     order = resp.data || null;
@@ -722,7 +727,7 @@ export const getOrderPaymentInstructions = async (orderRef) => {
   if (!order && inputOrderNumber) {
     const respByNumber = await supabase
       .from('orders')
-      .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email')
+      .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email,drct_order_id,origin,destination,departure_time,created_at')
       .eq('order_number', inputOrderNumber)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -731,11 +736,43 @@ export const getOrderPaymentInstructions = async (orderRef) => {
     orderError = respByNumber.error || orderError;
   }
 
+  if (!order && inputDrctOrderId) {
+    const respByDrct = await supabase
+      .from('orders')
+      .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email,drct_order_id,origin,destination,departure_time,created_at')
+      .eq('drct_order_id', inputDrctOrderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    order = respByDrct.data || null;
+    orderError = respByDrct.error || orderError;
+  }
+
+  // Heuristic resolver for local cached entries without UUID.
+  if (!order && inputEmail && inputOrigin && inputDestination) {
+    const respByMeta = await supabase
+      .from('orders')
+      .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email,drct_order_id,origin,destination,departure_time,created_at')
+      .eq('contact_email', String(inputEmail).trim().toLowerCase())
+      .eq('origin', inputOrigin)
+      .eq('destination', inputDestination)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    const candidates = Array.isArray(respByMeta.data) ? respByMeta.data : [];
+    if (candidates.length > 0) {
+      const exactByTime = inputDepartureTime
+        ? candidates.find((r) => String(r.departure_time || '') === String(inputDepartureTime))
+        : null;
+      order = exactByTime || candidates[0];
+    }
+    orderError = respByMeta.error || orderError;
+  }
+
   if (!order) {
     if (inputOrderId && !isUuid(inputOrderId)) {
       return {
         data: null,
-        error: { message: 'Заказ еще синхронизируется с базой. Попробуйте через 10-20 секунд.' }
+        error: { message: 'Не удалось сопоставить локальный заказ с записью в базе. Откройте бронирование из актуального списка.' }
       };
     }
     return {
