@@ -118,6 +118,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
   const [agencySelfLoading, setAgencySelfLoading] = useState(false);
+  const [widgetDomains, setWidgetDomains] = useState([]);
+  const [domainDraft, setDomainDraft] = useState('');
+  const [showAddDomain, setShowAddDomain] = useState(false);
+  const [domainsDirty, setDomainsDirty] = useState(false);
+  const [domainsSaving, setDomainsSaving] = useState(false);
   const loadingRef = useRef(false);
   const isAgencyAdminPreview = viewMode === 'agency_admin';
   const isSuperAdminView = !isAgencyAdminPreview;
@@ -237,6 +242,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       .map((d) => d.trim().toLowerCase())
       .map((d) => d.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, ''))
       .filter(Boolean);
+  };
+
+  const normalizeWidgetDomain = (raw) => {
+    const list = parseWidgetDomains(raw);
+    return list[0] || '';
   };
 
   const getLegsFromOrder = (order) => {
@@ -444,6 +454,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         ? agencyData.settings.widget_allowed_domains.join('\n')
         : ''
     });
+    const domains = Array.isArray(agencyData?.settings?.widget_allowed_domains)
+      ? agencyData.settings.widget_allowed_domains
+      : [];
+    setWidgetDomains(domains.map((d) => normalizeWidgetDomain(d)).filter(Boolean));
+    setDomainsDirty(false);
+    setShowAddDomain(false);
+    setDomainDraft('');
     setAgencySelfMeta({
       id: agencyData?.id || null,
       name: agencyData?.name || null,
@@ -789,7 +806,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           sama_code: agencySelfForm.sama_code || null
         },
         contact_person_name: agencySelfForm.contact_person_name || null,
-        widget_allowed_domains: parseWidgetDomains(agencySelfForm.widget_allowed_domains)
+        widget_allowed_domains: widgetDomains
       };
       const agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
       if (isAgencyAdminPreview && !agencyIdForUpdate) {
@@ -809,6 +826,55 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setNotice({ type: 'error', text: `Ошибка сохранения настроек: ${err.message}` });
     } finally {
       setAgencySelfLoading(false);
+    }
+  };
+
+  const handleAddWidgetDomain = () => {
+    const next = normalizeWidgetDomain(domainDraft);
+    if (!next) {
+      setNotice({ type: 'error', text: 'Введите корректный домен (например: example.com)' });
+      return;
+    }
+    if (widgetDomains.includes(next)) {
+      setNotice({ type: 'error', text: 'Домен уже добавлен' });
+      return;
+    }
+    setWidgetDomains((prev) => [...prev, next]);
+    setDomainDraft('');
+    setShowAddDomain(false);
+    setDomainsDirty(true);
+  };
+
+  const handleRemoveWidgetDomain = (domain) => {
+    setWidgetDomains((prev) => prev.filter((d) => d !== domain));
+    setDomainsDirty(true);
+  };
+
+  const handleSaveWidgetDomains = async () => {
+    try {
+      setDomainsSaving(true);
+      const payload = {
+        widget_allowed_domains: widgetDomains
+      };
+      const agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
+      if (isAgencyAdminPreview && !agencyIdForUpdate) {
+        throw new Error('Agency is not linked to this account');
+      }
+      const { error } = (isAgencyAdminPreview && ['admin', 'super_admin'].includes(userProfile?.role))
+        ? await updateAdminAgency(agencyIdForUpdate, payload)
+        : await updateMyAgency(payload);
+      if (error) throw new Error(error.message || 'Domains save failed');
+      setDomainsDirty(false);
+      setNotice({ type: 'success', text: 'Домены виджета сохранены' });
+      if (isAgencyAdminPreview) {
+        await loadAdminData();
+      } else {
+        await loadMyAgencySettings();
+      }
+    } catch (err) {
+      setNotice({ type: 'error', text: `Ошибка сохранения доменов: ${err.message}` });
+    } finally {
+      setDomainsSaving(false);
     }
   };
 
@@ -1000,18 +1066,24 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       return '<!-- Сначала сохраните настройки агентства, чтобы получить ключ виджета -->';
     }
     const widgetBase = typeof window !== 'undefined' ? window.location.origin : '';
-    const backendBase = `${widgetBase}/api/backend`;
-    return `<div id="aviaframe-widget"></div>
+    const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
+    const n8nBaseAbsolute = rawN8nBase.startsWith('http')
+      ? rawN8nBase
+      : `${widgetBase}${rawN8nBase.startsWith('/') ? '' : '/'}${rawN8nBase}`;
+    const widgetApiUrl = n8nBaseAbsolute.endsWith('/drct')
+      ? n8nBaseAbsolute
+      : `${n8nBaseAbsolute}/drct`;
+    return `<div
+  id="aviaframe-widget"
+  data-aviaframe-widget
+  data-api-url="${widgetApiUrl}"
+  data-brand-name="${agencySelfMeta?.name || 'Aviaframe'}"
+  data-title="Flight Search"
+></div>
 <script
-  src="${widgetBase}/embed.js"
-  data-target-id="aviaframe-widget"
-  data-agency-key="${agencyKey}"
-  data-widget-base="${widgetBase}"
-  data-backend-base="${backendBase}"
-  data-height="780px"
-  data-locale="${agencySelfForm.language || 'en'}"
+  src="${widgetBase}/partner-widget/aviaframe-widget.js"
 ></script>`;
-  }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfForm.language]);
+  }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfMeta?.name]);
 
   const widgetPreviewUrl = useMemo(() => {
     const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || '';
@@ -1019,10 +1091,18 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     if (!widgetBase) return '/widget-preview.html';
     const preview = new URL('/widget-preview.html', widgetBase);
     if (agencyKey) preview.searchParams.set('agency_key', agencyKey);
-    preview.searchParams.set('backend_base', `${widgetBase}/api/backend`);
+    const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
+    const n8nBaseAbsolute = rawN8nBase.startsWith('http')
+      ? rawN8nBase
+      : `${widgetBase}${rawN8nBase.startsWith('/') ? '' : '/'}${rawN8nBase}`;
+    const widgetApiUrl = n8nBaseAbsolute.endsWith('/drct')
+      ? n8nBaseAbsolute
+      : `${n8nBaseAbsolute}/drct`;
+    preview.searchParams.set('api_url', widgetApiUrl);
     preview.searchParams.set('locale', agencySelfForm.language || 'en');
+    preview.searchParams.set('agency_name', agencySelfMeta?.name || 'Aviaframe');
     return preview.toString();
-  }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfForm.language]);
+  }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfMeta?.name, agencySelfForm.language]);
 
   const handleCopyWidgetSnippet = async () => {
     if (!widgetEmbedSnippet) return;
@@ -1232,12 +1312,57 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 placeholder="SAMA bank code"
                 className="border rounded px-2 py-1"
               />
-              <textarea
-                value={agencySelfForm.widget_allowed_domains}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, widget_allowed_domains: e.target.value }))}
-                placeholder="Разрешенные домены виджета (каждый с новой строки)"
-                className="border rounded px-2 py-1 min-h-20 md:col-span-3"
-              />
+              <div className="md:col-span-3 border rounded px-3 py-3 bg-white">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className="text-sm font-medium text-gray-700">Разрешенные домены виджета</span>
+                  <button
+                    onClick={() => setShowAddDomain((v) => !v)}
+                    className="bg-indigo-600 text-white rounded px-3 py-1 text-xs"
+                  >
+                    Добавить домен
+                  </button>
+                  <button
+                    onClick={handleSaveWidgetDomains}
+                    disabled={!domainsDirty || domainsSaving}
+                    className={`rounded px-3 py-1 text-xs ${(!domainsDirty || domainsSaving) ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white'}`}
+                  >
+                    {domainsSaving ? 'Сохраняем...' : domainsDirty ? 'Сохранить домены' : 'Сохранено'}
+                  </button>
+                </div>
+                {showAddDomain && (
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      value={domainDraft}
+                      onChange={(e) => setDomainDraft(e.target.value)}
+                      placeholder="example.com"
+                      className="border rounded px-2 py-1 flex-1"
+                    />
+                    <button
+                      onClick={handleAddWidgetDomain}
+                      className="bg-indigo-600 text-white rounded px-3 py-1 text-sm"
+                    >
+                      Добавить
+                    </button>
+                  </div>
+                )}
+                {widgetDomains.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {widgetDomains.map((d) => (
+                      <div key={d} className="flex items-center gap-2 px-2 py-1 rounded bg-indigo-50 border border-indigo-200">
+                        <span className="text-xs font-mono text-indigo-900">{d}</span>
+                        <button
+                          onClick={() => handleRemoveWidgetDomain(d)}
+                          className="text-xs text-red-600 hover:text-red-800"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Доменов пока нет. Добавьте минимум один домен сайта агентства.</p>
+                )}
+              </div>
               <button
                 onClick={handleSaveMyAgencySettings}
                 className="bg-blue-600 text-white rounded px-3 py-1"

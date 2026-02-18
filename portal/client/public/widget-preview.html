@@ -38,35 +38,38 @@
   <div class="wrap">
     <div class="card">
       <h1>Widget Preview</h1>
-      <p>Это предпросмотр встраивания через <code>embed.js</code> (как на сайте агентства).</p>
-      <p class="hint">Если видите ошибку про backend/proxy, значит на этом домене не подключен <code>/api/backend</code>.</p>
+      <p>Это предпросмотр реального поискового виджета для сайта агентства.</p>
+      <p class="hint">Проверьте поиск и выдачу рейсов на этой странице.</p>
     </div>
-    <div id="aviaframe-widget"></div>
+    <div
+      id="aviaframe-widget"
+      data-aviaframe-widget
+      data-api-url=""
+      data-brand-name="Aviaframe"
+      data-title="Flight Search"
+    ></div>
   </div>
 
   <script>
     const qs = new URLSearchParams(window.location.search);
-    const agencyKey = qs.get('agency_key') || '';
-    const backendBase = qs.get('backend_base') || `${window.location.origin}/api/backend`;
-    const locale = qs.get('locale') || 'en';
+    const apiUrl = qs.get('api_url') || '';
+    const agencyName = qs.get('agency_name') || 'Aviaframe';
 
-    if (!agencyKey) {
+    if (!apiUrl) {
       const node = document.getElementById('aviaframe-widget');
       node.innerHTML = `
         <div class="card" style="border-color:#fecaca;background:#fff5f5;color:#991b1b;">
-          <strong>Отсутствует ключ агентства</strong><br/>
-          Вернитесь в админку агентства и сохраните настройки, чтобы получить ключ виджета.
+          <strong>Не задан API URL виджета</strong><br/>
+          Откройте предпросмотр из админки агентства, где URL формируется автоматически.
         </div>
       `;
     } else {
+      const node = document.getElementById('aviaframe-widget');
+      node.setAttribute('data-api-url', apiUrl);
+      node.setAttribute('data-brand-name', agencyName);
+
       const script = document.createElement('script');
-      script.src = '/embed.js';
-      script.setAttribute('data-target-id', 'aviaframe-widget');
-      script.setAttribute('data-agency-key', agencyKey);
-      script.setAttribute('data-widget-base', window.location.origin);
-      script.setAttribute('data-backend-base', backendBase);
-      script.setAttribute('data-height', '780px');
-      script.setAttribute('data-locale', locale);
+      script.src = '/partner-widget/aviaframe-widget.js';
       document.body.appendChild(script);
     }
   </script>
