@@ -535,6 +535,23 @@ export const getAdminAgencies = async (params = {}) => {
   return { data: data?.agencies || null, error };
 };
 
+export const getAdminSuperAdmins = async () => {
+  const { data, error } = await backendApiRequest('/admin/super-admins', { method: 'GET' });
+  return { data: data?.super_admins || null, error };
+};
+
+export const createAdminSuperAdmin = async (payload) => {
+  const { data, error } = await backendApiRequest('/admin/super-admins', {
+    method: 'POST',
+    body: payload
+  });
+  return {
+    data: data?.super_admin || null,
+    created: !!data?.created,
+    error
+  };
+};
+
 export const createAdminAgency = async (payload) => {
   const { data, error } = await backendApiRequest('/admin/agencies', {
     method: 'POST',

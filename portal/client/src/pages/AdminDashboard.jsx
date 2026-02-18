@@ -5,6 +5,8 @@ import {
   getOrdersList,
   updateOrderStatus as updateOrderStatusApi,
   getAdminAgencies,
+  getAdminSuperAdmins,
+  createAdminSuperAdmin,
   createAdminAgency,
   updateAdminAgency,
   deleteAdminAgency,
@@ -38,12 +40,20 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [reportSummary, setReportSummary] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [superAdmins, setSuperAdmins] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [agenciesLoading, setAgenciesLoading] = useState(false);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [superAdminsLoading, setSuperAdminsLoading] = useState(false);
+  const [creatingSuperAdmin, setCreatingSuperAdmin] = useState(false);
   const [activeAdminSection, setActiveAdminSection] = useState('agencies');
   const [showCreateAgencyForm, setShowCreateAgencyForm] = useState(false);
+  const [superAdminForm, setSuperAdminForm] = useState({
+    email: '',
+    full_name: '',
+    phone: ''
+  });
   const [agencyFilters, setAgencyFilters] = useState({
     q: '',
     is_active: 'all'
@@ -201,6 +211,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     if (!['admin', 'super_admin'].includes(userProfile?.role)) return;
     if (activeAdminSection === 'agencies') {
       void loadAgencies();
+      if (userProfile?.role === 'super_admin') {
+        void loadSuperAdmins();
+      }
       return;
     }
     if (activeAdminSection === 'invoices') {
@@ -409,11 +422,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const loadAdminData = async () => {
     try {
       setAdminLoading(true);
-      const [agenciesRes, summaryRes, invoicesRes, ticketsRes] = await Promise.allSettled([
+      const [agenciesRes, summaryRes, invoicesRes, ticketsRes, superAdminsRes] = await Promise.allSettled([
         getAdminAgencies(),
         getAdminOrdersSummary(),
         getAdminInvoices({ limit: 20 }),
-        getAdminTickets({ limit: 20 })
+        getAdminTickets({ limit: 20 }),
+        userProfile?.role === 'super_admin' ? getAdminSuperAdmins() : Promise.resolve({ data: [], error: null })
       ]);
 
       if (agenciesRes.status === 'fulfilled' && !agenciesRes.value?.error) {
@@ -428,10 +442,26 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (ticketsRes.status === 'fulfilled' && !ticketsRes.value?.error) {
         setTickets(Array.isArray(ticketsRes.value?.data) ? ticketsRes.value.data : []);
       }
+      if (superAdminsRes.status === 'fulfilled' && !superAdminsRes.value?.error) {
+        setSuperAdmins(Array.isArray(superAdminsRes.value?.data) ? superAdminsRes.value.data : []);
+      }
     } catch (err) {
       console.error('Admin tools load failed:', err);
     } finally {
       setAdminLoading(false);
+    }
+  };
+
+  const loadSuperAdmins = async () => {
+    try {
+      setSuperAdminsLoading(true);
+      const { data, error } = await getAdminSuperAdmins();
+      if (error) throw new Error(error.message || 'Super admins load failed');
+      setSuperAdmins(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Ошибка загрузки super admin: ${err.message}` });
+    } finally {
+      setSuperAdminsLoading(false);
     }
   };
 
@@ -604,6 +634,37 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       await Promise.all([loadAdminData(), loadAgencies()]);
     } catch (err) {
       setNotice({ type: 'error', text: `Ошибка создания агентства: ${err.message}` });
+    }
+  };
+
+  const handleCreateSuperAdmin = async () => {
+    const email = String(superAdminForm.email || '').trim().toLowerCase();
+    if (!email) {
+      setNotice({ type: 'error', text: 'Укажите email для super admin' });
+      return;
+    }
+
+    try {
+      setCreatingSuperAdmin(true);
+      const payload = {
+        email,
+        full_name: String(superAdminForm.full_name || '').trim() || null,
+        phone: String(superAdminForm.phone || '').trim() || null
+      };
+      const { data, created, error } = await createAdminSuperAdmin(payload);
+      if (error) throw new Error(error.message || 'Failed to create super admin');
+      setNotice({
+        type: 'success',
+        text: created
+          ? `Super admin добавлен: ${data?.email || email}`
+          : `Права super admin обновлены: ${data?.email || email}`
+      });
+      setSuperAdminForm({ email: '', full_name: '', phone: '' });
+      await loadSuperAdmins();
+    } catch (err) {
+      setNotice({ type: 'error', text: `Ошибка создания super admin: ${err.message}` });
+    } finally {
+      setCreatingSuperAdmin(false);
     }
   };
 
@@ -1495,6 +1556,59 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   {adminLoading ? 'Обновляем...' : 'Обновить'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {userProfile?.role === 'super_admin' && isSuperAdminView && activeAdminSection === 'agencies' && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-purple-100">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-900">Super Admin</h2>
+              <button onClick={loadSuperAdmins} className="bg-gray-100 px-3 py-1 rounded text-sm">
+                {superAdminsLoading ? 'Загрузка...' : 'Обновить список'}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
+              <input
+                value={superAdminForm.email}
+                onChange={(e) => setSuperAdminForm((p) => ({ ...p, email: e.target.value }))}
+                placeholder="Email"
+                className="border rounded px-2 py-1"
+              />
+              <input
+                value={superAdminForm.full_name}
+                onChange={(e) => setSuperAdminForm((p) => ({ ...p, full_name: e.target.value }))}
+                placeholder="Имя"
+                className="border rounded px-2 py-1"
+              />
+              <input
+                value={superAdminForm.phone}
+                onChange={(e) => setSuperAdminForm((p) => ({ ...p, phone: e.target.value }))}
+                placeholder="Телефон"
+                className="border rounded px-2 py-1"
+              />
+              <button
+                onClick={handleCreateSuperAdmin}
+                disabled={creatingSuperAdmin}
+                className="bg-purple-600 text-white rounded px-3 py-1 disabled:opacity-60"
+              >
+                {creatingSuperAdmin ? 'Сохраняем...' : 'Добавить super admin'}
+              </button>
+            </div>
+            <div className="space-y-2 text-sm">
+              {superAdmins.map((sa) => (
+                <div key={sa.id} className="border rounded px-3 py-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div>
+                    <div className="font-semibold">{sa.full_name || 'Без имени'}</div>
+                    <div>{sa.email}</div>
+                  </div>
+                  <div className="text-gray-600">
+                    <div>Телефон: {sa.phone || 'N/A'}</div>
+                    <div>Обновлено: {sa.updated_at ? new Date(sa.updated_at).toLocaleString() : 'N/A'}</div>
+                  </div>
+                </div>
+              ))}
+              {superAdmins.length === 0 && <p className="text-gray-500">Пока нет super admin в списке</p>}
             </div>
           </div>
         )}

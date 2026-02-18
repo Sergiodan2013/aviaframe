@@ -91,6 +91,14 @@ function ensureAdmin(auth, res) {
   return true;
 }
 
+function ensureSuperAdmin(auth, res) {
+  if (normalizeRole(auth.profile.role) !== 'super_admin') {
+    forbidden(res, 'Super admin role required');
+    return false;
+  }
+  return true;
+}
+
 function ensureStaff(auth, res) {
   if (!isStaffRole(auth.profile.role)) {
     forbidden(res, 'Staff role required');
@@ -255,6 +263,27 @@ async function linkAgencyAdminProfileByEmail({ email, agencyId }) {
   }
 
   return { linkedProfile: updated };
+}
+
+async function findAuthUserByEmail(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  // Supabase Admin API doesn't provide direct lookup by email in this SDK path,
+  // so we page through users and match by normalized email.
+  const perPage = 100;
+  const maxPages = 20;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      throw new Error(`AUTH_USERS_LIST_FAILED: ${error.message}`);
+    }
+    const users = Array.isArray(data?.users) ? data.users : [];
+    const matched = users.find((u) => String(u?.email || '').trim().toLowerCase() === normalizedEmail);
+    if (matched) return matched;
+    if (users.length < perPage) break;
+  }
+  return null;
 }
 
 async function generateInvoicePdfForInvoice({ invoice, createdBy }) {
@@ -1140,6 +1169,143 @@ app.patch('/api/orders/:orderId/status', async (req, res) => {
     return res.json({ order: updated });
   } catch (err) {
     console.error('Order status update error:', err);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
+      }
+    });
+  }
+});
+
+app.get('/api/admin/super-admins', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+  if (!ensureSuperAdmin(auth, res)) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,email,full_name,phone,role,agency_id,created_at,updated_at')
+      .eq('role', 'super_admin')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({
+        error: { code: 'SUPER_ADMINS_LIST_FAILED', message: error.message }
+      });
+    }
+
+    return res.json({ super_admins: data || [] });
+  } catch (err) {
+    console.error('Super admins list error:', err);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
+      }
+    });
+  }
+});
+
+app.post('/api/admin/super-admins', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+  if (!ensureSuperAdmin(auth, res)) return;
+
+  const {
+    email,
+    full_name: fullName = null,
+    phone = null
+  } = req.body || {};
+
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: 'Valid email is required' }
+    });
+  }
+
+  try {
+    let { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id,email,full_name,phone,role,agency_id,created_at,updated_at')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (profileError) {
+      return res.status(500).json({
+        error: { code: 'PROFILE_LOOKUP_FAILED', message: profileError.message }
+      });
+    }
+
+    let created = false;
+    if (!profile) {
+      const authUser = await findAuthUserByEmail(normalizedEmail);
+      if (!authUser?.id) {
+        return res.status(404).json({
+          error: {
+            code: 'AUTH_USER_NOT_FOUND',
+            message: 'User with this email not found. User must sign in at least once.'
+          }
+        });
+      }
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authUser.id,
+          email: normalizedEmail,
+          full_name: fullName || null,
+          phone: phone || null,
+          role: 'super_admin',
+          agency_id: null,
+          updated_at: new Date().toISOString()
+        })
+        .select('id,email,full_name,phone,role,agency_id,created_at,updated_at')
+        .single();
+
+      if (insertError || !inserted) {
+        return res.status(500).json({
+          error: { code: 'SUPER_ADMIN_CREATE_FAILED', message: insertError?.message || 'Failed to create profile' }
+        });
+      }
+      profile = inserted;
+      created = true;
+    } else {
+      const patch = {
+        role: 'super_admin',
+        agency_id: null,
+        updated_at: new Date().toISOString()
+      };
+      if (fullName !== null) patch.full_name = fullName || null;
+      if (phone !== null) patch.phone = phone || null;
+
+      const { data: updated, error: updateError } = await supabase
+        .from('profiles')
+        .update(patch)
+        .eq('id', profile.id)
+        .select('id,email,full_name,phone,role,agency_id,created_at,updated_at')
+        .single();
+
+      if (updateError || !updated) {
+        return res.status(500).json({
+          error: { code: 'SUPER_ADMIN_UPDATE_FAILED', message: updateError?.message || 'Failed to update profile' }
+        });
+      }
+      profile = updated;
+    }
+
+    return res.status(created ? 201 : 200).json({
+      super_admin: profile,
+      created
+    });
+  } catch (err) {
+    console.error('Super admin create error:', err);
     return res.status(500).json({
       error: {
         code: 'INTERNAL_ERROR',
