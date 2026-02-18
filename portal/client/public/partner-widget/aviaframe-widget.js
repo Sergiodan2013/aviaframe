@@ -61,6 +61,25 @@
     onError: null // function(error) {}
   };
 
+  const DEFAULT_AIRPORTS = [
+    { code: 'RUH', city: 'Riyadh', name: 'King Khalid International' },
+    { code: 'DXB', city: 'Dubai', name: 'Dubai International' },
+    { code: 'AUH', city: 'Abu Dhabi', name: 'Zayed International' },
+    { code: 'JED', city: 'Jeddah', name: 'King Abdulaziz International' },
+    { code: 'DMM', city: 'Dammam', name: 'King Fahd International' },
+    { code: 'CAI', city: 'Cairo', name: 'Cairo International' },
+    { code: 'DOH', city: 'Doha', name: 'Hamad International' },
+    { code: 'AMS', city: 'Amsterdam', name: 'Schiphol' },
+    { code: 'EZE', city: 'Buenos Aires', name: 'Ministro Pistarini' },
+    { code: 'BUD', city: 'Budapest', name: 'Ferenc Liszt International' },
+    { code: 'LHR', city: 'London', name: 'Heathrow' },
+    { code: 'CDG', city: 'Paris', name: 'Charles de Gaulle' },
+    { code: 'FRA', city: 'Frankfurt', name: 'Frankfurt Airport' },
+    { code: 'IST', city: 'Istanbul', name: 'Istanbul Airport' },
+    { code: 'JFK', city: 'New York', name: 'John F. Kennedy International' },
+    { code: 'LAX', city: 'Los Angeles', name: 'Los Angeles International' }
+  ];
+
   // Create widget instance
   class AviaframeWidget {
     constructor(containerId, userConfig = {}) {
@@ -79,6 +98,9 @@
 
       this.flights = [];
       this.loading = false;
+      this.airports = Array.isArray(this.config.airports) && this.config.airports.length
+        ? this.config.airports
+        : DEFAULT_AIRPORTS;
 
       this.init();
     }
@@ -312,6 +334,10 @@
     }
 
     render() {
+      const airportsOptions = this.airports
+        .map((airport) => `<option value="${airport.code} - ${airport.city} (${airport.name})"></option>`)
+        .join('');
+
       const html = `
         <div class="aviaframe-widget">
           <div class="aviaframe-header">
@@ -327,10 +353,9 @@
                 type="text"
                 class="aviaframe-input"
                 name="origin"
-                placeholder="JFK"
+                placeholder="RUH or Riyadh"
                 required
-                maxlength="3"
-                pattern="[A-Za-z]{3}"
+                list="aviaframe-airports-list"
               />
             </div>
 
@@ -340,10 +365,9 @@
                 type="text"
                 class="aviaframe-input"
                 name="destination"
-                placeholder="LAX"
+                placeholder="DXB or Dubai"
                 required
-                maxlength="3"
-                pattern="[A-Za-z]{3}"
+                list="aviaframe-airports-list"
               />
             </div>
 
@@ -409,6 +433,10 @@
               </button>
             </div>
           </form>
+
+          <datalist id="aviaframe-airports-list">
+            ${airportsOptions}
+          </datalist>
 
           <div id="aviaframe-results"></div>
         </div>
@@ -505,9 +533,24 @@
       e.preventDefault();
 
       const formData = new FormData(e.target);
+      const parseAirportCode = (value) => {
+        if (!value || typeof value !== 'string') return null;
+        const trimmed = value.trim().toUpperCase();
+        if (/^[A-Z]{3}$/.test(trimmed)) return trimmed;
+        const match = trimmed.match(/\b([A-Z]{3})\b/);
+        return match ? match[1] : null;
+      };
+      const originCode = parseAirportCode(formData.get('origin'));
+      const destinationCode = parseAirportCode(formData.get('destination'));
+
+      if (!originCode || !destinationCode) {
+        this.showError('Please select valid airport codes (IATA) for From/To, e.g. RUH, DXB.');
+        return;
+      }
+
       const searchParams = {
-        origin: formData.get('origin').toUpperCase(),
-        destination: formData.get('destination').toUpperCase(),
+        origin: originCode,
+        destination: destinationCode,
         depart_date: formData.get('depart_date'),
         return_date: formData.get('return_date') || null,
         adults: parseInt(formData.get('adults') || 1),
