@@ -546,20 +546,83 @@ export const getAdminAgencies = async (params = {}) => {
 };
 
 export const getAdminSuperAdmins = async () => {
-  const { data, error } = await backendApiRequest('/admin/super-admins', { method: 'GET' });
-  return { data: data?.super_admins || null, error };
+  const backend = await backendApiRequest('/admin/super-admins', { method: 'GET' });
+  if (!backend?.error) {
+    return { data: backend.data?.super_admins || null, error: null };
+  }
+
+  // Fallback for frontend-only deploys without /api/backend proxy.
+  const fallback = await supabase
+    .from('profiles')
+    .select('id,email,full_name,phone,role,agency_id,created_at,updated_at')
+    .in('role', ['admin', 'super_admin'])
+    .order('updated_at', { ascending: false });
+  if (!fallback.error) {
+    return { data: fallback.data || [], error: null };
+  }
+
+  return { data: null, error: backend.error };
 };
 
 export const createAdminSuperAdmin = async (payload) => {
-  const { data, error } = await backendApiRequest('/admin/super-admins', {
+  const backend = await backendApiRequest('/admin/super-admins', {
     method: 'POST',
     body: payload
   });
-  return {
-    data: data?.super_admin || null,
-    created: !!data?.created,
-    error
+  if (!backend?.error) {
+    return {
+      data: backend.data?.super_admin || null,
+      created: !!backend.data?.created,
+      error: null
+    };
+  }
+
+  // Fallback for frontend-only deploys without /api/backend proxy.
+  const normalizedEmail = String(payload?.email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    return { data: null, created: false, error: { message: 'Valid email is required' } };
+  }
+
+  const existing = await supabase
+    .from('profiles')
+    .select('id,email,full_name,phone,role,agency_id,created_at,updated_at')
+    .eq('email', normalizedEmail)
+    .maybeSingle();
+
+  if (existing.error) {
+    return { data: null, created: false, error: backend.error };
+  }
+  if (!existing.data?.id) {
+    return {
+      data: null,
+      created: false,
+      error: { message: 'User with this email must sign in at least once before role assignment.' }
+    };
+  }
+
+  const patch = {
+    role: 'admin',
+    agency_id: null,
+    updated_at: new Date().toISOString()
   };
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'full_name')) {
+    patch.full_name = payload.full_name || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'phone')) {
+    patch.phone = payload.phone || null;
+  }
+
+  const updated = await supabase
+    .from('profiles')
+    .update(patch)
+    .eq('id', existing.data.id)
+    .select('id,email,full_name,phone,role,agency_id,created_at,updated_at')
+    .single();
+
+  if (updated.error) {
+    return { data: null, created: false, error: backend.error };
+  }
+  return { data: updated.data || null, created: false, error: null };
 };
 
 export const createAdminAgency = async (payload) => {
