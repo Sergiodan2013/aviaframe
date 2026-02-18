@@ -680,8 +680,74 @@ export const getOrderTicketDocument = async (orderId) => {
   };
 };
 
-export const getOrderPaymentInstructions = async (orderId) => {
-  const { data, error } = await backendApiRequest(`/orders/${orderId}/payment-instructions`, {
+const isUuid = (value) => (
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+);
+
+export const getOrderPaymentInstructions = async (orderRef) => {
+  const inputOrderId = typeof orderRef === 'string' ? orderRef : (orderRef?.id || null);
+  const inputOrderNumber = typeof orderRef === 'object' ? (orderRef?.order_number || null) : null;
+
+  if (inputOrderId && isUuid(inputOrderId)) {
+    const { data, error } = await backendApiRequest(`/orders/${inputOrderId}/payment-instructions`, {
+      method: 'GET'
+    });
+    if (data?.payment_instruction) {
+      return {
+        data: data.payment_instruction,
+        error: null
+      };
+    }
+    if (error && !inputOrderNumber) {
+      return {
+        data: null,
+        error
+      };
+    }
+  }
+
+  let order = null;
+  let orderError = null;
+  if (inputOrderId && isUuid(inputOrderId)) {
+    const resp = await supabase
+      .from('orders')
+      .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email')
+      .eq('id', inputOrderId)
+      .single();
+    order = resp.data || null;
+    orderError = resp.error || null;
+  }
+
+  if (!order && inputOrderNumber) {
+    const respByNumber = await supabase
+      .from('orders')
+      .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email')
+      .eq('order_number', inputOrderNumber)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    order = respByNumber.data || null;
+    orderError = respByNumber.error || orderError;
+  }
+
+  if (!order) {
+    if (inputOrderId && !isUuid(inputOrderId)) {
+      return {
+        data: null,
+        error: { message: 'Заказ еще синхронизируется с базой. Попробуйте через 10-20 секунд.' }
+      };
+    }
+    return {
+      data: null,
+      error: orderError || { message: 'Order not found' }
+    };
+  }
+
+  /*
+   * Continue with resolved order from Supabase fallback.
+   */
+  const { data, error } = await backendApiRequest(`/orders/${order.id}/payment-instructions`, {
     method: 'GET'
   });
   if (data?.payment_instruction) {
@@ -692,17 +758,7 @@ export const getOrderPaymentInstructions = async (orderId) => {
   }
 
   // Fallback for frontend-only deploys without /api/backend proxy.
-  const { data: order, error: orderError } = await supabase
-    .from('orders')
-    .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email')
-    .eq('id', orderId)
-    .single();
-  if (orderError || !order) {
-    return {
-      data: null,
-      error: orderError || error || { message: 'Order not found' }
-    };
-  }
+  if (error && !order) return { data: null, error };
 
   let resolvedAgencyId = order.agency_id || null;
   if (!resolvedAgencyId && order.user_id) {

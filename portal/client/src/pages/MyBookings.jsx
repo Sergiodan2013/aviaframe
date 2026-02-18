@@ -232,7 +232,7 @@ export default function MyBookings({ user, onBackToHome }) {
   const handlePaymentInstructions = async (order) => {
     try {
       setPaymentInstructionLoading(true);
-      const { data, error: reqError } = await getOrderPaymentInstructions(order.id);
+      const { data, error: reqError } = await getOrderPaymentInstructions(order);
       if (reqError) throw new Error(reqError.message || 'Payment instructions load failed');
       if (!data) throw new Error('Payment instructions not found');
       setPaymentInstruction(data);
