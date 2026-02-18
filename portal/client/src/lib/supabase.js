@@ -121,6 +121,8 @@ const fetchBackendOrders = async (params = {}) => {
 
 const parseBackendResponse = async (resp, fallbackMessage) => {
   const raw = await resp.text();
+  const rawTrimmed = String(raw || '').trim();
+  const looksLikeHtml = /^<!doctype html>|^<html[\s>]/i.test(rawTrimmed);
   let payload = null;
   try {
     payload = raw ? JSON.parse(raw) : null;
@@ -128,6 +130,14 @@ const parseBackendResponse = async (resp, fallbackMessage) => {
     payload = null;
   }
   if (!resp.ok) {
+    if (looksLikeHtml) {
+      return {
+        data: null,
+        error: {
+          message: 'Backend API is not configured on this domain (/api/backend returned HTML). Configure VITE_BACKEND_API_BASE_URL or Netlify proxy.'
+        }
+      };
+    }
     return {
       data: null,
       error: payload?.error || { message: raw || `${fallbackMessage} (${resp.status})` }
