@@ -209,13 +209,36 @@ export const getProfile = async (userId) => {
   console.log('[supabase] getProfile start', { userId });
   try {
     const backendResult = await backendApiRequest('/profile/me', { method: 'GET' });
-    const data = backendResult.data?.profile || null;
-    const error = backendResult.error || null;
+    const backendData = backendResult.data?.profile || null;
+    const backendError = backendResult.error || null;
+    if (backendData?.id || backendData?.role) {
+      console.log('[supabase] getProfile done', {
+        source: 'backend',
+        hasData: true,
+        error: backendError?.message || null
+      });
+      return { data: backendData, error: null };
+    }
+
+    // Fallback for frontend-only deploys where /api/backend is not wired.
+    const { data: directProfile, error: directError } = await supabase
+      .from('profiles')
+      .select('id,email,role,agency_id,updated_at')
+      .eq('id', userId)
+      .maybeSingle();
+
     console.log('[supabase] getProfile done', {
-      hasData: !!data,
-      error: error?.message || null
+      source: 'supabase-fallback',
+      hasData: !!directProfile,
+      backendError: backendError?.message || null,
+      directError: directError?.message || null
     });
-    return { data, error };
+
+    if (directProfile) {
+      return { data: directProfile, error: null };
+    }
+
+    return { data: null, error: directError || backendError || null };
   } catch (err) {
     console.warn('[supabase] getProfile failed', err?.message || err);
     return {

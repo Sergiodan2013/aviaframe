@@ -138,7 +138,7 @@ function App() {
         const { data, error } = await readSessionWithRetry(3);
         if (error || !data?.session?.user) {
           const msg = String(error?.message || '').toLowerCase();
-          if (msg.includes('abort') && storedUser?.id) {
+          if (storedUser?.id) {
             if (mounted) setUser({ ...storedUser, role: normalizeRole(storedUser.role) });
             return;
           }
