@@ -996,7 +996,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
   const widgetEmbedSnippet = useMemo(() => {
     const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || '';
-    if (!agencyKey) return '';
+    if (!agencyKey) {
+      return '<!-- Сначала сохраните настройки агентства, чтобы получить ключ виджета -->';
+    }
     const widgetBase = typeof window !== 'undefined' ? window.location.origin : '';
     const backendBase = `${widgetBase}/api/backend`;
     return `<div id="aviaframe-widget"></div>
@@ -1011,10 +1013,38 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 ></script>`;
   }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfForm.language]);
 
+  const widgetPreviewUrl = useMemo(() => {
+    const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || '';
+    const widgetBase = typeof window !== 'undefined' ? window.location.origin : '';
+    if (!widgetBase) return '/widget-preview.html';
+    const preview = new URL('/widget-preview.html', widgetBase);
+    if (agencyKey) preview.searchParams.set('agency_key', agencyKey);
+    preview.searchParams.set('backend_base', `${widgetBase}/api/backend`);
+    preview.searchParams.set('locale', agencySelfForm.language || 'en');
+    return preview.toString();
+  }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfForm.language]);
+
   const handleCopyWidgetSnippet = async () => {
     if (!widgetEmbedSnippet) return;
+    const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || '';
+    if (!agencyKey) {
+      setNotice({ type: 'error', text: 'Сначала сохраните настройки агентства и получите ключ виджета.' });
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(widgetEmbedSnippet);
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(widgetEmbedSnippet);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = widgetEmbedSnippet;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
       setNotice({ type: 'success', text: 'Код виджета скопирован' });
     } catch {
       setNotice({ type: 'error', text: 'Не удалось скопировать код виджета' });
@@ -1222,7 +1252,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               <div className="text-xs text-indigo-900/80 mb-3 space-y-1">
                 <p>1) Добавьте домены сайта в поле выше и сохраните.</p>
                 <p>2) Скопируйте embed-код и вставьте на сайт агентства.</p>
-                <p>3) Проверьте на боевом домене, что поиск и бронирование работают.</p>
+                <p>3) Откройте предпросмотр и убедитесь, что виджет грузится.</p>
               </div>
               <textarea
                 readOnly
@@ -1237,7 +1267,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   Скопировать код
                 </button>
                 <button
-                  onClick={() => window.open('/widget-frame.html', '_blank')}
+                  onClick={() => window.open(widgetPreviewUrl, '_blank')}
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
                   Предпросмотр
@@ -1246,25 +1276,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   onClick={() => window.open('/widget-docs/INTEGRATION_GUIDE.md', '_blank')}
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
-                  Integration Guide
-                </button>
-                <button
-                  onClick={() => window.open('/widget-docs/EMBED_GUIDE.md', '_blank')}
-                  className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
-                >
-                  Embed Guide
+                  Инструкция
                 </button>
                 <button
                   onClick={() => window.open('/widget-docs/README.md', '_blank')}
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
-                  README
-                </button>
-                <button
-                  onClick={() => window.open('/widget-docs/WIDGET_COMPLETE.md', '_blank')}
-                  className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
-                >
-                  Checklist
+                  Тех. описание
                 </button>
               </div>
               <p className="text-xs text-gray-600 mt-2">

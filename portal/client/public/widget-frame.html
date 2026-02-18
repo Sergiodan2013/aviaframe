@@ -178,7 +178,16 @@
             origin_host: parentHost || window.location.hostname
           })
         });
-        const payload = await resp.json();
+        const raw = await resp.text();
+        let payload = null;
+        try {
+          payload = raw ? JSON.parse(raw) : null;
+        } catch {
+          payload = null;
+        }
+        if (!payload) {
+          throw new Error('Backend endpoint is not configured on this domain (/api/backend returned non-JSON)');
+        }
         if (!resp.ok) {
           throw new Error(payload?.error?.message || `Widget session failed (${resp.status})`);
         }
@@ -235,7 +244,16 @@
           },
           body: JSON.stringify(body)
         });
-        const payload = await resp.json();
+        const raw = await resp.text();
+        let payload = null;
+        try {
+          payload = raw ? JSON.parse(raw) : null;
+        } catch {
+          payload = null;
+        }
+        if (!payload) {
+          throw new Error('Backend endpoint is not configured on this domain (/api/backend returned non-JSON)');
+        }
         if (!resp.ok) {
           throw new Error(payload?.error?.message || `Order create failed (${resp.status})`);
         }

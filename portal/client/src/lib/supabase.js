@@ -624,8 +624,38 @@ export const updateAdminInvoice = async (invoiceId, payload) => {
 };
 
 export const getMyAgency = async () => {
-  const { data, error } = await backendApiRequest('/agency/me', { method: 'GET' });
-  return { data: data?.agency || null, error };
+  const backend = await backendApiRequest('/agency/me', { method: 'GET' });
+  if (backend?.data?.agency) {
+    return { data: backend.data.agency, error: null };
+  }
+
+  // Fallback for frontend-only deploys without /api/backend proxy.
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const userId = authData?.user?.id;
+    if (authError || !userId) {
+      return { data: null, error: authError || backend?.error || { message: 'UNAUTHORIZED' } };
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('agency_id')
+      .eq('id', userId)
+      .maybeSingle();
+    if (profileError) return { data: null, error: profileError };
+    if (!profile?.agency_id) {
+      return { data: null, error: { message: 'AGENCY_NOT_ASSIGNED' } };
+    }
+
+    const { data: agency, error: agencyError } = await supabase
+      .from('agencies')
+      .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
+      .eq('id', profile.agency_id)
+      .single();
+    return { data: agency || null, error: agencyError || null };
+  } catch (err) {
+    return { data: null, error: { message: err?.message || 'Agency load failed' } };
+  }
 };
 
 export const updateMyAgency = async (payload) => {
