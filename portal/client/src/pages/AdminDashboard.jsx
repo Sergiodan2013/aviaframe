@@ -122,6 +122,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const isAgencyAdminPreview = viewMode === 'agency_admin';
   const isSuperAdminView = !isAgencyAdminPreview;
 
+  const normalizeRole = (role) => {
+    const normalized = String(role || 'user').trim().toLowerCase().replace(/-/g, '_');
+    if (normalized === 'superadmin') return 'super_admin';
+    if (normalized === 'agency_admin' || normalized === 'agency') return 'agent';
+    if (normalized === 'administrator') return 'admin';
+    if (['admin', 'super_admin', 'agent', 'user'].includes(normalized)) return normalized;
+    return 'user';
+  };
+
   const readOrdersCache = () => {
     try {
       const raw = localStorage.getItem('avia_orders_cache');
@@ -292,7 +301,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
       let profile = userProfile;
       if (!profile) {
-        const role = user?.role || 'user';
+        const role = normalizeRole(user?.role || 'user');
         profile = {
           id: user.id,
           role,

@@ -38,6 +38,50 @@ function App() {
   const [suggestedDates, setSuggestedDates] = useState([]);
   const profileRefreshInFlightRef = useRef({});
 
+  const normalizeRole = (role) => {
+    const normalized = String(role || 'user').trim().toLowerCase().replace(/-/g, '_');
+    if (normalized === 'superadmin') return 'super_admin';
+    if (normalized === 'agency_admin' || normalized === 'agency') return 'agent';
+    if (normalized === 'administrator') return 'admin';
+    if (['admin', 'super_admin', 'agent', 'user'].includes(normalized)) return normalized;
+    return 'user';
+  };
+
+  const isStaffRole = (role) => ['admin', 'super_admin', 'agent'].includes(normalizeRole(role));
+  const isAdminRole = (role) => ['admin', 'super_admin'].includes(normalizeRole(role));
+
+  const getSessionUserView = async (sessionUser, cachedUser = null) => {
+    let role = normalizeRole(cachedUser?.role || 'user');
+    let roleFetchedAt = Number(cachedUser?.roleFetchedAt || 0);
+    const now = Date.now();
+    const staleMs = 10 * 60 * 1000;
+    const needsRefresh = !role || role === 'user' || (now - roleFetchedAt > staleMs);
+
+    if (needsRefresh && sessionUser?.id && !profileRefreshInFlightRef.current[sessionUser.id]) {
+      profileRefreshInFlightRef.current[sessionUser.id] = true;
+      try {
+        const { data: profile, error: profileError } = await getProfile(sessionUser.id);
+        if (profile?.role) {
+          role = normalizeRole(profile.role);
+          roleFetchedAt = Date.now();
+        } else if (profileError?.message) {
+          console.info('Profile role not refreshed:', profileError.message);
+        }
+      } finally {
+        profileRefreshInFlightRef.current[sessionUser.id] = false;
+      }
+    }
+
+    return {
+      id: sessionUser.id,
+      email: sessionUser.email,
+      name: (sessionUser.email || '').split('@')[0],
+      provider: sessionUser.app_metadata?.provider || 'email',
+      role,
+      roleFetchedAt: roleFetchedAt || Date.now()
+    };
+  };
+
   const readOrdersCache = () => {
     try {
       const raw = localStorage.getItem('avia_orders_cache');
@@ -81,10 +125,21 @@ function App() {
 
     const bootstrap = async () => {
       try {
+        const storedUserRaw = localStorage.getItem('user');
+        let storedUser = null;
+        if (storedUserRaw) {
+          try {
+            storedUser = JSON.parse(storedUserRaw);
+          } catch {
+            storedUser = null;
+          }
+        }
+
         const { data, error } = await readSessionWithRetry(3);
         if (error || !data?.session?.user) {
           const msg = String(error?.message || '').toLowerCase();
-          if (msg.includes('abort')) {
+          if (msg.includes('abort') && storedUser?.id) {
+            if (mounted) setUser({ ...storedUser, role: normalizeRole(storedUser.role) });
             return;
           }
           localStorage.removeItem('user');
@@ -93,30 +148,21 @@ function App() {
         }
 
         const sessionUser = data.session.user;
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
+        const cached = storedUser?.id === sessionUser.id ? storedUser : null;
+        const nextUser = await getSessionUserView(sessionUser, cached);
+        localStorage.setItem('user', JSON.stringify(nextUser));
+        if (mounted) setUser(nextUser);
+      } catch {
+        const storedUserRaw = localStorage.getItem('user');
+        if (storedUserRaw) {
           try {
-            const parsed = JSON.parse(storedUser);
-            if (parsed?.id === sessionUser.id) {
-              if (mounted) setUser(parsed);
-              return;
-            }
+            const parsed = JSON.parse(storedUserRaw);
+            if (mounted) setUser({ ...parsed, role: normalizeRole(parsed.role) });
+            return;
           } catch {
             // noop
           }
         }
-
-        const fallbackUser = {
-          id: sessionUser.id,
-          email: sessionUser.email,
-          name: (sessionUser.email || '').split('@')[0],
-          provider: sessionUser.app_metadata?.provider || 'email',
-          role: 'user',
-          roleFetchedAt: Date.now()
-        };
-        localStorage.setItem('user', JSON.stringify(fallbackUser));
-        if (mounted) setUser(fallbackUser);
-      } catch {
         localStorage.removeItem('user');
         if (mounted) setUser(null);
       }
@@ -134,51 +180,20 @@ function App() {
         console.log('Auth state changed:', event, session?.user?.email);
 
         if (['SIGNED_IN', 'INITIAL_SESSION', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event) && session?.user) {
-          let role = 'user';
-          let roleFetchedAt = 0;
+          let cached = null;
           try {
             const raw = localStorage.getItem('user');
             if (raw) {
-              const cached = JSON.parse(raw);
-              if (cached?.id === session.user.id && cached?.role) {
-                role = cached.role;
-                roleFetchedAt = Number(cached.roleFetchedAt || 0);
-              }
+              const parsed = JSON.parse(raw);
+              if (parsed?.id === session.user.id) cached = parsed;
             }
           } catch {
             // noop
           }
 
-          const now = Date.now();
-          const staleMs = 10 * 60 * 1000;
-          const needsRefresh = !role || role === 'user' || (now - roleFetchedAt > staleMs);
-
-          if (needsRefresh && !profileRefreshInFlightRef.current[session.user.id]) {
-            profileRefreshInFlightRef.current[session.user.id] = true;
-            try {
-              const { data: profile, error: profileError } = await getProfile(session.user.id);
-              if (profile?.role) {
-                role = profile.role;
-                roleFetchedAt = Date.now();
-              } else if (profileError?.message) {
-                console.info('Profile role not refreshed:', profileError.message);
-              }
-            } finally {
-              profileRefreshInFlightRef.current[session.user.id] = false;
-            }
-          }
-
-          const user = {
-            id: session.user.id,
-            email: session.user.email,
-            name: session.user.email.split('@')[0],
-            provider: session.user.app_metadata?.provider || 'email',
-            role,
-            roleFetchedAt: roleFetchedAt || Date.now()
-          };
-
-          localStorage.setItem('user', JSON.stringify(user));
-          setUser(user);
+          const nextUser = await getSessionUserView(session.user, cached);
+          localStorage.setItem('user', JSON.stringify(nextUser));
+          setUser(nextUser);
           setIsAuthModalOpen(false);
         }
 
@@ -574,7 +589,12 @@ function App() {
 
     } catch (err) {
       console.error('Error creating order:', err);
-      setError('Failed to create order. Please try again.');
+      const details =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        null;
+      setError(details ? `Не удалось создать бронирование: ${details}` : 'Не удалось создать бронирование. Попробуйте еще раз.');
     } finally {
       setIsLoading(false);
     }
@@ -625,7 +645,7 @@ function App() {
       return;
     }
     // Staff roles only
-    if (!['admin', 'super_admin', 'agent'].includes(user.role)) {
+    if (!isStaffRole(user.role)) {
       setError('У вас нет прав доступа к админ-панели');
       return;
     }
@@ -638,7 +658,7 @@ function App() {
       setIsAuthModalOpen(true);
       return;
     }
-    if (!['admin', 'super_admin'].includes(user.role)) {
+    if (!isAdminRole(user.role)) {
       setError('У вас нет прав доступа к режиму админа агентства');
       return;
     }
@@ -1008,7 +1028,7 @@ function App() {
                     <BookOpen size={18} />
                     Мои бронирования
                   </button>
-                  {['admin', 'super_admin', 'agent'].includes(user.role) && (
+                  {isStaffRole(user.role) && (
                     <button
                       onClick={handleGoToAdmin}
                       className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -1021,7 +1041,7 @@ function App() {
                       {user.role === 'agent' ? 'Агентство' : 'Админ'}
                     </button>
                   )}
-                  {['admin', 'super_admin'].includes(user.role) && (
+                  {isAdminRole(user.role) && (
                     <button
                       onClick={handleGoToAgencyAdmin}
                       className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
