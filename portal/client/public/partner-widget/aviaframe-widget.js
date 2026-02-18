@@ -422,6 +422,85 @@
       form.addEventListener('submit', (e) => this.handleSearch(e));
     }
 
+    parseJsonSafe(value) {
+      if (value == null) return null;
+      if (typeof value === 'object') return value;
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        return null;
+      }
+    }
+
+    resolveSearchUrl() {
+      const base = String(this.config.apiUrl || '').replace(/\/+$/, '');
+      if (!base) return '/search';
+      return /\/search$/i.test(base) ? base : `${base}/search`;
+    }
+
+    extractOffers(rawPayload, searchParams) {
+      const parse = (v) => this.parseJsonSafe(v) || v;
+      const root = parse(rawPayload) || {};
+      const top = Array.isArray(root)
+        ? (root[0]?.json ? parse(root[0].json) : root[0]) || {}
+        : root;
+      const data = parse(top?.data) || top;
+      const body = parse(data?.body) || parse(top?.body) || data;
+
+      const candidates = [
+        body?.offers,
+        body?.flights,
+        data?.offers,
+        data?.flights,
+        top?.offers,
+        top?.flights
+      ];
+      const direct = candidates.find(Array.isArray);
+      if (direct) return direct;
+
+      const options = Array.isArray(body?.flights_options) ? body.flights_options : [];
+      if (!options.length) return [];
+
+      const segments = Array.isArray(body?.segments) ? body.segments : [];
+      const segmentById = Object.fromEntries(segments.filter((s) => s?.id).map((s) => [s.id, s]));
+
+      const mapped = [];
+      options.forEach((option, optionIdx) => {
+        const optionFlights = Array.isArray(option?.flights) ? option.flights : [];
+        const outboundIds = Array.isArray(optionFlights[0]?.segments) ? optionFlights[0].segments : [];
+        const returnIds = Array.isArray(optionFlights[1]?.segments) ? optionFlights[1].segments : [];
+        const outboundSegs = outboundIds.map((id) => segmentById[id]).filter(Boolean);
+        const returnSegs = returnIds.map((id) => segmentById[id]).filter(Boolean);
+        const allSegs = [...outboundSegs, ...returnSegs];
+
+        const offers = Array.isArray(option?.offers) ? option.offers : [];
+        offers.forEach((offer, offerIdx) => {
+          const first = outboundSegs[0] || allSegs[0] || null;
+          const last = outboundSegs[outboundSegs.length - 1] || allSegs[allSegs.length - 1] || null;
+          mapped.push({
+            offer_id: offer?.id || `offer_${optionIdx}_${offerIdx}`,
+            id: offer?.id || `offer_${optionIdx}_${offerIdx}`,
+            price: {
+              total: Number(offer?.price?.amount || offer?.price?.total || 0),
+              currency: offer?.price?.currency || 'USD'
+            },
+            origin: first?.departure_airport?.code || searchParams.origin || null,
+            destination: last?.arrival_airport?.code || searchParams.destination || null,
+            departure_time: [first?.departure_date, first?.departure_time].filter(Boolean).join(' ') || null,
+            arrival_time: [last?.arrival_date, last?.arrival_time].filter(Boolean).join(' ') || null,
+            airline_code: first?.carrier?.airline_code || null,
+            airline_name: first?.carrier?.airline_name || null,
+            flight_number: first?.flight_number || null
+          });
+        });
+      });
+
+      return mapped;
+    }
+
     async handleSearch(e) {
       e.preventDefault();
 
@@ -441,7 +520,8 @@
       this.showLoading();
 
       try {
-        const response = await fetch(`${this.config.apiUrl}/search`, {
+        const searchUrl = this.resolveSearchUrl();
+        const response = await fetch(searchUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -454,7 +534,11 @@
         }
 
         const data = await response.json();
-        this.flights = data.flights || data.offers || [];
+        this.flights = this.extractOffers(data, searchParams);
+        console.log('Aviaframe Widget: search response parsed', {
+          url: searchUrl,
+          flights: this.flights.length
+        });
         this.renderResults();
       } catch (error) {
         console.error('Aviaframe Widget: Search error', error);
