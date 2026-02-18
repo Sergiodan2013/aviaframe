@@ -551,6 +551,11 @@ export const getAdminSuperAdmins = async () => {
     return { data: backend.data?.super_admins || null, error: null };
   }
 
+  const rpcList = await supabase.rpc('admin_list_super_admin_profiles');
+  if (!rpcList.error) {
+    return { data: Array.isArray(rpcList.data) ? rpcList.data : [], error: null };
+  }
+
   // Fallback for frontend-only deploys without /api/backend proxy.
   const fallback = await supabase
     .from('profiles')
@@ -575,6 +580,15 @@ export const createAdminSuperAdmin = async (payload) => {
       created: !!backend.data?.created,
       error: null
     };
+  }
+
+  const rpcPromote = await supabase.rpc('admin_promote_profile_by_email', {
+    p_email: String(payload?.email || '').trim().toLowerCase(),
+    p_full_name: Object.prototype.hasOwnProperty.call(payload || {}, 'full_name') ? (payload?.full_name || null) : null,
+    p_phone: Object.prototype.hasOwnProperty.call(payload || {}, 'phone') ? (payload?.phone || null) : null
+  });
+  if (!rpcPromote.error) {
+    return { data: rpcPromote.data || null, created: false, error: null };
   }
 
   // Fallback for frontend-only deploys without /api/backend proxy.
