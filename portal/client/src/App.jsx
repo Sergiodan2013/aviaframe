@@ -698,8 +698,9 @@ function App() {
     }
 
     try {
-      // Default to n8n test webhook in local development.
-      const searchUrl = import.meta.env.VITE_N8N_SEARCH_URL || '/api/n8n/webhook-test/drct/search';
+      // Prefer explicit search URL; otherwise derive from configured n8n base URL.
+      const n8nBaseUrl = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
+      const searchUrl = import.meta.env.VITE_N8N_SEARCH_URL || `${n8nBaseUrl}/drct/search`;
 
       console.log('=== Flight Search Started ===');
       console.log('Search payload:', JSON.stringify(searchData, null, 2));
