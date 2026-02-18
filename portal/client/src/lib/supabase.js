@@ -684,9 +684,117 @@ export const getOrderPaymentInstructions = async (orderId) => {
   const { data, error } = await backendApiRequest(`/orders/${orderId}/payment-instructions`, {
     method: 'GET'
   });
+  if (data?.payment_instruction) {
+    return {
+      data: data.payment_instruction,
+      error: null
+    };
+  }
+
+  // Fallback for frontend-only deploys without /api/backend proxy.
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email')
+    .eq('id', orderId)
+    .single();
+  if (orderError || !order) {
+    return {
+      data: null,
+      error: orderError || error || { message: 'Order not found' }
+    };
+  }
+
+  let resolvedAgencyId = order.agency_id || null;
+  if (!resolvedAgencyId && order.user_id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('agency_id')
+      .eq('id', order.user_id)
+      .maybeSingle();
+    if (profile?.agency_id) resolvedAgencyId = profile.agency_id;
+  }
+  if (!resolvedAgencyId && order.contact_email) {
+    const { data: agenciesByEmail } = await supabase
+      .from('agencies')
+      .select('id')
+      .eq('contact_email', String(order.contact_email).trim().toLowerCase())
+      .limit(2);
+    if (Array.isArray(agenciesByEmail) && agenciesByEmail.length === 1) {
+      resolvedAgencyId = agenciesByEmail[0].id;
+    }
+  }
+  if (!resolvedAgencyId) {
+    return {
+      data: null,
+      error: { message: 'Бронирование не связано с агентством' }
+    };
+  }
+
+  // Best-effort backfill; ignore failure if RLS blocks update.
+  if (!order.agency_id) {
+    await supabase
+      .from('orders')
+      .update({ agency_id: resolvedAgencyId, updated_at: new Date().toISOString() })
+      .eq('id', order.id);
+  }
+
+  const { data: agency, error: agencyError } = await supabase
+    .from('agencies')
+    .select('id,name,domain,contact_email,contact_phone,settings')
+    .eq('id', resolvedAgencyId)
+    .single();
+  if (agencyError || !agency) {
+    return {
+      data: null,
+      error: agencyError || { message: 'Агентство для бронирования не найдено' }
+    };
+  }
+
+  const bank = agency?.settings?.bank_details || {};
+  const hasBankDetails = !!(
+    bank.bank_name ||
+    bank.bank_account ||
+    bank.iban ||
+    bank.swift_bic ||
+    bank.sama_code
+  );
+  if (!hasBankDetails) {
+    return {
+      data: null,
+      error: { message: 'У агентства не заполнены банковские реквизиты' }
+    };
+  }
+
+  const paymentInstruction = {
+    order_id: order.id,
+    order_number: order.order_number,
+    amount: Number(order.total_price || 0),
+    currency: order.currency || 'USD',
+    status: order.status || 'pending',
+    agency: {
+      id: agency.id,
+      name: agency.name,
+      domain: agency.domain,
+      contact_email: agency.contact_email,
+      contact_phone: agency.contact_phone
+    },
+    bank_details: {
+      bank_name: bank.bank_name || null,
+      account_number: bank.bank_account || null,
+      iban: bank.iban || null,
+      swift_bic: bank.swift_bic || null,
+      sama_code: bank.sama_code || null
+    },
+    notes: [
+      'Переведите сумму по реквизитам агентства.',
+      `В комментарии укажите номер заказа: ${order.order_number}`,
+      'После поступления оплаты статус будет подтвержден и билет выписан.'
+    ]
+  };
+
   return {
-    data: data?.payment_instruction || null,
-    error
+    data: paymentInstruction,
+    error: null
   };
 };
 

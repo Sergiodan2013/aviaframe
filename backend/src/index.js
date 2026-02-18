@@ -2194,17 +2194,82 @@ app.get('/api/orders/:orderId/payment-instructions', async (req, res) => {
     const canAccess = await canAccessOrder(auth, order);
     if (!canAccess) return forbidden(res);
 
+    let resolvedAgencyId = order.agency_id || null;
     let agency = null;
-    if (order.agency_id) {
+
+    // Resolve missing agency link for old orders.
+    if (!resolvedAgencyId && order.user_id) {
+      const { data: orderProfile } = await supabase
+        .from('profiles')
+        .select('agency_id')
+        .eq('id', order.user_id)
+        .maybeSingle();
+      if (orderProfile?.agency_id) {
+        resolvedAgencyId = orderProfile.agency_id;
+      }
+    }
+
+    if (!resolvedAgencyId && order.contact_email) {
+      const normalizedEmail = String(order.contact_email).trim().toLowerCase();
+      const { data: agenciesByEmail } = await supabase
+        .from('agencies')
+        .select('id')
+        .eq('contact_email', normalizedEmail)
+        .limit(2);
+      const linked = Array.isArray(agenciesByEmail) ? agenciesByEmail : [];
+      if (linked.length === 1) {
+        resolvedAgencyId = linked[0].id;
+      }
+    }
+
+    if (resolvedAgencyId && !order.agency_id) {
+      const { error: patchOrderError } = await supabase
+        .from('orders')
+        .update({
+          agency_id: resolvedAgencyId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', order.id);
+      if (patchOrderError) {
+        console.warn('Failed to backfill order agency_id:', patchOrderError.message);
+      }
+    }
+
+    if (resolvedAgencyId) {
       const { data } = await supabase
         .from('agencies')
         .select('id,name,domain,contact_email,contact_phone,settings')
-        .eq('id', order.agency_id)
+        .eq('id', resolvedAgencyId)
         .single();
       agency = data || null;
     }
 
+    if (!agency) {
+      return res.status(422).json({
+        error: {
+          code: 'ORDER_AGENCY_NOT_LINKED',
+          message: 'Order is not linked to an agency yet'
+        }
+      });
+    }
+
     const bank = agency?.settings?.bank_details || {};
+    const hasBankDetails = !!(
+      bank.bank_name ||
+      bank.bank_account ||
+      bank.iban ||
+      bank.swift_bic ||
+      bank.sama_code
+    );
+    if (!hasBankDetails) {
+      return res.status(422).json({
+        error: {
+          code: 'AGENCY_BANK_DETAILS_MISSING',
+          message: 'Agency bank details are not configured'
+        }
+      });
+    }
+
     const paymentInstruction = {
       order_id: order.id,
       order_number: order.order_number,
