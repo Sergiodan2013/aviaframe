@@ -211,7 +211,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     if (!['admin', 'super_admin'].includes(userProfile?.role)) return;
     if (activeAdminSection === 'agencies') {
       void loadAgencies();
-      if (userProfile?.role === 'super_admin') {
+      if (['admin', 'super_admin'].includes(userProfile?.role)) {
         void loadSuperAdmins();
       }
       return;
@@ -427,7 +427,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         getAdminOrdersSummary(),
         getAdminInvoices({ limit: 20 }),
         getAdminTickets({ limit: 20 }),
-        userProfile?.role === 'super_admin' ? getAdminSuperAdmins() : Promise.resolve({ data: [], error: null })
+        ['admin', 'super_admin'].includes(userProfile?.role)
+          ? getAdminSuperAdmins()
+          : Promise.resolve({ data: [], error: null })
       ]);
 
       if (agenciesRes.status === 'fulfilled' && !agenciesRes.value?.error) {
@@ -1560,7 +1562,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           </div>
         )}
 
-        {userProfile?.role === 'super_admin' && isSuperAdminView && activeAdminSection === 'agencies' && (
+        {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'agencies' && (
           <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-purple-100">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Super Admin</h2>

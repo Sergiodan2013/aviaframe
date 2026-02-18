@@ -1183,13 +1183,13 @@ app.get('/api/admin/super-admins', async (req, res) => {
   if (auth.error) {
     return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
   }
-  if (!ensureSuperAdmin(auth, res)) return;
+  if (!ensureAdmin(auth, res)) return;
 
   try {
     const { data, error } = await supabase
       .from('profiles')
       .select('id,email,full_name,phone,role,agency_id,created_at,updated_at')
-      .eq('role', 'super_admin')
+      .in('role', ['admin', 'super_admin'])
       .order('updated_at', { ascending: false });
 
     if (error) {
@@ -1215,7 +1215,7 @@ app.post('/api/admin/super-admins', async (req, res) => {
   if (auth.error) {
     return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
   }
-  if (!ensureSuperAdmin(auth, res)) return;
+  if (!ensureAdmin(auth, res)) return;
 
   const {
     email,
@@ -1262,7 +1262,7 @@ app.post('/api/admin/super-admins', async (req, res) => {
           email: normalizedEmail,
           full_name: fullName || null,
           phone: phone || null,
-          role: 'super_admin',
+          role: 'admin',
           agency_id: null,
           updated_at: new Date().toISOString()
         })
@@ -1278,7 +1278,7 @@ app.post('/api/admin/super-admins', async (req, res) => {
       created = true;
     } else {
       const patch = {
-        role: 'super_admin',
+        role: 'admin',
         agency_id: null,
         updated_at: new Date().toISOString()
       };
