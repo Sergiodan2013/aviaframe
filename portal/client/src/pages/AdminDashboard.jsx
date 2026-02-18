@@ -1218,17 +1218,18 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
             </div>
 
             <div className="mt-4 border border-indigo-100 rounded-lg p-3 bg-indigo-50/40">
-              <h3 className="text-sm font-semibold text-indigo-900 mb-2">Виджет</h3>
-              <p className="text-xs text-indigo-900/80 mb-2">
-                1) Добавьте домены сайта в поле выше и сохраните.
-                2) Вставьте код ниже на сайт агентства.
-              </p>
+              <h3 className="text-sm font-semibold text-indigo-900 mb-2">Настройка виджета</h3>
+              <div className="text-xs text-indigo-900/80 mb-3 space-y-1">
+                <p>1) Добавьте домены сайта в поле выше и сохраните.</p>
+                <p>2) Скопируйте embed-код и вставьте на сайт агентства.</p>
+                <p>3) Проверьте на боевом домене, что поиск и бронирование работают.</p>
+              </div>
               <textarea
                 readOnly
                 value={widgetEmbedSnippet}
                 className="w-full border rounded px-2 py-2 min-h-32 text-xs font-mono bg-white"
               />
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   onClick={handleCopyWidgetSnippet}
                   className="bg-indigo-600 text-white rounded px-3 py-1 text-sm"
@@ -1240,6 +1241,30 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
                   Предпросмотр
+                </button>
+                <button
+                  onClick={() => window.open('/widget-docs/INTEGRATION_GUIDE.md', '_blank')}
+                  className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
+                >
+                  Integration Guide
+                </button>
+                <button
+                  onClick={() => window.open('/widget-docs/EMBED_GUIDE.md', '_blank')}
+                  className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
+                >
+                  Embed Guide
+                </button>
+                <button
+                  onClick={() => window.open('/widget-docs/README.md', '_blank')}
+                  className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
+                >
+                  README
+                </button>
+                <button
+                  onClick={() => window.open('/widget-docs/WIDGET_COMPLETE.md', '_blank')}
+                  className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
+                >
+                  Checklist
                 </button>
               </div>
               <p className="text-xs text-gray-600 mt-2">
