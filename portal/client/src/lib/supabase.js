@@ -610,7 +610,7 @@ export const createAdminSuperAdmin = async (payload) => {
     return {
       data: null,
       created: false,
-      error: { message: 'User with this email must sign in at least once before role assignment.' }
+      error: { message: 'Cannot provision new user without backend API. Configure /api/backend to enable create/invite by email.' }
     };
   }
 

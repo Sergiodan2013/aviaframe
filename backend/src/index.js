@@ -286,6 +286,46 @@ async function findAuthUserByEmail(email) {
   return null;
 }
 
+async function ensureAuthUserByEmail(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error('INVALID_EMAIL');
+  }
+
+  const existing = await findAuthUserByEmail(normalizedEmail);
+  if (existing?.id) {
+    return { user: existing, created: false, invited: false };
+  }
+
+  // Preferred flow: create invited user so they can set password from email link.
+  try {
+    const { data: invitedData, error: invitedError } = await supabase.auth.admin.inviteUserByEmail(normalizedEmail);
+    if (!invitedError && invitedData?.user?.id) {
+      return { user: invitedData.user, created: true, invited: true };
+    }
+    if (invitedError) {
+      console.warn('inviteUserByEmail failed, fallback to createUser:', invitedError.message);
+    }
+  } catch (err) {
+    console.warn('inviteUserByEmail exception, fallback to createUser:', err?.message);
+  }
+
+  // Fallback: create auth user directly with temporary password.
+  const temporaryPassword = `Tmp!${crypto.randomBytes(10).toString('hex')}Aa1`;
+  const { data: createdData, error: createdError } = await supabase.auth.admin.createUser({
+    email: normalizedEmail,
+    password: temporaryPassword,
+    email_confirm: false,
+    user_metadata: {
+      provisioned_by: 'admin_panel'
+    }
+  });
+  if (createdError || !createdData?.user?.id) {
+    throw new Error(`AUTH_USER_PROVISION_FAILED: ${createdError?.message || 'unknown'}`);
+  }
+  return { user: createdData.user, created: true, invited: false };
+}
+
 async function generateInvoicePdfForInvoice({ invoice, createdBy }) {
   const { data: agency } = await supabase
     .from('agencies')
@@ -1245,12 +1285,12 @@ app.post('/api/admin/super-admins', async (req, res) => {
 
     let created = false;
     if (!profile) {
-      const authUser = await findAuthUserByEmail(normalizedEmail);
+      const { user: authUser, created: authCreated, invited: authInvited } = await ensureAuthUserByEmail(normalizedEmail);
       if (!authUser?.id) {
         return res.status(404).json({
           error: {
             code: 'AUTH_USER_NOT_FOUND',
-            message: 'User with this email not found. User must sign in at least once.'
+            message: 'User with this email not found and could not be provisioned.'
           }
         });
       }
@@ -1276,6 +1316,9 @@ app.post('/api/admin/super-admins', async (req, res) => {
       }
       profile = inserted;
       created = true;
+      if (authCreated) {
+        console.log(`Provisioned auth user for ${normalizedEmail}; invited=${authInvited}`);
+      }
     } else {
       const patch = {
         role: 'admin',
