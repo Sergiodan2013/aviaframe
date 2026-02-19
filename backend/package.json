@@ -4,6 +4,7 @@
   "private": true,
   "main": "src/index.js",
   "scripts": {
+    "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "build": "echo \"Building backend...\" && mkdir -p dist && cp -R src/* dist/ || true",
     "test": "jest --runInBand",
@@ -14,7 +15,11 @@
     "@supabase/supabase-js": "^2.93.1",
     "axios": "^1.13.3",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^6.10.1",
+    "pdfkit": "^0.17.2",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "supertest": "^7.0.0"
