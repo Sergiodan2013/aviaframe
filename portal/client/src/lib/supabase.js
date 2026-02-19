@@ -591,6 +591,29 @@ export const createAdminSuperAdmin = async (payload) => {
     return { data: rpcPromote.data || null, created: false, error: null };
   }
 
+  const rpcErr = String(rpcPromote.error?.message || '').toUpperCase();
+  if (rpcErr.includes('PROFILE_NOT_FOUND')) {
+    return {
+      data: null,
+      created: false,
+      error: { message: 'Профиль с таким email не найден в profiles. Для нового email нужен backend API (invite/create user).' }
+    };
+  }
+  if (rpcErr.includes('FORBIDDEN')) {
+    return {
+      data: null,
+      created: false,
+      error: { message: 'Недостаточно прав. Нужна роль admin/super_admin в profiles.' }
+    };
+  }
+  if (rpcErr.includes('INVALID_EMAIL')) {
+    return {
+      data: null,
+      created: false,
+      error: { message: 'Некорректный email.' }
+    };
+  }
+
   // Fallback for frontend-only deploys without /api/backend proxy.
   const normalizedEmail = String(payload?.email || '').trim().toLowerCase();
   if (!normalizedEmail) {
