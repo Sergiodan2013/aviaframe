@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aviaframe Booking</title>
+  <style>
+    body { margin: 0; padding: 24px; background: #e9effb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #111827; }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 28px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); }
+    .center { text-align: center; }
+    .ok { font-size: 62px; color: #f97316; line-height: 1; }
+    .title { font-size: 52px; font-weight: 800; margin: 8px 0 8px; }
+    .subtitle { font-size: 32px; color: #4b5563; margin-bottom: 18px; }
+    .number { border: 1px solid #f3c58c; background: #fff7ed; border-radius: 12px; padding: 16px; text-align: center; font-size: 32px; font-weight: 700; color: #92400e; margin-bottom: 14px; }
+    .status { border: 1px solid #fde68a; background: #fffbeb; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .status h3 { margin: 0 0 8px; font-size: 32px; color: #92400e; text-align: center; }
+    .status p { margin: 0; font-size: 20px; color: #92400e; text-align: center; }
+    .details { border: 1px solid #e5e7eb; background: #f9fafb; border-radius: 12px; padding: 16px; }
+    .details h4 { margin: 0 0 12px; font-size: 28px; }
+    .grid { display: grid; grid-template-columns: 1fr auto; gap: 8px; font-size: 20px; color: #374151; }
+    .val { font-weight: 700; }
+    .due { border-top: 1px solid #d1d5db; margin-top: 8px; padding-top: 8px; }
+    .duev { border-top: 1px solid #d1d5db; margin-top: 8px; padding-top: 8px; font-size: 34px; font-weight: 800; color: #ea580c; }
+    .loading { font-size: 22px; color: #4b5563; text-align: center; padding: 24px; }
+    .error { border: 1px solid #fecaca; background: #fff1f2; color: #b91c1c; border-radius: 12px; padding: 14px; font-size: 18px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="booking-root">
+      <div class="loading">Создаем бронирование...</div>
+    </div>
+  </div>
+
+  <script>
+    (async function () {
+      const root = document.getElementById('booking-root');
+
+      const selectedOfferRaw = localStorage.getItem('selectedOffer');
+      const passengerRaw = localStorage.getItem('passengerData');
+
+      if (!selectedOfferRaw || !passengerRaw) {
+        root.innerHTML = '<div class="error">Нет данных для бронирования. Вернитесь в поиск и выберите рейс заново.</div>';
+        return;
+      }
+
+      let selectedOffer;
+      let passenger;
+      try {
+        selectedOffer = JSON.parse(selectedOfferRaw);
+        passenger = JSON.parse(passengerRaw);
+      } catch {
+        root.innerHTML = '<div class="error">Ошибка чтения данных бронирования из localStorage.</div>';
+        return;
+      }
+
+      const payload = {
+        offer_id: selectedOffer.offer_id,
+        passengers: [{
+          type: 'ADT',
+          first_name: passenger.firstName,
+          last_name: passenger.lastName,
+          date_of_birth: passenger.dateOfBirth,
+          gender: passenger.gender === 'male' ? 'M' : 'F',
+          document: {
+            type: 'passport',
+            number: passenger.passportNumber,
+            expiry_date: passenger.passportExpiry,
+            issuing_country: 'SA'
+          }
+        }],
+        contacts: {
+          email: passenger.email,
+          phone: passenger.phone
+        },
+        offer: {
+          origin: selectedOffer.origin,
+          destination: selectedOffer.destination,
+          departure_time: selectedOffer.departure_time,
+          arrival_time: selectedOffer.arrival_time,
+          airline_code: selectedOffer.airline_code,
+          airline_name: selectedOffer.airline_name,
+          flight_number: selectedOffer.flight_number,
+          base_price: (selectedOffer.price || {}).total || 0,
+          taxes: (selectedOffer.price || {}).taxes || 0,
+          currency: (selectedOffer.price || {}).currency || 'UAH'
+        },
+        passenger_details: {
+          passport_number: passenger.passportNumber,
+          passport_expiry: passenger.passportExpiry,
+          baggage_allowance: 'hand_luggage'
+        },
+        pricing: {
+          base_price: (selectedOffer.price || {}).total || 0,
+          taxes: (selectedOffer.price || {}).taxes || 0,
+          baggage_price: 0,
+          total_price: (selectedOffer.price || {}).total || 0,
+          currency: (selectedOffer.price || {}).currency || 'UAH'
+        },
+        raw_offer_data: selectedOffer
+      };
+
+      const candidates = [
+        '/api/n8n/webhook-test/drct/order/create',
+        '/api/n8n/webhook/drct/order/create',
+        '/webhook-test/drct/order/create',
+        '/webhook/drct/order/create'
+      ];
+
+      console.log('Creating Hold Booking via n8n webhook with passenger data:', passenger);
+      console.log('Sending complete order to n8n webhook:', payload);
+
+      let responseData = null;
+      let lastError = null;
+
+      for (const url of candidates) {
+        try {
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (resp.ok) {
+            responseData = await resp.json().catch(() => ({}));
+            break;
+          }
+          lastError = `HTTP ${resp.status} on ${url}`;
+        } catch (e) {
+          lastError = String(e && e.message ? e.message : e);
+        }
+      }
+
+      if (!responseData) {
+        root.innerHTML = `<div class="error">Не удалось создать бронирование.\n${lastError || 'Unknown error'}\nПроверь webhook drct/order/create и прокси /api/*.</div>`;
+        return;
+      }
+
+      console.log('Order created successfully via n8n:', responseData);
+
+      const orderNumber = responseData.order_number || responseData.booking_reference || responseData.drct_order_id || '—';
+      const total = Math.round(((selectedOffer.price || {}).total || 0)).toLocaleString('en-US');
+      const currency = ((selectedOffer.price || {}).currency || 'UAH');
+      const departure = String(selectedOffer.departure_time || '').slice(0, 16).replace('T', ' ');
+
+      root.innerHTML = `
+        <div class="center ok">✓</div>
+        <div class="center title">Бронирование создано!</div>
+        <div class="center subtitle">Рейс забронирован. Ожидает оплаты.</div>
+        <div class="number">Номер бронирования: ${orderNumber}</div>
+        <div class="status">
+          <h3>Статус: Ожидает оплаты</h3>
+          <p>Для завершения бронирования необходимо произвести оплату. Инструкции отправлены на ${passenger.email}.</p>
+        </div>
+        <div class="details">
+          <h4>Детали рейса</h4>
+          <div class="grid">
+            <div>Маршрут:</div><div class="val">${selectedOffer.origin || '---'} → ${selectedOffer.destination || '---'}</div>
+            <div>Авиакомпания:</div><div class="val">${selectedOffer.airline_name || selectedOffer.airline_code || 'N/A'}</div>
+            <div>Вылет:</div><div class="val">${departure}</div>
+            <div>Пассажир:</div><div class="val">${passenger.firstName} ${passenger.lastName}</div>
+            <div class="due">К оплате:</div><div class="duev">${total} ${currency}</div>
+          </div>
+        </div>
+      `;
+    })();
+  </script>
+</body>
+</html>
