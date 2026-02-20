@@ -138,7 +138,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const isSuperAdminView = !isAgencyAdminPreview;
 
   const normalizeRole = (role) => {
-    const normalized = String(role || 'user').trim().toLowerCase().replace(/-/g, '_');
+    const normalized = String(role || 'user').trim().toLowerCase().replace(/[\s-]+/g, '_');
     if (normalized === 'superadmin') return 'super_admin';
     if (normalized === 'agency_admin' || normalized === 'agency') return 'agent';
     if (normalized === 'administrator') return 'admin';
