@@ -593,10 +593,35 @@ export const createAdminSuperAdmin = async (payload) => {
 
   const rpcErr = String(rpcPromote.error?.message || '').toUpperCase();
   if (rpcErr.includes('PROFILE_NOT_FOUND')) {
+    const normalizedEmail = String(payload?.email || '').trim().toLowerCase();
+    if (normalizedEmail) {
+      const otp = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: window.location.origin
+        }
+      });
+
+      if (!otp.error) {
+        await sleep(350);
+        const retryPromote = await supabase.rpc('admin_promote_profile_by_email', {
+          p_email: normalizedEmail,
+          p_full_name: Object.prototype.hasOwnProperty.call(payload || {}, 'full_name') ? (payload?.full_name || null) : null,
+          p_phone: Object.prototype.hasOwnProperty.call(payload || {}, 'phone') ? (payload?.phone || null) : null
+        });
+        if (!retryPromote.error) {
+          return { data: retryPromote.data || null, created: true, error: null };
+        }
+      }
+    }
+
     return {
       data: null,
       created: false,
-      error: { message: 'Профиль с таким email не найден в profiles. Для нового email нужен backend API (invite/create user).' }
+      error: {
+        message: 'Profile for this email was not found. We sent sign-in email to provision account; after first sign-in, repeat promote to super admin.'
+      }
     };
   }
   if (rpcErr.includes('FORBIDDEN')) {
@@ -663,11 +688,79 @@ export const createAdminSuperAdmin = async (payload) => {
 };
 
 export const createAdminAgency = async (payload) => {
-  const { data, error } = await backendApiRequest('/admin/agencies', {
+  const backend = await backendApiRequest('/admin/agencies', {
     method: 'POST',
     body: payload
   });
-  return { data: data?.agency || null, error };
+  if (!backend?.error) {
+    return { data: backend.data?.agency || null, error: null };
+  }
+
+  // Fallback for frontend-only deploys without /api/backend proxy.
+  const name = String(payload?.name || '').trim();
+  const contactEmail = String(payload?.contact_email || '').trim().toLowerCase();
+  if (!name || !contactEmail) {
+    return { data: null, error: { message: 'name and contact_email are required' } };
+  }
+
+  const domainRaw = String(payload?.domain || '').trim().toLowerCase();
+  const normalizeHostSafe = (value) =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/.*$/, '')
+      .replace(/^www\./, '');
+
+  const allowedDomains = Array.isArray(payload?.widget_allowed_domains)
+    ? payload.widget_allowed_domains.map(normalizeHostSafe).filter(Boolean)
+    : [];
+  const generatedApiKey = `ag_${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}`.slice(0, 43);
+
+  const settings = {
+    language: payload?.language || 'en',
+    bank_details: payload?.bank_details || {},
+    widget_allowed_domains: allowedDomains,
+    contact_person: {
+      full_name: payload?.contact_person_name || null
+    }
+  };
+
+  const inserted = await supabase
+    .from('agencies')
+    .insert({
+      name,
+      domain: normalizeHostSafe(domainRaw) || null,
+      api_key: generatedApiKey,
+      contact_email: contactEmail,
+      contact_phone: payload?.contact_phone || null,
+      country: payload?.country || 'SA',
+      address: payload?.address || null,
+      commission_rate: Number(payload?.commission_rate || 0) || 0,
+      settings
+    })
+    .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
+    .single();
+
+  if (inserted.error) {
+    return { data: null, error: backend.error || inserted.error };
+  }
+
+  // Best-effort profile link by email.
+  const linkedProfile = await supabase
+    .from('profiles')
+    .select('id,agency_id')
+    .eq('email', contactEmail)
+    .maybeSingle();
+
+  if (!linkedProfile.error && linkedProfile.data?.id) {
+    await supabase
+      .from('profiles')
+      .update({ agency_id: inserted.data.id, updated_at: new Date().toISOString() })
+      .eq('id', linkedProfile.data.id);
+  }
+
+  return { data: inserted.data || null, error: null };
 };
 
 export const updateAdminAgency = async (agencyId, payload) => {
