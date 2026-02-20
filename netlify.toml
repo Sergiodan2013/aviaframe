@@ -9,6 +9,13 @@
   status = 200
   force = true
 
+# Backward compatibility: client still calls /api/n8n/webhook-test/*
+[[redirects]]
+  from = "/api/n8n/webhook-test/*"
+  to = "https://benedictory-tyrannous-norris.ngrok-free.dev/webhook/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/api/n8n/*"
   to = "https://benedictory-tyrannous-norris.ngrok-free.dev/:splat"
