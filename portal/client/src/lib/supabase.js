@@ -628,14 +628,14 @@ export const createAdminSuperAdmin = async (payload) => {
     return {
       data: null,
       created: false,
-      error: { message: 'Недостаточно прав. Нужна роль admin/super_admin в profiles.' }
+      error: { message: 'Insufficient permissions. admin/super_admin role is required in profiles.' }
     };
   }
   if (rpcErr.includes('INVALID_EMAIL')) {
     return {
       data: null,
       created: false,
-      error: { message: 'Некорректный email.' }
+      error: { message: 'Invalid email.' }
     };
   }
 
@@ -652,7 +652,7 @@ export const createAdminSuperAdmin = async (payload) => {
     .maybeSingle();
 
   if (existing.error) {
-    return { data: null, created: false, error: backend.error };
+    return { data: null, created: false, error: existing.error };
   }
   if (!existing.data?.id) {
     return {
@@ -682,7 +682,7 @@ export const createAdminSuperAdmin = async (payload) => {
     .single();
 
   if (updated.error) {
-    return { data: null, created: false, error: backend.error };
+    return { data: null, created: false, error: updated.error };
   }
   return { data: updated.data || null, created: false, error: null };
 };
@@ -743,7 +743,7 @@ export const createAdminAgency = async (payload) => {
     .single();
 
   if (inserted.error) {
-    return { data: null, error: backend.error || inserted.error };
+    return { data: null, error: inserted.error || backend.error };
   }
 
   // Best-effort profile link by email.
@@ -1022,7 +1022,7 @@ export const getOrderPaymentInstructions = async (orderRef) => {
     if (inputOrderId && !isUuid(inputOrderId)) {
       return {
         data: null,
-        error: { message: 'Не удалось сопоставить локальный заказ с записью в базе. Откройте бронирование из актуального списка.' }
+        error: { message: 'Failed to match local order with a database record. Open booking from the latest list.' }
       };
     }
     return {
@@ -1069,7 +1069,7 @@ export const getOrderPaymentInstructions = async (orderRef) => {
   if (!resolvedAgencyId) {
     return {
       data: null,
-      error: { message: 'Бронирование не связано с агентством' }
+      error: { message: 'Booking is not linked to an agency' }
     };
   }
 
@@ -1089,7 +1089,7 @@ export const getOrderPaymentInstructions = async (orderRef) => {
   if (agencyError || !agency) {
     return {
       data: null,
-      error: agencyError || { message: 'Агентство для бронирования не найдено' }
+      error: agencyError || { message: 'Agency for this booking was not found' }
     };
   }
 
@@ -1104,7 +1104,7 @@ export const getOrderPaymentInstructions = async (orderRef) => {
   if (!hasBankDetails) {
     return {
       data: null,
-      error: { message: 'У агентства не заполнены банковские реквизиты' }
+      error: { message: 'Agency bank details are incomplete' }
     };
   }
 
@@ -1129,9 +1129,9 @@ export const getOrderPaymentInstructions = async (orderRef) => {
       sama_code: bank.sama_code || null
     },
     notes: [
-      'Переведите сумму по реквизитам агентства.',
-      `В комментарии укажите номер заказа: ${order.order_number}`,
-      'После поступления оплаты статус будет подтвержден и билет выписан.'
+      'Transfer the amount using agency bank details.',
+      `Specify order number in payment comment: ${order.order_number}`,
+      'Once payment is received, status will be confirmed and ticket will be issued.'
     ]
   };
 

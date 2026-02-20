@@ -42,10 +42,10 @@ export default function LoadingScreen() {
 
       {/* Text */}
       <h3 className="text-2xl font-bold text-gray-800 mb-3">
-        Шукаємо квитки
+        Searching flights
       </h3>
       <p className="text-gray-600 mb-6">
-        Порівнюємо пропозиції від різних авіакомпаній...
+        Comparing offers from multiple airlines...
       </p>
 
       {/* Progress bar */}

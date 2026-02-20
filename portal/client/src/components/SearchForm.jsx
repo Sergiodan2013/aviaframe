@@ -56,7 +56,7 @@ export default function SearchForm({ onSearch, isLoading }) {
           label="From"
           value={formData.origin}
           onChange={(value) => handleAirportChange('origin', value)}
-          placeholder="Paris, Париж, LHR..."
+          placeholder="Paris, London, LHR..."
           required={true}
         />
 
@@ -65,7 +65,7 @@ export default function SearchForm({ onSearch, isLoading }) {
           label="To"
           value={formData.destination}
           onChange={(value) => handleAirportChange('destination', value)}
-          placeholder="London, Лондон, CDG..."
+          placeholder="London, Paris, CDG..."
           required={true}
         />
 

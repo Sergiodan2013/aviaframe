@@ -498,7 +498,7 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
               type="submit"
               className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 px-6 rounded-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
             >
-              Забронировать
+              Book now
               <ArrowRight size={20} />
             </button>
           </div>

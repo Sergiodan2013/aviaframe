@@ -586,9 +586,9 @@
     }
 
     .aviaframe-time {
-      font-size: 20px;
-      font-weight: 800;
-      line-height: 0.95;
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.2;
       color: #131a2b;
     }
 

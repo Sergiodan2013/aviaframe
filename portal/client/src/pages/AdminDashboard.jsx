@@ -100,7 +100,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     iban: '',
     swift_bic: '',
     sama_code: '',
-    language: 'en',
     widget_allowed_domains: ''
   });
   const [invoiceForm, setInvoiceForm] = useState({
@@ -115,8 +114,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     commission_rate: 0,
     commission_model: 'percent',
     commission_fixed_amount: 0,
-    currency: 'UAH',
-    language: 'en',
+    currency: 'SAR',
     bank_name: '',
     bank_account: '',
     iban: '',
@@ -403,13 +401,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (cache.length > 0) {
         setOrders(cache);
         setError(
-          `Показаны локально сохранённые заказы (${cache.length} шт). ` +
-          `База временно недоступна: ${err.message}`
+          `Showing locally cached orders (${cache.length}). ` +
+          `Database is temporarily unavailable: ${err.message}`
         );
       } else {
         setError(
-          `Не удалось загрузить заказы: ${err.message}. ` +
-          `Попробуйте обновить страницу через несколько секунд.`
+          `Failed to load orders: ${err.message}. ` +
+          `Please refresh the page in a few seconds.`
         );
       }
     } finally {
@@ -461,7 +459,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (error) throw new Error(error.message || 'Super admins load failed');
       setSuperAdmins(Array.isArray(data) ? data : []);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка загрузки super admin: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to load super admins: ${err.message}` });
     } finally {
       setSuperAdminsLoading(false);
     }
@@ -474,8 +472,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       commission_rate: agencyData?.commission_rate ?? 0,
       commission_model: commission.model || 'percent',
       commission_fixed_amount: commission.fixed_amount ?? 0,
-      currency: (commission.currency || 'UAH').toUpperCase(),
-      language: agencyData?.settings?.language || 'en',
+      currency: (commission.currency || 'SAR').toUpperCase(),
       bank_name: bankDetails.bank_name || '',
       bank_account: bankDetails.bank_account || '',
       iban: bankDetails.iban || '',
@@ -511,13 +508,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         if (!list.length) throw new Error('No agencies found');
         setAgencies(list);
 
-        const resolvedId = userProfile?.agency_id || (list.length === 1 ? list[0].id : null);
+        const resolvedId = userProfile?.agency_id || agencyPreviewId || list[0]?.id || null;
         if (!resolvedId) {
-          throw new Error('For agency admin mode account must be linked to exactly one agency');
+          throw new Error('No agencies available for agency admin mode');
         }
         if (agencyPreviewId !== resolvedId) {
           setAgencyPreviewId(resolvedId);
         }
+        setUserProfile((prev) => (prev ? { ...prev, agency_id: prev.agency_id || resolvedId } : prev));
         const selectedAgency = list.find((a) => a.id === resolvedId) || list[0];
         if (!selectedAgency) throw new Error('Agency not found');
         applyAgencyToSelfForm(selectedAgency);
@@ -529,7 +527,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       applyAgencyToSelfForm(data);
       return data?.id || null;
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка загрузки настроек агентства: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to load agency settings: ${err.message}` });
       return null;
     } finally {
       setAgencySelfLoading(false);
@@ -547,7 +545,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (error) throw new Error(error.message || 'Agencies load failed');
       setAgencies(Array.isArray(data) ? data : []);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка загрузки агентств: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to load agencies: ${err.message}` });
     } finally {
       setAgenciesLoading(false);
     }
@@ -566,7 +564,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (error) throw new Error(error.message || 'Invoices load failed');
       setInvoices(Array.isArray(data) ? data : []);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка загрузки инвойсов: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to load invoices: ${err.message}` });
     } finally {
       setInvoicesLoading(false);
     }
@@ -590,7 +588,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       rows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
       setTickets(rows);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка загрузки билетов: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to load tickets: ${err.message}` });
     } finally {
       setTicketsLoading(false);
     }
@@ -605,7 +603,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         contact_phone: agencyForm.contact_phone || null,
         contact_person_name: agencyForm.contact_person_name || null,
         country: agencyForm.country || 'SA',
-        language: agencyForm.language || 'en',
         bank_details: {
           bank_name: agencyForm.bank_name || null,
           bank_account: agencyForm.bank_account || null,
@@ -617,7 +614,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       };
       const { data, error } = await createAdminAgency(payload);
       if (error) throw new Error(error.message || 'Failed to create agency');
-      setNotice({ type: 'success', text: `Агентство создано: ${data?.name || 'OK'}` });
+      setNotice({ type: 'success', text: `Agency created: ${data?.name || 'OK'}` });
       setAgencyForm((prev) => ({
         ...prev,
         name: '',
@@ -635,14 +632,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setShowCreateAgencyForm(false);
       await Promise.all([loadAdminData(), loadAgencies()]);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка создания агентства: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to create agency: ${err.message}` });
     }
   };
 
   const handleCreateSuperAdmin = async () => {
     const email = String(superAdminForm.email || '').trim().toLowerCase();
     if (!email) {
-      setNotice({ type: 'error', text: 'Укажите email для super admin' });
+      setNotice({ type: 'error', text: 'Enter email for super admin' });
       return;
     }
 
@@ -658,13 +655,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setNotice({
         type: 'success',
         text: created
-          ? `Super admin добавлен: ${data?.email || email}`
-          : `Права super admin обновлены: ${data?.email || email}`
+          ? `Super admin added: ${data?.email || email}`
+          : `Super admin permissions updated: ${data?.email || email}`
       });
       setSuperAdminForm({ email: '', full_name: '', phone: '' });
       await loadSuperAdmins();
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка создания super admin: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to create super admin: ${err.message}` });
     } finally {
       setCreatingSuperAdmin(false);
     }
@@ -710,11 +707,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       };
       const { error } = await updateAdminAgency(agencyId, payload);
       if (error) throw new Error(error.message || 'Agency update failed');
-      setNotice({ type: 'success', text: 'Агентство обновлено' });
+      setNotice({ type: 'success', text: 'Agency updated' });
       setAgencyEditId(null);
       await Promise.all([loadAdminData(), loadAgencies()]);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка обновления агентства: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to update agency: ${err.message}` });
     }
   };
 
@@ -724,10 +721,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         is_active: !agency.is_active
       });
       if (error) throw new Error(error.message || 'Agency status update failed');
-      setNotice({ type: 'success', text: agency.is_active ? 'Агентство заблокировано' : 'Агентство активировано' });
+      setNotice({ type: 'success', text: agency.is_active ? 'Agency suspended' : 'Agency activated' });
       await Promise.all([loadAdminData(), loadAgencies()]);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка статуса агентства: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to update agency status: ${err.message}` });
     }
   };
 
@@ -735,10 +732,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     try {
       const { error } = await deleteAdminAgency(agency.id);
       if (error) throw new Error(error.message || 'Agency delete failed');
-      setNotice({ type: 'success', text: `Агентство удалено: ${agency.name}` });
+      setNotice({ type: 'success', text: `Agency deleted: ${agency.name}` });
       await Promise.all([loadAdminData(), loadAgencies()]);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка удаления агентства: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to delete agency: ${err.message}` });
     }
   };
 
@@ -759,11 +756,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       };
       const { data, error } = await createAdminInvoice(payload);
       if (error) throw new Error(error.message || 'Failed to create invoice');
-      setNotice({ type: 'success', text: `Инвойс создан: ${data?.invoice_number || data?.id}` });
+      setNotice({ type: 'success', text: `Invoice created: ${data?.invoice_number || data?.id}` });
       setInvoiceForm((prev) => ({ ...prev, manual_total: '' }));
       await Promise.all([loadAdminData(), loadInvoices()]);
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка создания инвойса: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to create invoice: ${err.message}` });
     }
   };
 
@@ -772,7 +769,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     try {
       const { downloadUrl, error } = await generateAdminInvoicePdf(invoiceId);
       if (error) throw new Error(error.message || 'Invoice PDF generation failed');
-      setNotice({ type: 'success', text: 'PDF инвойса сгенерирован' });
+      setNotice({ type: 'success', text: 'Invoice PDF generated' });
       if (downloadUrl) {
         if (popup) {
           popup.location.href = downloadUrl;
@@ -785,7 +782,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       await loadInvoices();
     } catch (err) {
       if (popup) popup.close();
-      setNotice({ type: 'error', text: `Ошибка генерации PDF: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to generate PDF: ${err.message}` });
     }
   };
 
@@ -794,7 +791,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     try {
       const { error, downloadUrl } = await updateAdminInvoice(invoiceId, { status: 'issued' });
       if (error) throw new Error(error.message || 'Invoice status update failed');
-      setNotice({ type: 'success', text: 'Инвойс переведен в issued, PDF сгенерирован' });
+      setNotice({ type: 'success', text: 'Invoice marked as issued, PDF generated' });
       if (downloadUrl) {
         if (popup) {
           popup.location.href = downloadUrl;
@@ -807,7 +804,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       await loadInvoices();
     } catch (err) {
       if (popup) popup.close();
-      setNotice({ type: 'error', text: `Ошибка перевода инвойса: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to update invoice status: ${err.message}` });
     }
   };
 
@@ -824,7 +821,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       }
     } catch (err) {
       if (popup) popup.close();
-      setNotice({ type: 'error', text: `Ошибка скачивания PDF: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to download PDF: ${err.message}` });
     }
   };
 
@@ -842,7 +839,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       }
     } catch (err) {
       if (popup) popup.close();
-      setNotice({ type: 'error', text: `Ошибка скачивания билета: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to download ticket PDF: ${err.message}` });
     } finally {
       setTicketDocLoadingId(null);
     }
@@ -859,8 +856,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         commission_fixed_amount: agencySelfForm.commission_model === 'fixed'
           ? Number(agencySelfForm.commission_fixed_amount || 0)
           : 0,
-        currency: agencySelfForm.currency || 'UAH',
-        language: agencySelfForm.language || 'en',
+        currency: agencySelfForm.currency || 'SAR',
         bank_details: {
           bank_name: agencySelfForm.bank_name || null,
           bank_account: agencySelfForm.bank_account || null,
@@ -879,14 +875,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         ? await updateAdminAgency(agencyIdForUpdate, payload)
         : await updateMyAgency(payload);
       if (error) throw new Error(error.message || 'Agency settings update failed');
-      setNotice({ type: 'success', text: 'Настройки агентства сохранены' });
+      setNotice({ type: 'success', text: 'Agency settings saved' });
       if (isAgencyAdminPreview) {
         await loadAdminData();
       } else {
         await loadMyAgencySettings();
       }
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка сохранения настроек: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to save settings: ${err.message}` });
     } finally {
       setAgencySelfLoading(false);
     }
@@ -895,11 +891,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const handleAddWidgetDomain = () => {
     const next = normalizeWidgetDomain(domainDraft);
     if (!next) {
-      setNotice({ type: 'error', text: 'Введите корректный домен (например: example.com)' });
+      setNotice({ type: 'error', text: 'Enter a valid domain (for example: example.com)' });
       return;
     }
     if (widgetDomains.includes(next)) {
-      setNotice({ type: 'error', text: 'Домен уже добавлен' });
+      setNotice({ type: 'error', text: 'Domain already added' });
       return;
     }
     setWidgetDomains((prev) => [...prev, next]);
@@ -928,14 +924,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         : await updateMyAgency(payload);
       if (error) throw new Error(error.message || 'Domains save failed');
       setDomainsDirty(false);
-      setNotice({ type: 'success', text: 'Домены виджета сохранены' });
+      setNotice({ type: 'success', text: 'Widget domains saved' });
       if (isAgencyAdminPreview) {
         await loadAdminData();
       } else {
         await loadMyAgencySettings();
       }
     } catch (err) {
-      setNotice({ type: 'error', text: `Ошибка сохранения доменов: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to save widget domains: ${err.message}` });
     } finally {
       setDomainsSaving(false);
     }
@@ -980,13 +976,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
       setNotice({
         type: 'success',
-        text: `Статус заказа обновлен: ${getStatusConfig(nextStatus).label}`,
+        text: `Order status updated: ${getStatusConfig(nextStatus).label}`,
       });
     } catch (err) {
       console.error('Error updating status:', err);
       setNotice({
         type: 'error',
-        text: `Ошибка при обновлении статуса: ${err.message}`,
+        text: `Failed to update order status: ${err.message}`,
       });
     } finally {
       setUpdatingOrderId(null);
@@ -1025,12 +1021,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (ticketFinalizeError) {
         setNotice({
           type: 'error',
-          text: `Билет выписан, но PDF/email не завершены: ${ticketFinalizeError.message}`
+          text: `Ticket issued, but PDF/email finalization is incomplete: ${ticketFinalizeError.message}`
         });
       } else if (email?.sent) {
-        setNotice({ type: 'success', text: 'Билет успешно выписан и отправлен на email клиента' });
+        setNotice({ type: 'success', text: 'Ticket issued and emailed to customer' });
       } else {
-        setNotice({ type: 'success', text: 'Билет успешно выписан. PDF создан.' });
+        setNotice({ type: 'success', text: 'Ticket issued. PDF generated.' });
       }
 
       setOrders((prev) =>
@@ -1047,7 +1043,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
     } catch (err) {
       console.error('Error issuing ticket:', err);
-      setNotice({ type: 'error', text: `Ошибка выписки билета: ${err.message}` });
+      setNotice({ type: 'error', text: `Failed to issue ticket: ${err.message}` });
     } finally {
       setIssuingOrderId(null);
     }
@@ -1060,28 +1056,28 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         color: 'text-orange-600',
         bgColor: 'bg-orange-50',
         borderColor: 'border-orange-200',
-        label: 'Ожидает оплаты'
+        label: 'Awaiting payment'
       },
       confirmed: {
         icon: CheckCircle,
         color: 'text-blue-600',
         bgColor: 'bg-blue-50',
         borderColor: 'border-blue-200',
-        label: 'Подтвержден'
+        label: 'Confirmed'
       },
       ticketed: {
         icon: CheckCircle,
         color: 'text-green-600',
         bgColor: 'bg-green-50',
         borderColor: 'border-green-200',
-        label: 'Выписан'
+        label: 'Ticketed'
       },
       cancelled: {
         icon: XCircle,
         color: 'text-red-600',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
-        label: 'Отменен'
+        label: 'Cancelled'
       },
     };
 
@@ -1124,9 +1120,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   );
 
   const widgetEmbedSnippet = useMemo(() => {
-    const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || '';
+    const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || agencySelfMeta?.id || '';
     if (!agencyKey) {
-      return '<!-- Сначала сохраните настройки агентства, чтобы получить ключ виджета -->';
+      return '<!-- Save agency settings first to get the widget key -->';
     }
     const widgetBase = typeof window !== 'undefined' ? window.location.origin : '';
     const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
@@ -1149,7 +1145,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfMeta?.name]);
 
   const widgetPreviewUrl = useMemo(() => {
-    const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || '';
+    const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || agencySelfMeta?.id || '';
     const widgetBase = typeof window !== 'undefined' ? window.location.origin : '';
     if (!widgetBase) return '/widget-preview.html';
     const preview = new URL('/widget-preview.html', widgetBase);
@@ -1162,16 +1158,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       ? n8nBaseAbsolute
       : `${n8nBaseAbsolute}/drct`;
     preview.searchParams.set('api_url', widgetApiUrl);
-    preview.searchParams.set('locale', agencySelfForm.language || 'en');
-    preview.searchParams.set('agency_name', agencySelfMeta?.name || 'Aviaframe');
+        preview.searchParams.set('agency_name', agencySelfMeta?.name || 'Aviaframe');
     return preview.toString();
-  }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfMeta?.name, agencySelfForm.language]);
+  }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfMeta?.name]);
 
   const handleCopyWidgetSnippet = async () => {
     if (!widgetEmbedSnippet) return;
-    const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || '';
+    const agencyKey = agencySelfMeta?.api_key || agencySelfMeta?.domain || agencySelfMeta?.id || '';
     if (!agencyKey) {
-      setNotice({ type: 'error', text: 'Сначала сохраните настройки агентства и получите ключ виджета.' });
+      setNotice({ type: 'error', text: 'Save agency settings first and obtain the widget key.' });
       return;
     }
     try {
@@ -1188,9 +1183,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         document.execCommand('copy');
         document.body.removeChild(ta);
       }
-      setNotice({ type: 'success', text: 'Код виджета скопирован' });
+      setNotice({ type: 'success', text: 'Widget code copied' });
     } catch {
-      setNotice({ type: 'error', text: 'Не удалось скопировать код виджета' });
+      setNotice({ type: 'error', text: 'Failed to copy widget code' });
     }
   };
 
@@ -1201,7 +1196,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Загрузка заказов...</p>
+              <p className="text-gray-600">Loading orders...</p>
             </div>
           </div>
         </div>
@@ -1224,10 +1219,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               </button>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">
-                  {isAgencyAdminPreview || userProfile?.role === 'agent' ? 'Панель агентства' : 'Панель администратора'}
+                  {isAgencyAdminPreview || userProfile?.role === 'agent' ? 'Agency Dashboard' : 'Admin Dashboard'}
                 </h1>
                 <p className="text-gray-600 mt-1">
-                  {isAgencyAdminPreview || userProfile?.role === 'agent' ? 'Управление заказами агентства' : 'Управление всеми заказами'}
+                  {isAgencyAdminPreview || userProfile?.role === 'agent' ? 'Manage agency orders' : 'Manage all orders'}
                 </p>
               </div>
             </div>
@@ -1249,7 +1244,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               className={`text-left rounded-lg shadow-md p-4 border ${statusFilter === 'all' ? 'border-gray-500 bg-gray-50' : 'border-transparent bg-white'}`}
             >
               <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-              <div className="text-sm text-gray-600">Всего заказов</div>
+              <div className="text-sm text-gray-600">Total orders</div>
             </button>
             <button
               type="button"
@@ -1257,7 +1252,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               className={`text-left rounded-lg shadow-md p-4 border ${statusFilter === 'pending' ? 'border-orange-400 bg-orange-100' : 'border-orange-200 bg-orange-50'}`}
             >
               <div className="text-2xl font-bold text-orange-600">{stats.pending}</div>
-              <div className="text-sm text-orange-700">Ожидают оплаты</div>
+              <div className="text-sm text-orange-700">Awaiting payment</div>
             </button>
             <button
               type="button"
@@ -1265,7 +1260,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               className={`text-left rounded-lg shadow-md p-4 border ${statusFilter === 'confirmed' ? 'border-blue-400 bg-blue-100' : 'border-blue-200 bg-blue-50'}`}
             >
               <div className="text-2xl font-bold text-blue-600">{stats.confirmed}</div>
-              <div className="text-sm text-blue-700">Подтверждены</div>
+              <div className="text-sm text-blue-700">Confirmed</div>
             </button>
             <button
               type="button"
@@ -1273,7 +1268,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               className={`text-left rounded-lg shadow-md p-4 border ${statusFilter === 'ticketed' ? 'border-green-400 bg-green-100' : 'border-green-200 bg-green-50'}`}
             >
               <div className="text-2xl font-bold text-green-600">{stats.ticketed}</div>
-              <div className="text-sm text-green-700">Выписаны</div>
+              <div className="text-sm text-green-700">Ticketed</div>
             </button>
             <button
               type="button"
@@ -1281,7 +1276,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               className={`text-left rounded-lg shadow-md p-4 border ${statusFilter === 'cancelled' ? 'border-red-400 bg-red-100' : 'border-red-200 bg-red-50'}`}
             >
               <div className="text-2xl font-bold text-red-600">{stats.cancelled}</div>
-              <div className="text-sm text-red-700">Отменены</div>
+              <div className="text-sm text-red-700">Cancelled</div>
             </button>
           </div>
         )}
@@ -1289,13 +1284,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         {/* Agency Admin Settings */}
         {(userProfile?.role === 'agent' || isAgencyAdminPreview) && (
           <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-blue-100">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Настройки агентства</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3">Agency settings</h2>
             <p className="text-sm text-gray-600 mb-3">
-              Здесь вы задаёте модель комиссии: процент или фиксированная сумма за проданный билет.
+              Set commission model: percentage or fixed amount per sold ticket.
             </p>
             {isAgencyAdminPreview && (
               <div className="mb-3 text-sm text-gray-600">
-                Агентство: <span className="font-semibold text-gray-900">{agencies.find((a) => a.id === (userProfile?.agency_id || agencyPreviewId))?.name || agencies[0]?.name || '—'}</span>
+                Agency: <span className="font-semibold text-gray-900">{agencies.find((a) => a.id === (userProfile?.agency_id || agencyPreviewId))?.name || agencies[0]?.name || '—'}</span>
               </div>
             )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
@@ -1304,8 +1299,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_model: e.target.value }))}
                 className="border rounded px-2 py-1"
               >
-                <option value="percent">Процент</option>
-                <option value="fixed">Фикс</option>
+                <option value="percent">Percent</option>
+                <option value="fixed">Fixed</option>
               </select>
               {agencySelfForm.commission_model === 'percent' ? (
                 <div className="flex items-center border rounded px-2 py-1">
@@ -1313,7 +1308,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                     type="number"
                     value={agencySelfForm.commission_rate}
                     onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_rate: e.target.value }))}
-                    placeholder="Комиссия"
+                    placeholder="Commission"
                     className="w-full outline-none"
                   />
                   <span className="text-gray-500 text-sm">%</span>
@@ -1323,38 +1318,35 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   type="number"
                   value={agencySelfForm.commission_fixed_amount}
                   onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_fixed_amount: e.target.value }))}
-                  placeholder="Фиксированная сумма"
+                  placeholder="Fixed amount"
                   className="border rounded px-2 py-1"
                 />
               )}
-              <input
+              <select
                 value={agencySelfForm.currency}
                 onChange={(e) => setAgencySelfForm((p) => ({ ...p, currency: e.target.value.toUpperCase() }))}
-                placeholder="Валюта"
                 className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.language}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, language: e.target.value }))}
-                placeholder="Язык"
-                className="border rounded px-2 py-1"
-              />
+              >
+                <option value="SAR">SAR</option>
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+              </select>
               <input
                 value={agencySelfForm.contact_person_name}
                 onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_person_name: e.target.value }))}
-                placeholder="ФИО контактного лица"
+                placeholder="Contact person full name"
                 className="border rounded px-2 py-1"
               />
               <input
                 value={agencySelfForm.bank_name}
                 onChange={(e) => setAgencySelfForm((p) => ({ ...p, bank_name: e.target.value }))}
-                placeholder="Название банка"
+                placeholder="Bank name"
                 className="border rounded px-2 py-1"
               />
               <input
                 value={agencySelfForm.bank_account}
                 onChange={(e) => setAgencySelfForm((p) => ({ ...p, bank_account: e.target.value }))}
-                placeholder="Номер счета"
+                placeholder="Account number"
                 className="border rounded px-2 py-1"
               />
               <input
@@ -1377,19 +1369,19 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               />
               <div className="md:col-span-3 border rounded px-3 py-3 bg-white">
                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-700">Разрешенные домены виджета</span>
+                  <span className="text-sm font-medium text-gray-700">Allowed widget domains</span>
                   <button
                     onClick={() => setShowAddDomain((v) => !v)}
                     className="bg-indigo-600 text-white rounded px-3 py-1 text-xs"
                   >
-                    Добавить домен
+                    Add domain
                   </button>
                   <button
                     onClick={handleSaveWidgetDomains}
                     disabled={!domainsDirty || domainsSaving}
                     className={`rounded px-3 py-1 text-xs ${(!domainsDirty || domainsSaving) ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white'}`}
                   >
-                    {domainsSaving ? 'Сохраняем...' : domainsDirty ? 'Сохранить домены' : 'Сохранено'}
+                    {domainsSaving ? 'Saving...' : domainsDirty ? 'Save domains' : 'Saved'}
                   </button>
                 </div>
                 {showAddDomain && (
@@ -1404,7 +1396,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                       onClick={handleAddWidgetDomain}
                       className="bg-indigo-600 text-white rounded px-3 py-1 text-sm"
                     >
-                      Добавить
+                      Add
                     </button>
                   </div>
                 )}
@@ -1417,13 +1409,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                           onClick={() => handleRemoveWidgetDomain(d)}
                           className="text-xs text-red-600 hover:text-red-800"
                         >
-                          Удалить
+                          Delete
                         </button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-500">Доменов пока нет. Добавьте минимум один домен сайта агентства.</p>
+                  <p className="text-xs text-gray-500">No domains yet. Add at least one agency website domain.</p>
                 )}
               </div>
               <button
@@ -1431,16 +1423,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 className="bg-blue-600 text-white rounded px-3 py-1"
                 disabled={agencySelfLoading}
               >
-                {agencySelfLoading ? 'Сохраняем...' : 'Сохранить настройки'}
+                {agencySelfLoading ? 'Saving...' : 'Save settings'}
               </button>
             </div>
 
             <div className="mt-4 border border-indigo-100 rounded-lg p-3 bg-indigo-50/40">
-              <h3 className="text-sm font-semibold text-indigo-900 mb-2">Настройка виджета</h3>
+              <h3 className="text-sm font-semibold text-indigo-900 mb-2">Widget setup</h3>
               <div className="text-xs text-indigo-900/80 mb-3 space-y-1">
-                <p>1) Добавьте домены сайта в поле выше и сохраните.</p>
-                <p>2) Скопируйте embed-код и вставьте на сайт агентства.</p>
-                <p>3) Откройте предпросмотр и убедитесь, что виджет грузится.</p>
+                <p>1) Add your website domains above and save.</p>
+                <p>2) Copy embed code and paste it on the agency website.</p>
+                <p>3) Open preview and verify the widget loads.</p>
               </div>
               <textarea
                 readOnly
@@ -1452,29 +1444,29 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   onClick={handleCopyWidgetSnippet}
                   className="bg-indigo-600 text-white rounded px-3 py-1 text-sm"
                 >
-                  Скопировать код
+                  Copy code
                 </button>
                 <button
                   onClick={() => window.open(widgetPreviewUrl, '_blank')}
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
-                  Предпросмотр
+                  Preview
                 </button>
                 <button
                   onClick={() => window.open('/widget-docs/INTEGRATION_GUIDE.md', '_blank')}
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
-                  Инструкция
+                  Guide
                 </button>
                 <button
                   onClick={() => window.open('/widget-docs/README.md', '_blank')}
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
-                  Тех. описание
+                  Technical docs
                 </button>
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                Текущий ключ виджета: <span className="font-mono">{agencySelfMeta?.api_key || agencySelfMeta?.domain || '—'}</span>
+                Current widget key: <span className="font-mono">{agencySelfMeta?.api_key || agencySelfMeta?.domain || agencySelfMeta?.id || '—'}</span>
               </p>
             </div>
           </div>
@@ -1488,19 +1480,19 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 onClick={() => setActiveAdminSection('agencies')}
                 className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'agencies' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
-                Агентства
+                Agencies
               </button>
               <button
                 onClick={() => setActiveAdminSection('invoices')}
                 className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'invoices' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
-                Инвойсы
+                Invoices
               </button>
               <button
                 onClick={() => setActiveAdminSection('tickets')}
                 className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'tickets' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
-                Билеты
+                Tickets
               </button>
             </div>
           </div>
@@ -1509,45 +1501,45 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         {/* SuperAdmin Tools */}
         {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'agencies' && (
           <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-blue-100">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Раздел агентств</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3">Agencies section</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="border border-gray-200 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">Создать агентство</h3>
+                  <h3 className="font-semibold">Create agency</h3>
                   <button
                     onClick={() => setShowCreateAgencyForm((v) => !v)}
                     className="bg-blue-600 text-white rounded px-3 py-1 text-sm"
                   >
-                    {showCreateAgencyForm ? 'Скрыть форму' : 'Новое агентство'}
+                    {showCreateAgencyForm ? 'Hide form' : 'New agency'}
                   </button>
                 </div>
                 {showCreateAgencyForm && (
                   <div className="space-y-2">
-                    <input value={agencyForm.name} onChange={(e) => setAgencyForm((p) => ({ ...p, name: e.target.value }))} placeholder="Название" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.domain} onChange={(e) => setAgencyForm((p) => ({ ...p, domain: e.target.value }))} placeholder="Домен (subdomain)" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.contact_email} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_email: e.target.value }))} placeholder="Email (логин админа агентства)" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.contact_phone} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_phone: e.target.value }))} placeholder="Телефон" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.contact_person_name} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_person_name: e.target.value }))} placeholder="ФИО контактного лица" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.bank_name} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_name: e.target.value }))} placeholder="Название банка" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.bank_account} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_account: e.target.value }))} placeholder="Номер счета" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.name} onChange={(e) => setAgencyForm((p) => ({ ...p, name: e.target.value }))} placeholder="Name" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.domain} onChange={(e) => setAgencyForm((p) => ({ ...p, domain: e.target.value }))} placeholder="Domain (subdomain)" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.contact_email} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_email: e.target.value }))} placeholder="Email (agency admin login)" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.contact_phone} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_phone: e.target.value }))} placeholder="Phone" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.contact_person_name} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_person_name: e.target.value }))} placeholder="Contact person full name" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.bank_name} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_name: e.target.value }))} placeholder="Bank name" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.bank_account} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_account: e.target.value }))} placeholder="Account number" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.iban} onChange={(e) => setAgencyForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} placeholder="IBAN (SA...)" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.swift_bic} onChange={(e) => setAgencyForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} placeholder="SWIFT/BIC" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.sama_code} onChange={(e) => setAgencyForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} placeholder="SAMA bank code" className="w-full border rounded px-2 py-1" />
                     <textarea
                       value={agencyForm.widget_allowed_domains}
                       onChange={(e) => setAgencyForm((p) => ({ ...p, widget_allowed_domains: e.target.value }))}
-                      placeholder="Разрешенные домены виджета (каждый с новой строки), например:&#10;kiyavia.com&#10;aviatickets.kiyavia.com"
+                      placeholder="Allowed widget domains (one per line), for example:&#10;kiyavia.com&#10;aviatickets.kiyavia.com"
                       className="w-full border rounded px-2 py-1 min-h-20"
                     />
-                    <button onClick={handleCreateAgency} className="w-full bg-blue-600 text-white rounded px-3 py-2">Создать</button>
+                    <button onClick={handleCreateAgency} className="w-full bg-blue-600 text-white rounded px-3 py-2">Create</button>
                   </div>
                 )}
               </div>
 
               <div className="border border-gray-200 rounded-lg p-3">
-                <h3 className="font-semibold mb-2">Отчёт (summary)</h3>
+                <h3 className="font-semibold mb-2">Summary</h3>
                 <div className="text-sm space-y-1">
-                  <p>Всего: <b>{reportSummary?.total_orders ?? 0}</b></p>
+                  <p>Total: <b>{reportSummary?.total_orders ?? 0}</b></p>
                   <p>Pending: <b>{reportSummary?.pending ?? 0}</b></p>
                   <p>Confirmed: <b>{reportSummary?.confirmed ?? 0}</b></p>
                   <p>Ticketed: <b>{reportSummary?.ticketed ?? 0}</b></p>
@@ -1555,7 +1547,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   <p>Gross: <b>{reportSummary?.gross_total ?? 0}</b></p>
                 </div>
                 <button onClick={loadAdminData} className="mt-3 w-full bg-gray-100 rounded px-3 py-2">
-                  {adminLoading ? 'Обновляем...' : 'Обновить'}
+                  {adminLoading ? 'Refreshing...' : 'Refresh'}
                 </button>
               </div>
             </div>
@@ -1567,7 +1559,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Super Admin</h2>
               <button onClick={loadSuperAdmins} className="bg-gray-100 px-3 py-1 rounded text-sm">
-                {superAdminsLoading ? 'Загрузка...' : 'Обновить список'}
+                {superAdminsLoading ? 'Loading...' : 'Refresh list'}
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
@@ -1580,13 +1572,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               <input
                 value={superAdminForm.full_name}
                 onChange={(e) => setSuperAdminForm((p) => ({ ...p, full_name: e.target.value }))}
-                placeholder="Имя"
+                placeholder="Name"
                 className="border rounded px-2 py-1"
               />
               <input
                 value={superAdminForm.phone}
                 onChange={(e) => setSuperAdminForm((p) => ({ ...p, phone: e.target.value }))}
-                placeholder="Телефон"
+                placeholder="Phone"
                 className="border rounded px-2 py-1"
               />
               <button
@@ -1594,23 +1586,23 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 disabled={creatingSuperAdmin}
                 className="bg-purple-600 text-white rounded px-3 py-1 disabled:opacity-60"
               >
-                {creatingSuperAdmin ? 'Сохраняем...' : 'Добавить super admin'}
+                {creatingSuperAdmin ? 'Saving...' : 'Add super admin'}
               </button>
             </div>
             <div className="space-y-2 text-sm">
               {superAdmins.map((sa) => (
                 <div key={sa.id} className="border rounded px-3 py-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                   <div>
-                    <div className="font-semibold">{sa.full_name || 'Без имени'}</div>
+                    <div className="font-semibold">{sa.full_name || 'No name'}</div>
                     <div>{sa.email}</div>
                   </div>
                   <div className="text-gray-600">
-                    <div>Телефон: {sa.phone || 'N/A'}</div>
-                    <div>Обновлено: {sa.updated_at ? new Date(sa.updated_at).toLocaleString() : 'N/A'}</div>
+                    <div>Phone: {sa.phone || 'N/A'}</div>
+                    <div>Updated: {sa.updated_at ? new Date(sa.updated_at).toLocaleString() : 'N/A'}</div>
                   </div>
                 </div>
               ))}
-              {superAdmins.length === 0 && <p className="text-gray-500">Пока нет super admin в списке</p>}
+              {superAdmins.length === 0 && <p className="text-gray-500">No super admins yet</p>}
             </div>
           </div>
         )}
@@ -1619,16 +1611,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'agencies' && (
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-900">Агентства</h2>
+              <h2 className="text-lg font-bold text-gray-900">Agencies</h2>
               <button onClick={loadAgencies} className="bg-gray-100 px-3 py-1 rounded text-sm">
-                {agenciesLoading ? 'Загрузка...' : 'Обновить'}
+                {agenciesLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
               <input
                 value={agencyFilters.q}
                 onChange={(e) => setAgencyFilters((p) => ({ ...p, q: e.target.value }))}
-                placeholder="Поиск (name/domain/email)"
+                placeholder="Search (name/domain/email)"
                 className="border rounded px-2 py-1"
               />
               <select
@@ -1636,25 +1628,25 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 onChange={(e) => setAgencyFilters((p) => ({ ...p, is_active: e.target.value }))}
                 className="border rounded px-2 py-1"
               >
-                <option value="all">Все</option>
-                <option value="true">Активные</option>
-                <option value="false">Неактивные</option>
+                <option value="all">All</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
               </select>
-              <button onClick={loadAgencies} className="bg-blue-600 text-white rounded px-3 py-1">Фильтровать</button>
+              <button onClick={loadAgencies} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
             </div>
             <div className="space-y-2">
               {agencies.map((a) => (
                 <div key={a.id} className="border rounded p-3">
                   {agencyEditId === a.id ? (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                      <input value={agencyEditForm.name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Название" />
-                      <input value={agencyEditForm.domain} onChange={(e) => setAgencyEditForm((p) => ({ ...p, domain: e.target.value }))} className="border rounded px-2 py-1" placeholder="Домен" />
+                      <input value={agencyEditForm.name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Name" />
+                      <input value={agencyEditForm.domain} onChange={(e) => setAgencyEditForm((p) => ({ ...p, domain: e.target.value }))} className="border rounded px-2 py-1" placeholder="Domain" />
                       <input value={agencyEditForm.contact_email} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_email: e.target.value }))} className="border rounded px-2 py-1" placeholder="Email" />
-                      <input value={agencyEditForm.contact_phone} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_phone: e.target.value }))} className="border rounded px-2 py-1" placeholder="Телефон" />
-                      <input value={agencyEditForm.contact_person_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_person_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="ФИО контактного лица" />
-                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={agencyEditForm.is_active} onChange={(e) => setAgencyEditForm((p) => ({ ...p, is_active: e.target.checked }))} /> Активно</label>
-                      <input value={agencyEditForm.bank_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Название банка" />
-                      <input value={agencyEditForm.bank_account} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_account: e.target.value }))} className="border rounded px-2 py-1" placeholder="Номер счета" />
+                      <input value={agencyEditForm.contact_phone} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_phone: e.target.value }))} className="border rounded px-2 py-1" placeholder="Phone" />
+                      <input value={agencyEditForm.contact_person_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_person_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Contact person full name" />
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={agencyEditForm.is_active} onChange={(e) => setAgencyEditForm((p) => ({ ...p, is_active: e.target.checked }))} /> Active</label>
+                      <input value={agencyEditForm.bank_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Bank name" />
+                      <input value={agencyEditForm.bank_account} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_account: e.target.value }))} className="border rounded px-2 py-1" placeholder="Account number" />
                       <input value={agencyEditForm.iban} onChange={(e) => setAgencyEditForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="IBAN (SA...)" />
                       <input value={agencyEditForm.swift_bic} onChange={(e) => setAgencyEditForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SWIFT/BIC" />
                       <input value={agencyEditForm.sama_code} onChange={(e) => setAgencyEditForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SAMA bank code" />
@@ -1662,32 +1654,32 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         value={agencyEditForm.widget_allowed_domains}
                         onChange={(e) => setAgencyEditForm((p) => ({ ...p, widget_allowed_domains: e.target.value }))}
                         className="border rounded px-2 py-1 min-h-20 md:col-span-2"
-                        placeholder="Разрешенные домены виджета (каждый с новой строки)"
+                        placeholder="Allowed widget domains (one per line)"
                       />
-                      <button onClick={() => handleSaveAgency(a.id)} className="bg-green-600 text-white rounded px-3 py-1">Сохранить</button>
-                      <button onClick={() => setAgencyEditId(null)} className="bg-gray-100 rounded px-3 py-1">Отмена</button>
+                      <button onClick={() => handleSaveAgency(a.id)} className="bg-green-600 text-white rounded px-3 py-1">Save</button>
+                      <button onClick={() => setAgencyEditId(null)} className="bg-gray-100 rounded px-3 py-1">Cancel</button>
                     </div>
                   ) : (
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div className="text-sm">
                         <div className="font-semibold">{a.name} ({a.domain || 'no-domain'})</div>
                         <div>{a.contact_email} • {a.contact_phone || 'N/A'}</div>
-                        <div>Контактное лицо: {a?.settings?.contact_person?.full_name || 'N/A'}</div>
-                        <div>Банк: {a?.settings?.bank_details?.bank_name || 'N/A'} • IBAN: {a?.settings?.bank_details?.iban || 'N/A'}</div>
+                        <div>Contact person: {a?.settings?.contact_person?.full_name || 'N/A'}</div>
+                        <div>Bank: {a?.settings?.bank_details?.bank_name || 'N/A'} • IBAN: {a?.settings?.bank_details?.iban || 'N/A'}</div>
                         <div>SWIFT/BIC: {a?.settings?.bank_details?.swift_bic || 'N/A'} • SAMA: {a?.settings?.bank_details?.sama_code || 'N/A'}</div>
-                        <div>Домены виджета: {Array.isArray(a?.settings?.widget_allowed_domains) && a.settings.widget_allowed_domains.length ? a.settings.widget_allowed_domains.join(', ') : 'не заданы'}</div>
-                        <div>Статус: {a.is_active ? 'Активно' : 'Неактивно'}</div>
+                        <div>Widget domains: {Array.isArray(a?.settings?.widget_allowed_domains) && a.settings.widget_allowed_domains.length ? a.settings.widget_allowed_domains.join(', ') : 'not set'}</div>
+                        <div>Status: {a.is_active ? 'Active' : 'Inactive'}</div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => beginEditAgency(a)} className="bg-gray-100 rounded px-3 py-1 text-sm">Открыть/изменить</button>
-                        <button onClick={() => handleToggleAgencyActive(a)} className="bg-yellow-100 rounded px-3 py-1 text-sm">{a.is_active ? 'Заблокировать' : 'Разблокировать'}</button>
-                        <button onClick={() => handleDeleteAgency(a)} className="bg-red-100 text-red-700 rounded px-3 py-1 text-sm">Удалить</button>
+                        <button onClick={() => beginEditAgency(a)} className="bg-gray-100 rounded px-3 py-1 text-sm">Open/Edit</button>
+                        <button onClick={() => handleToggleAgencyActive(a)} className="bg-yellow-100 rounded px-3 py-1 text-sm">{a.is_active ? 'Suspend' : 'Unsuspend'}</button>
+                        <button onClick={() => handleDeleteAgency(a)} className="bg-red-100 text-red-700 rounded px-3 py-1 text-sm">Delete</button>
                       </div>
                     </div>
                   )}
                 </div>
               ))}
-              {agencies.length === 0 && <p className="text-sm text-gray-500">Агентств не найдено</p>}
+              {agencies.length === 0 && <p className="text-sm text-gray-500">No agencies found</p>}
             </div>
           </div>
         )}
@@ -1696,26 +1688,26 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'invoices' && (
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-900">Инвойсы</h2>
+              <h2 className="text-lg font-bold text-gray-900">Invoices</h2>
               <button onClick={loadInvoices} className="bg-gray-100 px-3 py-1 rounded text-sm">
-                {invoicesLoading ? 'Загрузка...' : 'Обновить'}
+                {invoicesLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>
             <div className="border border-gray-200 rounded-lg p-3 mb-3">
-              <h3 className="font-semibold mb-2">Создать draft-инвойс</h3>
+              <h3 className="font-semibold mb-2">Create draft invoice</h3>
               <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
                 <select value={invoiceForm.agency_id} onChange={(e) => setInvoiceForm((p) => ({ ...p, agency_id: e.target.value }))} className="border rounded px-2 py-1">
-                  <option value="">Выберите агентство</option>
+                  <option value="">Select agency</option>
                   {agencies.map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>
                 <div className="flex items-center gap-2 border rounded px-2 py-1">
-                  <span className="text-xs text-gray-500">С</span>
+                  <span className="text-xs text-gray-500">From</span>
                   <input type="date" value={invoiceForm.period_from} onChange={(e) => setInvoiceForm((p) => ({ ...p, period_from: e.target.value }))} className="w-full outline-none" />
                 </div>
                 <div className="flex items-center gap-2 border rounded px-2 py-1">
-                  <span className="text-xs text-gray-500">По</span>
+                  <span className="text-xs text-gray-500">To</span>
                   <input type="date" value={invoiceForm.period_to} onChange={(e) => setInvoiceForm((p) => ({ ...p, period_to: e.target.value }))} className="w-full outline-none" />
                 </div>
                 <select
@@ -1733,33 +1725,33 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   step="0.01"
                   value={invoiceForm.manual_total}
                   onChange={(e) => setInvoiceForm((p) => ({ ...p, manual_total: e.target.value }))}
-                  placeholder="Сумма инвойса"
+                  placeholder="Invoice amount"
                   className="border rounded px-2 py-1"
                 />
-                <button onClick={handleCreateInvoice} className="bg-green-600 text-white rounded px-3 py-1">Создать инвойс</button>
+                <button onClick={handleCreateInvoice} className="bg-green-600 text-white rounded px-3 py-1">Create invoice</button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Период выставления инвойса: с даты по дату. Если указана сумма, она используется как итог инвойса.</p>
+              <p className="text-xs text-gray-500 mt-2">Invoice period is from date to date. If amount is provided, it is used as final invoice total.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-3">
               <select value={invoiceFilters.agency_id} onChange={(e) => setInvoiceFilters((p) => ({ ...p, agency_id: e.target.value }))} className="border rounded px-2 py-1">
-                <option value="">Все агентства</option>
+                <option value="">All agencies</option>
                 {agencies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
               <select value={invoiceFilters.currency} onChange={(e) => setInvoiceFilters((p) => ({ ...p, currency: e.target.value }))} className="border rounded px-2 py-1">
-                <option value="">Все валюты</option>
+                <option value="">All currencies</option>
                 <option value="EUR">EUR</option>
                 <option value="USD">USD</option>
                 <option value="SAR">SAR</option>
               </select>
               <div className="flex items-center gap-2 border rounded px-2 py-1">
-                <span className="text-xs text-gray-500">С</span>
+                <span className="text-xs text-gray-500">From</span>
                 <input type="date" value={invoiceFilters.date_from} onChange={(e) => setInvoiceFilters((p) => ({ ...p, date_from: e.target.value }))} className="w-full outline-none" />
               </div>
               <div className="flex items-center gap-2 border rounded px-2 py-1">
-                <span className="text-xs text-gray-500">По</span>
+                <span className="text-xs text-gray-500">To</span>
                 <input type="date" value={invoiceFilters.date_to} onChange={(e) => setInvoiceFilters((p) => ({ ...p, date_to: e.target.value }))} className="w-full outline-none" />
               </div>
-              <button onClick={loadInvoices} className="bg-blue-600 text-white rounded px-3 py-1">Фильтровать</button>
+              <button onClick={loadInvoices} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
             </div>
             <div className="space-y-2 text-sm">
               {invoices.map((inv) => (
@@ -1775,7 +1767,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         onClick={() => handleMarkInvoiceIssued(inv.id)}
                         className="bg-emerald-100 text-emerald-800 rounded px-2 py-1 text-xs"
                       >
-                        Выставить
+                        Issue
                       </button>
                     )}
                     <button
@@ -1787,7 +1779,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   </div>
                 </div>
               ))}
-              {invoices.length === 0 && <p className="text-gray-500">Инвойсов нет</p>}
+              {invoices.length === 0 && <p className="text-gray-500">No invoices</p>}
             </div>
           </div>
         )}
@@ -1796,31 +1788,31 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'tickets' && (
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-900">Билеты</h2>
+              <h2 className="text-lg font-bold text-gray-900">Tickets</h2>
               <button onClick={loadTickets} className="bg-gray-100 px-3 py-1 rounded text-sm">
-                {ticketsLoading ? 'Загрузка...' : 'Обновить'}
+                {ticketsLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mb-3">
               <select value={ticketFilters.agency_id} onChange={(e) => setTicketFilters((p) => ({ ...p, agency_id: e.target.value }))} className="border rounded px-2 py-1">
-                <option value="">Все агентства</option>
+                <option value="">All agencies</option>
                 {agencies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
               <select value={ticketFilters.order_status} onChange={(e) => setTicketFilters((p) => ({ ...p, order_status: e.target.value }))} className="border rounded px-2 py-1">
-                <option value="">Заказ: все статусы</option>
-                <option value="pending">Ожидает оплаты</option>
-                <option value="confirmed">Подтвержден</option>
-                <option value="ticketed">Выписан</option>
-                <option value="cancelled">Отменен</option>
+                <option value="">Order: all statuses</option>
+                <option value="pending">Awaiting payment</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="ticketed">Ticketed</option>
+                <option value="cancelled">Cancelled</option>
               </select>
               <select value={ticketFilters.status} onChange={(e) => setTicketFilters((p) => ({ ...p, status: e.target.value }))} className="border rounded px-2 py-1">
-                <option value="">Выписка: все статусы</option>
+                <option value="">Issuance: all statuses</option>
                 <option value="issued">Issued</option>
                 <option value="pending">Pending</option>
                 <option value="failed">Failed</option>
               </select>
               <select value={ticketFilters.email_status} onChange={(e) => setTicketFilters((p) => ({ ...p, email_status: e.target.value }))} className="border rounded px-2 py-1">
-                <option value="">Email: все</option>
+                <option value="">Email: all</option>
                 <option value="sent">Sent</option>
                 <option value="pending">Pending</option>
                 <option value="failed">Failed</option>
@@ -1829,7 +1821,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               <input type="date" value={ticketFilters.date_to} onChange={(e) => setTicketFilters((p) => ({ ...p, date_to: e.target.value }))} className="border rounded px-2 py-1" />
               <input value={ticketFilters.q} onChange={(e) => setTicketFilters((p) => ({ ...p, q: e.target.value }))} placeholder="ticket/pnr/order/email" className="border rounded px-2 py-1" />
             </div>
-            <button onClick={loadTickets} className="bg-blue-600 text-white rounded px-3 py-1 mb-3">Фильтровать</button>
+            <button onClick={loadTickets} className="bg-blue-600 text-white rounded px-3 py-1 mb-3">Filter</button>
             <div className="space-y-2 text-sm">
               {tickets.map((t) => (
                 <div key={t.id} className="border rounded px-3 py-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -1851,7 +1843,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   </div>
                 </div>
               ))}
-              {tickets.length === 0 && <p className="text-gray-500">Билетов нет</p>}
+              {tickets.length === 0 && <p className="text-gray-500">No tickets</p>}
             </div>
           </div>
         )}
@@ -1865,7 +1857,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
                   type="text"
-                  placeholder="Поиск по номеру заказа, email, телефону, маршруту..."
+                  placeholder="Search by order number, email, phone, route..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none transition-all"
@@ -1880,11 +1872,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none transition-all appearance-none bg-white"
                 >
-                  <option value="all">Все статусы</option>
-                  <option value="pending">Ожидают оплаты</option>
-                  <option value="confirmed">Подтверждены</option>
-                  <option value="ticketed">Выписаны</option>
-                  <option value="cancelled">Отменены</option>
+                  <option value="all">All statuses</option>
+                  <option value="pending">Awaiting payment</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="ticketed">Ticketed</option>
+                  <option value="cancelled">Cancelled</option>
                 </select>
               </div>
             </div>
@@ -1896,7 +1888,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
             <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
             <div>
-              <h3 className="text-red-800 font-semibold">Ошибка</h3>
+              <h3 className="text-red-800 font-semibold">Error</h3>
               <p className="text-red-700 text-sm mt-1">{error}</p>
             </div>
           </div>
@@ -1921,12 +1913,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-12 text-center">
             <Plane size={64} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">
-              {searchQuery || statusFilter !== 'all' ? 'Заказы не найдены' : 'Пока нет заказов'}
+              {searchQuery || statusFilter !== 'all' ? 'Orders not found' : 'No orders yet'}
             </h3>
             <p className="text-gray-500">
               {searchQuery || statusFilter !== 'all'
-                ? 'Попробуйте изменить параметры поиска'
-                : 'Заказы появятся здесь после первого бронирования'
+                ? 'Try changing the search filters'
+                : 'Orders will appear here after the first booking'
               }
             </p>
           </div>
@@ -1955,7 +1947,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                           </span>
                         </div>
                         <span className="text-xs text-gray-500">
-                          {new Date(order.created_at).toLocaleString('ru-RU')}
+                          {new Date(order.created_at).toLocaleString('en-US')}
                         </span>
                       </div>
 
@@ -2019,7 +2011,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                             </span>
                           </div>
                           <p className="text-xs text-gray-600">
-                            Пассажиров: {order.passenger_count || 1}
+                            Passengers: {order.passenger_count || 1}
                           </p>
                           <p className="text-xs text-gray-500 mt-1 font-mono">
                             {order.order_number}
@@ -2039,7 +2031,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                             : 'bg-green-600 hover:bg-green-700 text-white'
                         }`}
                       >
-                        {issuingOrderId === order.id ? 'Выписываем...' : 'Выписать билет'}
+                        {issuingOrderId === order.id ? 'Issuing...' : 'Issue ticket'}
                       </button>
                       {normalizeStatus(order.status) === 'ticketed' && (
                         <button
@@ -2047,7 +2039,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                           disabled={ticketDocLoadingId === order.id}
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm disabled:opacity-60"
                         >
-                          {ticketDocLoadingId === order.id ? 'Готовим PDF...' : 'Скачать билет PDF'}
+                          {ticketDocLoadingId === order.id ? 'Preparing PDF...' : 'Download ticket PDF'}
                         </button>
                       )}
                       <select
@@ -2056,17 +2048,17 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         disabled={updatingOrderId === order.id}
                         className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none transition-all text-sm font-semibold"
                       >
-                        <option value="pending">Ожидает оплаты</option>
-                        <option value="confirmed">Подтвержден</option>
-                        <option value="ticketed">Выписан</option>
-                        <option value="cancelled">Отменен</option>
+                        <option value="pending">Awaiting payment</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="ticketed">Ticketed</option>
+                        <option value="cancelled">Cancelled</option>
                       </select>
 
                       <button
                         onClick={() => setSelectedOrder(order)}
                         className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-all text-sm"
                       >
-                        Подробности
+                        Details
                       </button>
                     </div>
                   </div>
@@ -2094,7 +2086,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   <>
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Детали заказа</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">Order details</h2>
                   <p className="text-sm text-gray-500 mt-1">
                     #{selectedOrder.order_number || selectedOrder.id}
                   </p>
@@ -2112,7 +2104,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                     <MapPin size={14} />
-                    Маршрут
+                    Route
                   </p>
                   <p className="font-semibold text-gray-900 text-lg leading-tight">
                     {(outbound?.origin || selectedOrder.origin) || 'N/A'} → {(outbound?.destination || selectedOrder.destination) || 'N/A'}
@@ -2121,31 +2113,31 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                     {(outbound?.airline || selectedOrder.airline_name || selectedOrder.airline_code || 'N/A')} • {(outbound?.flightNumber || selectedOrder.flight_number || 'N/A')}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    Вылет: {outbound?.departure || selectedOrder.departure_time || 'N/A'}
+                    Departure: {outbound?.departure || selectedOrder.departure_time || 'N/A'}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Прилет: {outbound?.arrival || selectedOrder.arrival_time || 'N/A'}
+                    Arrival: {outbound?.arrival || selectedOrder.arrival_time || 'N/A'}
                   </p>
                 </div>
 
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                     <Ticket size={14} />
-                    Заказ
+                    Order
                   </p>
                   <p className="font-semibold text-gray-900 text-lg">
                     {selectedOrder.total_price} {selectedOrder.currency || 'UAH'}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    Статус: {getStatusConfig(normalizeStatus(selectedOrder.status)).label}
+                    Status: {getStatusConfig(normalizeStatus(selectedOrder.status)).label}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Создан: {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('ru-RU') : 'N/A'}
+                    Created: {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('en-US') : 'N/A'}
                   </p>
                 </div>
 
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <p className="text-xs text-gray-500">Контакты</p>
+                  <p className="text-xs text-gray-500">Contacts</p>
                   <p className="text-sm text-gray-800">{selectedOrder.contact_email || 'N/A'}</p>
                   <p className="text-sm text-gray-800">{selectedOrder.contact_phone || 'N/A'}</p>
                   <p className="text-xs text-gray-500 mt-2">User ID: {selectedOrder.user_id || 'N/A'}</p>
@@ -2156,7 +2148,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 mb-4">
                   <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                     <MapPin size={14} />
-                    Обратный маршрут
+                    Return route
                   </p>
                   <p className="font-semibold text-gray-900 text-lg leading-tight">
                     {returnLeg.origin || 'N/A'} → {returnLeg.destination || 'N/A'}
@@ -2164,20 +2156,20 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   <p className="text-sm text-gray-600 mt-1">
                     {returnLeg.airline || 'N/A'} • {returnLeg.flightNumber || 'N/A'}
                   </p>
-                  <p className="text-sm text-gray-600 mt-1">Вылет: {returnLeg.departure || 'N/A'}</p>
-                  <p className="text-sm text-gray-600">Прилет: {returnLeg.arrival || 'N/A'}</p>
+                  <p className="text-sm text-gray-600 mt-1">Departure: {returnLeg.departure || 'N/A'}</p>
+                  <p className="text-sm text-gray-600">Arrival: {returnLeg.arrival || 'N/A'}</p>
                 </div>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <p className="text-xs text-gray-500">Служебные поля</p>
+                  <p className="text-xs text-gray-500">System fields</p>
                   <p className="text-xs text-gray-700 break-all">order_id: {selectedOrder.id}</p>
                   <p className="text-xs text-gray-700 break-all">drct_order_id: {selectedOrder.drct_order_id || 'N/A'}</p>
                   <p className="text-xs text-gray-700">pax: {selectedOrder.passenger_count || 1}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <p className="text-xs text-gray-500">Цена</p>
+                  <p className="text-xs text-gray-500">Price</p>
                   <p className="text-sm text-gray-800">Base: {selectedOrder.base_price ?? 'N/A'}</p>
                   <p className="text-sm text-gray-800">Taxes: {selectedOrder.taxes ?? 'N/A'}</p>
                   <p className="text-sm text-gray-800">Baggage: {selectedOrder.baggage_price ?? 'N/A'}</p>
@@ -2188,7 +2180,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 onClick={() => setSelectedOrder(null)}
                 className="mt-5 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all"
               >
-                Закрыть
+                Close
               </button>
                   </>
                 );

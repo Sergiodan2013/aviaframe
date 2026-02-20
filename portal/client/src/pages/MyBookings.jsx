@@ -128,7 +128,7 @@ export default function MyBookings({ user, onBackToHome }) {
   useEffect(() => {
     if (!loading) return;
     const t = setTimeout(() => {
-      setError('Истекло время загрузки бронирований. Обновите страницу или попробуйте позже.');
+      setError('Booking load timed out. Refresh the page or try again later.');
       setLoading(false);
     }, 20000);
     return () => clearTimeout(t);
@@ -158,7 +158,7 @@ export default function MyBookings({ user, onBackToHome }) {
         const cache = readOrdersCache().filter((o) => o?.user_id === user.id);
         if (cache.length > 0) {
           setOrders(cache.map((o) => ({ ...o, status: normalizeStatus(o.status) })));
-          setError('Показаны локально сохранённые заказы (база временно недоступна).');
+          setError('Showing locally cached orders (database temporarily unavailable).');
           return;
         }
         throw error;
@@ -179,7 +179,7 @@ export default function MyBookings({ user, onBackToHome }) {
       const cache = readOrdersCache().filter((o) => o?.user_id === user.id);
       if (cache.length > 0) {
         setOrders(cache.map((o) => ({ ...o, status: normalizeStatus(o.status) })));
-        setError('Показаны локально сохранённые заказы (база временно недоступна).');
+        setError('Showing locally cached orders (database temporarily unavailable).');
       } else {
         setError('Failed to load bookings. Please try again.');
       }
@@ -197,7 +197,7 @@ export default function MyBookings({ user, onBackToHome }) {
         color: 'text-orange-600',
         bgColor: 'bg-orange-50',
         borderColor: 'border-orange-200',
-        label: 'Ожидает оплаты',
+        label: 'Awaiting payment',
         action: 'payment'
       },
       confirmed: {
@@ -205,7 +205,7 @@ export default function MyBookings({ user, onBackToHome }) {
         color: 'text-blue-600',
         bgColor: 'bg-blue-50',
         borderColor: 'border-blue-200',
-        label: 'Подтвержден',
+        label: 'Confirmed',
         action: 'view'
       },
       ticketed: {
@@ -213,7 +213,7 @@ export default function MyBookings({ user, onBackToHome }) {
         color: 'text-green-600',
         bgColor: 'bg-green-50',
         borderColor: 'border-green-200',
-        label: 'Выписан',
+        label: 'Ticketed',
         action: 'ticket'
       },
       cancelled: {
@@ -221,7 +221,7 @@ export default function MyBookings({ user, onBackToHome }) {
         color: 'text-red-600',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
-        label: 'Отменен',
+        label: 'Cancelled',
         action: null
       },
     };
@@ -237,7 +237,7 @@ export default function MyBookings({ user, onBackToHome }) {
       if (!data) throw new Error('Payment instructions not found');
       setPaymentInstruction(data);
     } catch (err) {
-      setError(`Не удалось загрузить инструкцию по оплате: ${err.message}`);
+      setError(`Failed to load payment instructions: ${err.message}`);
     } finally {
       setPaymentInstructionLoading(false);
     }
@@ -257,7 +257,7 @@ export default function MyBookings({ user, onBackToHome }) {
       }
     } catch (err) {
       if (popup) popup.close();
-      setError(`Ошибка скачивания билета: ${err.message}`);
+      setError(`Failed to download ticket: ${err.message}`);
     } finally {
       setTicketLoadingId(null);
     }
@@ -265,7 +265,7 @@ export default function MyBookings({ user, onBackToHome }) {
 
   const handleOpenSupport = (order) => {
     setSupportModalOrder(order);
-    setSupportSubject(order?.order_number ? `Проблема по заказу ${order.order_number}` : 'Вопрос в поддержку');
+    setSupportSubject(order?.order_number ? `Order issue ${order.order_number}` : 'Support request');
     setSupportMessage('');
     setSupportFile(null);
   };
@@ -284,7 +284,7 @@ export default function MyBookings({ user, onBackToHome }) {
   const handleSendSupport = async () => {
     try {
       if (!supportMessage || supportMessage.trim().length < 3) {
-        setError('Введите текст обращения (минимум 3 символа).');
+        setError('Enter a support message (minimum 3 characters).');
         return;
       }
       setSupportSending(true);
@@ -292,7 +292,7 @@ export default function MyBookings({ user, onBackToHome }) {
       if (supportFile) {
         const maxBytes = 8 * 1024 * 1024;
         if (supportFile.size > maxBytes) {
-          setError('Файл слишком большой. Максимум 8MB.');
+          setError('File is too large. Maximum size is 8MB.');
           return;
         }
         const dataBase64 = await fileToBase64(supportFile);
@@ -317,9 +317,9 @@ export default function MyBookings({ user, onBackToHome }) {
       setSupportMessage('');
       setSupportFile(null);
       setError(null);
-      setNotice('Запрос отправлен в поддержку.');
+      setNotice('Support request has been sent.');
     } catch (err) {
-      setError(`Ошибка отправки в поддержку: ${err.message}`);
+      setError(`Failed to send support request: ${err.message}`);
     } finally {
       setSupportSending(false);
     }
@@ -332,7 +332,7 @@ export default function MyBookings({ user, onBackToHome }) {
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Загрузка бронирований...</p>
+              <p className="text-gray-600">Loading bookings...</p>
             </div>
           </div>
         </div>
@@ -354,8 +354,8 @@ export default function MyBookings({ user, onBackToHome }) {
                 <ArrowLeft size={24} />
               </button>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Мои бронирования</h1>
-                <p className="text-gray-600 mt-1">Управление вашими заказами</p>
+                <h1 className="text-3xl font-bold text-gray-900">My bookings</h1>
+                <p className="text-gray-600 mt-1">Manage your orders</p>
               </div>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-md">
@@ -370,7 +370,7 @@ export default function MyBookings({ user, onBackToHome }) {
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
             <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
             <div>
-              <h3 className="text-red-800 font-semibold">Ошибка</h3>
+              <h3 className="text-red-800 font-semibold">Error</h3>
               <p className="text-red-700 text-sm mt-1">{error}</p>
             </div>
           </div>
@@ -395,16 +395,16 @@ export default function MyBookings({ user, onBackToHome }) {
           <div className="bg-white rounded-lg shadow-md p-12 text-center">
             <Plane size={64} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">
-              У вас пока нет бронирований
+              You have no bookings yet
             </h3>
             <p className="text-gray-500 mb-6">
-              Найдите и забронируйте свой первый рейс
+              Find and book your first flight
             </p>
             <button
               onClick={onBackToHome}
               className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold py-3 px-6 rounded-lg transition-all"
             >
-              Найти рейсы
+              Search flights
             </button>
           </div>
         ) : (
@@ -433,7 +433,7 @@ export default function MyBookings({ user, onBackToHome }) {
                           </span>
                         </div>
                         <span className="text-xs text-gray-500">
-                          {new Date(order.created_at).toLocaleDateString('ru-RU', {
+                          {new Date(order.created_at).toLocaleDateString('en-US', {
                             day: 'numeric',
                             month: 'long',
                             year: 'numeric'
@@ -504,7 +504,7 @@ export default function MyBookings({ user, onBackToHome }) {
                       </div>
 
                       <div className="mt-3 text-xs text-gray-500">
-                        Номер заказа: <span className="font-mono font-semibold">{order.order_number}</span>
+                        Order number: <span className="font-mono font-semibold">{order.order_number}</span>
                       </div>
                     </div>
 
@@ -516,7 +516,7 @@ export default function MyBookings({ user, onBackToHome }) {
                           disabled={paymentInstructionLoading}
                           className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm"
                         >
-                          {paymentInstructionLoading ? 'Загрузка...' : 'Инструкция по оплате'}
+                          {paymentInstructionLoading ? 'Loading...' : 'Payment instructions'}
                         </button>
                       )}
                       {statusConfig.action === 'ticket' && (
@@ -524,20 +524,20 @@ export default function MyBookings({ user, onBackToHome }) {
                           onClick={() => handleDownloadTicket(order)}
                           className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm"
                         >
-                          {ticketLoadingId === order.id ? 'Готовим PDF...' : 'Скачать билет'}
+                          {ticketLoadingId === order.id ? 'Preparing PDF...' : 'Download ticket'}
                         </button>
                       )}
                       <button
                         onClick={() => handleOpenSupport(order)}
                         className="w-full bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded-lg transition-all text-sm"
                       >
-                        Поддержка
+                        Support
                       </button>
                       <button
                         onClick={() => setSelectedOrder(order)}
                         className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-all text-sm"
                       >
-                        Детали
+                        Details
                       </button>
                     </div>
                   </div>
@@ -559,8 +559,8 @@ export default function MyBookings({ user, onBackToHome }) {
             >
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Инструкция по оплате</h2>
-                  <p className="text-sm text-gray-500 mt-1">Заказ #{paymentInstruction.order_number}</p>
+                  <h2 className="text-xl font-bold text-gray-900">Payment instructions</h2>
+                  <p className="text-sm text-gray-500 mt-1">Order #{paymentInstruction.order_number}</p>
                 </div>
                 <button
                   onClick={() => setPaymentInstruction(null)}
@@ -571,18 +571,18 @@ export default function MyBookings({ user, onBackToHome }) {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 text-sm">
                 <div className="bg-gray-50 rounded p-3 border">
-                  <div className="text-gray-500">Сумма к оплате</div>
+                  <div className="text-gray-500">Amount due</div>
                   <div className="text-lg font-semibold">{paymentInstruction.amount} {paymentInstruction.currency}</div>
                 </div>
                 <div className="bg-gray-50 rounded p-3 border">
-                  <div className="text-gray-500">Агентство</div>
+                  <div className="text-gray-500">Agency</div>
                   <div className="font-semibold">{paymentInstruction?.agency?.name || 'N/A'}</div>
                 </div>
               </div>
               <div className="bg-gray-50 rounded p-3 border mb-4 text-sm">
-                <div className="font-semibold mb-2">Банковские реквизиты</div>
-                <div>Банк: {paymentInstruction?.bank_details?.bank_name || 'N/A'}</div>
-                <div>Счет: {paymentInstruction?.bank_details?.account_number || 'N/A'}</div>
+                <div className="font-semibold mb-2">Bank details</div>
+                <div>Bank: {paymentInstruction?.bank_details?.bank_name || 'N/A'}</div>
+                <div>Account: {paymentInstruction?.bank_details?.account_number || 'N/A'}</div>
                 <div>IBAN: {paymentInstruction?.bank_details?.iban || 'N/A'}</div>
                 <div>SWIFT/BIC: {paymentInstruction?.bank_details?.swift_bic || 'N/A'}</div>
                 <div>SAMA: {paymentInstruction?.bank_details?.sama_code || 'N/A'}</div>
@@ -608,8 +608,8 @@ export default function MyBookings({ user, onBackToHome }) {
             >
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Запрос в поддержку</h2>
-                  <p className="text-sm text-gray-500 mt-1">Заказ #{supportModalOrder.order_number}</p>
+                  <h2 className="text-xl font-bold text-gray-900">Support request</h2>
+                  <p className="text-sm text-gray-500 mt-1">Order #{supportModalOrder.order_number}</p>
                 </div>
                 <button
                   onClick={() => setSupportModalOrder(null)}
@@ -622,13 +622,13 @@ export default function MyBookings({ user, onBackToHome }) {
                 <input
                   value={supportSubject}
                   onChange={(e) => setSupportSubject(e.target.value)}
-                  placeholder="Тема"
+                  placeholder="Subject"
                   className="w-full border rounded px-3 py-2"
                 />
                 <textarea
                   value={supportMessage}
                   onChange={(e) => setSupportMessage(e.target.value)}
-                  placeholder="Опишите проблему"
+                  placeholder="Describe the issue"
                   className="w-full border rounded px-3 py-2 min-h-32"
                 />
                 <input
@@ -636,13 +636,13 @@ export default function MyBookings({ user, onBackToHome }) {
                   onChange={(e) => setSupportFile(e.target.files?.[0] || null)}
                   className="w-full border rounded px-3 py-2"
                 />
-                <p className="text-xs text-gray-500">Получатель: sergiodan2013@gmail.com</p>
+                <p className="text-xs text-gray-500">Recipient: sergiodan2013@gmail.com</p>
                 <button
                   onClick={handleSendSupport}
                   disabled={supportSending}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-60"
                 >
-                  {supportSending ? 'Отправляем...' : 'Отправить в поддержку'}
+                  {supportSending ? 'Sending...' : 'Send to support'}
                 </button>
               </div>
             </div>
@@ -667,7 +667,7 @@ export default function MyBookings({ user, onBackToHome }) {
                   <>
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Детали заказа</h2>
+                        <h2 className="text-2xl font-bold text-gray-900">Order details</h2>
                         <p className="text-sm text-gray-500 mt-1">
                           #{selectedOrder.order_number || selectedOrder.id}
                         </p>
@@ -685,7 +685,7 @@ export default function MyBookings({ user, onBackToHome }) {
                       <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                         <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                           <MapPin size={14} />
-                          Маршрут
+                          Route
                         </p>
                         <p className="font-semibold text-gray-900 text-lg leading-tight">
                           {(outbound?.origin || selectedOrder.origin) || 'N/A'} → {(outbound?.destination || selectedOrder.destination) || 'N/A'}
@@ -698,28 +698,28 @@ export default function MyBookings({ user, onBackToHome }) {
                         <p className="text-sm text-gray-600 mt-1">
                           {(outbound?.airline || selectedOrder.airline_name || selectedOrder.airline_code || 'N/A')} • {(outbound?.flightNumber || selectedOrder.flight_number || 'N/A')}
                         </p>
-                        <p className="text-sm text-gray-600 mt-1">Вылет: {outbound?.departure || selectedOrder.departure_time || 'N/A'}</p>
-                        <p className="text-sm text-gray-600">Прилет: {outbound?.arrival || selectedOrder.arrival_time || 'N/A'}</p>
+                        <p className="text-sm text-gray-600 mt-1">Departure: {outbound?.departure || selectedOrder.departure_time || 'N/A'}</p>
+                        <p className="text-sm text-gray-600">Arrival: {outbound?.arrival || selectedOrder.arrival_time || 'N/A'}</p>
                       </div>
 
                       <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                         <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                           <Ticket size={14} />
-                          Заказ
+                          Order
                         </p>
                         <p className="font-semibold text-gray-900 text-lg">
                           {selectedOrder.total_price} {selectedOrder.currency || 'UAH'}
                         </p>
                         <p className="text-sm text-gray-600 mt-1">
-                          Статус: {getStatusConfig(normalizeStatus(selectedOrder.status)).label}
+                          Status: {getStatusConfig(normalizeStatus(selectedOrder.status)).label}
                         </p>
                         <p className="text-sm text-gray-600">
-                          Создан: {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('ru-RU') : 'N/A'}
+                          Created: {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('en-US') : 'N/A'}
                         </p>
                       </div>
 
                       <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                        <p className="text-xs text-gray-500">Контакты</p>
+                        <p className="text-xs text-gray-500">Contacts</p>
                         <p className="text-sm text-gray-800">{selectedOrder.contact_email || 'N/A'}</p>
                         <p className="text-sm text-gray-800">{selectedOrder.contact_phone || 'N/A'}</p>
                         <p className="text-xs text-gray-500 mt-2">User ID: {selectedOrder.user_id || 'N/A'}</p>
@@ -730,7 +730,7 @@ export default function MyBookings({ user, onBackToHome }) {
                       <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 mb-4">
                         <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                           <MapPin size={14} />
-                          Обратный маршрут
+                          Return route
                         </p>
                         <p className="font-semibold text-gray-900 text-lg leading-tight">
                           {returnLeg.origin || 'N/A'} → {returnLeg.destination || 'N/A'}
@@ -743,8 +743,8 @@ export default function MyBookings({ user, onBackToHome }) {
                         <p className="text-sm text-gray-600 mt-1">
                           {returnLeg.airline || 'N/A'} • {returnLeg.flightNumber || 'N/A'}
                         </p>
-                        <p className="text-sm text-gray-600 mt-1">Вылет: {returnLeg.departure || 'N/A'}</p>
-                        <p className="text-sm text-gray-600">Прилет: {returnLeg.arrival || 'N/A'}</p>
+                        <p className="text-sm text-gray-600 mt-1">Departure: {returnLeg.departure || 'N/A'}</p>
+                        <p className="text-sm text-gray-600">Arrival: {returnLeg.arrival || 'N/A'}</p>
                       </div>
                     )}
 
@@ -752,7 +752,7 @@ export default function MyBookings({ user, onBackToHome }) {
                       onClick={() => setSelectedOrder(null)}
                       className="mt-5 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all"
                     >
-                      Закрыть
+                      Close
                     </button>
                   </>
                 );

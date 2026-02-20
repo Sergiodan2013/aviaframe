@@ -29,7 +29,7 @@
 <body>
   <div class="wrap">
     <div class="card" id="booking-root">
-      <div class="loading">Создаем бронирование...</div>
+      <div class="loading">Creating booking...</div>
     </div>
   </div>
 
@@ -41,7 +41,7 @@
       const passengerRaw = localStorage.getItem('passengerData');
 
       if (!selectedOfferRaw || !passengerRaw) {
-        root.innerHTML = '<div class="error">Нет данных для бронирования. Вернитесь в поиск и выберите рейс заново.</div>';
+        root.innerHTML = '<div class="error">No booking data found. Return to search and select a flight again.</div>';
         return;
       }
 
@@ -51,9 +51,29 @@
         selectedOffer = JSON.parse(selectedOfferRaw);
         passenger = JSON.parse(passengerRaw);
       } catch {
-        root.innerHTML = '<div class="error">Ошибка чтения данных бронирования из localStorage.</div>';
+        root.innerHTML = '<div class="error">Failed to read booking data from localStorage.</div>';
         return;
       }
+
+      const userRaw = localStorage.getItem('user');
+      let currentUser = null;
+      try {
+        currentUser = userRaw ? JSON.parse(userRaw) : null;
+      } catch {
+        currentUser = null;
+      }
+
+      const baggagePrices = {
+        none: 0,
+        '20kg': 500,
+        '30kg': 750
+      };
+      const baggageValue = passenger.baggage || 'none';
+      const baggagePrice = baggagePrices[baggageValue] || 0;
+      const nationality = passenger.nationality || 'SA';
+      const basePrice = (selectedOffer.price || {}).total || 0;
+      const totalPrice = basePrice + baggagePrice;
+      const currency = (selectedOffer.price || {}).currency || 'UAH';
 
       const payload = {
         offer_id: selectedOffer.offer_id,
@@ -67,13 +87,15 @@
             type: 'passport',
             number: passenger.passportNumber,
             expiry_date: passenger.passportExpiry,
-            issuing_country: 'SA'
+            issuing_country: nationality
           }
         }],
         contacts: {
           email: passenger.email,
           phone: passenger.phone
         },
+        user_id: currentUser?.id || null,
+        user_email: currentUser?.email || passenger.email || null,
         offer: {
           origin: selectedOffer.origin,
           destination: selectedOffer.destination,
@@ -82,84 +104,102 @@
           airline_code: selectedOffer.airline_code,
           airline_name: selectedOffer.airline_name,
           flight_number: selectedOffer.flight_number,
-          base_price: (selectedOffer.price || {}).total || 0,
+          base_price: basePrice,
           taxes: (selectedOffer.price || {}).taxes || 0,
-          currency: (selectedOffer.price || {}).currency || 'UAH'
+          currency
         },
         passenger_details: {
           passport_number: passenger.passportNumber,
           passport_expiry: passenger.passportExpiry,
-          baggage_allowance: 'hand_luggage'
+          baggage_allowance: baggageValue,
+          nationality
         },
         pricing: {
-          base_price: (selectedOffer.price || {}).total || 0,
+          base_price: basePrice,
           taxes: (selectedOffer.price || {}).taxes || 0,
-          baggage_price: 0,
-          total_price: (selectedOffer.price || {}).total || 0,
-          currency: (selectedOffer.price || {}).currency || 'UAH'
+          baggage_price: baggagePrice,
+          total_price: totalPrice,
+          currency
         },
         raw_offer_data: selectedOffer
       };
-
-      const candidates = [
-        '/api/n8n/webhook-test/drct/order/create',
-        '/api/n8n/webhook/drct/order/create',
-        '/webhook-test/drct/order/create',
-        '/webhook/drct/order/create'
-      ];
 
       console.log('Creating Hold Booking via n8n webhook with passenger data:', passenger);
       console.log('Sending complete order to n8n webhook:', payload);
 
       let responseData = null;
       let lastError = null;
+      const idempotencyKey = `wgt_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const requestOptions = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey
+        },
+        body: JSON.stringify(payload)
+      };
 
-      for (const url of candidates) {
-        try {
-          const resp = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (resp.ok) {
+      try {
+        const primaryUrl = '/api/n8n/webhook-test/drct/order/create';
+        let resp = await fetch(primaryUrl, requestOptions);
+
+        if (!resp.ok && resp.status === 404) {
+          const fallbackUrl = '/api/n8n/webhook/drct/order/create';
+          resp = await fetch(fallbackUrl, requestOptions);
+          if (!resp.ok) {
+            let fallbackBody = '';
+            try {
+              fallbackBody = await resp.text();
+            } catch {
+              fallbackBody = '';
+            }
+            lastError = `HTTP ${resp.status} on ${fallbackUrl}${fallbackBody ? `: ${fallbackBody.slice(0, 220)}` : ''}`;
+          } else {
             responseData = await resp.json().catch(() => ({}));
-            break;
           }
-          lastError = `HTTP ${resp.status} on ${url}`;
-        } catch (e) {
-          lastError = String(e && e.message ? e.message : e);
+        } else if (!resp.ok) {
+          let bodyText = '';
+          try {
+            bodyText = await resp.text();
+          } catch {
+            bodyText = '';
+          }
+          lastError = `HTTP ${resp.status} on ${primaryUrl}${bodyText ? `: ${bodyText.slice(0, 220)}` : ''}`;
+        } else {
+          responseData = await resp.json().catch(() => ({}));
         }
+      } catch (e) {
+        lastError = String(e && e.message ? e.message : e);
       }
 
       if (!responseData) {
-        root.innerHTML = `<div class="error">Не удалось создать бронирование.\n${lastError || 'Unknown error'}\nПроверь webhook drct/order/create и прокси /api/*.</div>`;
+        root.innerHTML = `<div class="error">Failed to create booking.\n${lastError || 'Unknown error'}\nCheck webhook drct/order/create and /api/* proxy.</div>`;
         return;
       }
 
       console.log('Order created successfully via n8n:', responseData);
 
       const orderNumber = responseData.order_number || responseData.booking_reference || responseData.drct_order_id || '—';
-      const total = Math.round(((selectedOffer.price || {}).total || 0)).toLocaleString('en-US');
-      const currency = ((selectedOffer.price || {}).currency || 'UAH');
+      const total = Math.round(totalPrice).toLocaleString('en-US');
       const departure = String(selectedOffer.departure_time || '').slice(0, 16).replace('T', ' ');
 
       root.innerHTML = `
         <div class="center ok">✓</div>
-        <div class="center title">Бронирование создано!</div>
-        <div class="center subtitle">Рейс забронирован. Ожидает оплаты.</div>
-        <div class="number">Номер бронирования: ${orderNumber}</div>
+        <div class="center title">Booking created!</div>
+        <div class="center subtitle">Flight is booked and awaiting payment.</div>
+        <div class="number">Booking number: ${orderNumber}</div>
         <div class="status">
-          <h3>Статус: Ожидает оплаты</h3>
-          <p>Для завершения бронирования необходимо произвести оплату. Инструкции отправлены на ${passenger.email}.</p>
+          <h3>Status: Awaiting payment</h3>
+          <p>Complete payment to finalize booking. Instructions were sent to ${passenger.email}.</p>
         </div>
         <div class="details">
-          <h4>Детали рейса</h4>
+          <h4>Flight details</h4>
           <div class="grid">
-            <div>Маршрут:</div><div class="val">${selectedOffer.origin || '---'} → ${selectedOffer.destination || '---'}</div>
-            <div>Авиакомпания:</div><div class="val">${selectedOffer.airline_name || selectedOffer.airline_code || 'N/A'}</div>
-            <div>Вылет:</div><div class="val">${departure}</div>
-            <div>Пассажир:</div><div class="val">${passenger.firstName} ${passenger.lastName}</div>
-            <div class="due">К оплате:</div><div class="duev">${total} ${currency}</div>
+            <div>Route:</div><div class="val">${selectedOffer.origin || '---'} → ${selectedOffer.destination || '---'}</div>
+            <div>Airline:</div><div class="val">${selectedOffer.airline_name || selectedOffer.airline_code || 'N/A'}</div>
+            <div>Departure:</div><div class="val">${departure}</div>
+            <div>Passenger:</div><div class="val">${passenger.firstName} ${passenger.lastName}</div>
+            <div class="due">Amount due:</div><div class="duev">${total} ${currency}</div>
           </div>
         </div>
       `;

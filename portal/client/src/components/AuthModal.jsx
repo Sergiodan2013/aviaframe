@@ -34,7 +34,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError(null);
 
     try {
-      // Apple Sign In через Supabase
+      // Apple Sign In via Supabase
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'apple',
         options: {

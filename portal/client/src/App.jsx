@@ -615,7 +615,7 @@ function App() {
         err?.response?.data?.message ||
         err?.message ||
         null;
-      setError(details ? `Не удалось создать бронирование: ${details}` : 'Не удалось создать бронирование. Попробуйте еще раз.');
+      setError(details ? `Failed to create booking: ${details}` : 'Failed to create booking. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -667,7 +667,7 @@ function App() {
     }
     // Staff roles only
     if (!isStaffRole(user.role)) {
-      setError('У вас нет прав доступа к админ-панели');
+      setError('You do not have access to the admin panel');
       return;
     }
     setCurrentPage('admin');
@@ -680,7 +680,7 @@ function App() {
       return;
     }
     if (!isAdminRole(user.role)) {
-      setError('У вас нет прав доступа к режиму админа агентства');
+      setError('You do not have access to agency admin mode');
       return;
     }
     setCurrentPage('adminAgency');
@@ -977,7 +977,7 @@ function App() {
           const newDate = new Date(departDate);
           newDate.setDate(departDate.getDate() + offset);
 
-          const dayLabel = Math.abs(offset) === 1 ? 'день' : 'дня';
+          const dayLabel = Math.abs(offset) === 1 ? 'day' : 'days';
           alternatives.push({
             date: newDate.toISOString().split('T')[0],
             label: offset > 0 ? `+${offset} ${dayLabel}` : `${offset} ${dayLabel}`,
@@ -990,7 +990,7 @@ function App() {
         }
 
         setSuggestedDates(alternatives);
-        setError('К сожалению, на выбранные даты рейсов не найдено. Попробуйте соседние даты:');
+        setError('No flights were found for selected dates. Try nearby dates:');
       }
 
       setSearchPerformed(true);
@@ -1047,7 +1047,7 @@ function App() {
                     }`}
                   >
                     <BookOpen size={18} />
-                    Мои бронирования
+                    My bookings
                   </button>
                   {isStaffRole(user.role) && (
                     <button
@@ -1059,7 +1059,7 @@ function App() {
                       }`}
                     >
                       <Shield size={18} />
-                      {user.role === 'agent' ? 'Агентство' : 'Админ'}
+                      {user.role === 'agent' ? 'Agency' : 'Admin'}
                     </button>
                   )}
                   {isAdminRole(user.role) && (
@@ -1072,7 +1072,7 @@ function App() {
                       }`}
                     >
                       <Shield size={18} />
-                      Админ агентства
+                      Agency admin
                     </button>
                   )}
                 </>
@@ -1150,7 +1150,7 @@ function App() {
             {suggestedDates.length > 0 && (
               <div className="mt-4 pt-4 border-t border-red-200">
                 <p className="text-sm text-gray-700 mb-3 font-medium">
-                  Попробуйте рейсы на соседние даты:
+                  Try nearby travel dates:
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {suggestedDates.map((suggestion, index) => (
@@ -1338,48 +1338,48 @@ function App() {
             <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 text-center">
               <div className="mb-6">
                 <CheckCircle size={64} className="mx-auto text-orange-500 mb-4" />
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Бронирование создано!</h2>
-                <p className="text-gray-600">Рейс забронирован. Ожидает оплаты.</p>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">Booking created!</h2>
+                <p className="text-gray-600">Flight is booked and awaiting payment.</p>
               </div>
 
               {/* Booking Reference */}
               <div className="bg-orange-50 rounded-lg p-4 mb-4 border border-orange-200">
-                <div className="text-sm text-gray-600 mb-1">Номер бронирования</div>
+                <div className="text-sm text-gray-600 mb-1">Booking number</div>
                 <div className="text-2xl font-bold text-orange-600">{booking.bookingReference}</div>
               </div>
 
               {/* Status */}
               <div className="bg-yellow-50 rounded-lg p-4 mb-6 border border-yellow-200">
                 <div className="text-sm font-semibold text-yellow-800 mb-2">
-                  Статус: Ожидает оплаты
+                  Status: Awaiting payment
                 </div>
                 <p className="text-xs text-yellow-700">
-                  Для завершения бронирования необходимо произвести оплату. Инструкции отправлены на ваш email.
+                  Complete payment to finalize booking. Instructions were sent to your email.
                 </p>
               </div>
 
               {/* Flight Details */}
               <div className="text-left mb-6 p-6 bg-gray-50 rounded-lg">
-                <h3 className="font-semibold text-gray-800 mb-4">Детали рейса</h3>
+                <h3 className="font-semibold text-gray-800 mb-4">Flight details</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Маршрут:</span>
+                    <span className="text-gray-600">Route:</span>
                     <span className="font-semibold">{booking.offer.origin} → {booking.offer.destination}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Авиакомпания:</span>
+                    <span className="text-gray-600">Airline:</span>
                     <span className="font-semibold">{booking.offer.airline_name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Вылет:</span>
+                    <span className="text-gray-600">Departure:</span>
                     <span className="font-semibold">{booking.offer.departure_time}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Пассажир:</span>
+                    <span className="text-gray-600">Passenger:</span>
                     <span className="font-semibold">{booking.passenger.firstName} {booking.passenger.lastName}</span>
                   </div>
                   <div className="flex justify-between border-t pt-2 mt-2">
-                    <span className="text-gray-600">К оплате:</span>
+                    <span className="text-gray-600">Amount due:</span>
                     <span className="text-xl font-bold text-orange-600">
                       {booking.totalPrice.toFixed(0)} {booking.currency}
                     </span>
@@ -1390,20 +1390,20 @@ function App() {
               {/* Actions */}
               <div className="space-y-3">
                 <p className="text-sm text-gray-500 mb-4">
-                  Детали бронирования и инструкции по оплате отправлены на <strong>{user?.email || booking.passenger.email}</strong>
+                  Booking details and payment instructions were sent to <strong>{user?.email || booking.passenger.email}</strong>
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={handleGoToBookings}
                     className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-3 px-6 rounded-lg transition-all"
                   >
-                    Мои бронирования
+                    My bookings
                   </button>
                   <button
                     onClick={handleNewSearch}
                     className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold py-3 px-6 rounded-lg transition-all"
                   >
-                    Новый поиск
+                    New search
                   </button>
                 </div>
               </div>
