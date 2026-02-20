@@ -4,6 +4,18 @@
   publish = "dist"
 
 [[redirects]]
+  from = "/api/backend/*"
+  to = "https://benedictory-tyrannous-norris.ngrok-free.dev/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/n8n/*"
+  to = "https://benedictory-tyrannous-norris.ngrok-free.dev/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
