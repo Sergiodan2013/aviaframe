@@ -541,8 +541,41 @@ export const getAdminAgencies = async (params = {}) => {
     if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
   });
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  const { data, error } = await backendApiRequest(`/admin/agencies${suffix}`, { method: 'GET' });
-  return { data: data?.agencies || null, error };
+  const backend = await backendApiRequest(`/admin/agencies${suffix}`, { method: 'GET' });
+  if (!backend?.error) {
+    return { data: backend.data?.agencies || null, error: null };
+  }
+
+  // Fallback for frontend-only deploys without /api/backend proxy.
+  let fallbackQuery = supabase
+    .from('agencies')
+    .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
+    .order('created_at', { ascending: false });
+
+  if (params?.q) {
+    const q = String(params.q).trim();
+    fallbackQuery = fallbackQuery.or(`name.ilike.%${q}%,domain.ilike.%${q}%,contact_email.ilike.%${q}%`);
+  }
+  if (params?.is_active === true || params?.is_active === 'true') {
+    fallbackQuery = fallbackQuery.eq('is_active', true);
+  } else if (params?.is_active === false || params?.is_active === 'false') {
+    fallbackQuery = fallbackQuery.eq('is_active', false);
+  }
+  if (params?.limit) {
+    const limit = Number(params.limit);
+    if (Number.isFinite(limit) && limit > 0) {
+      fallbackQuery = fallbackQuery.limit(limit);
+    }
+  } else {
+    fallbackQuery = fallbackQuery.limit(200);
+  }
+
+  const fallback = await fallbackQuery;
+  if (!fallback.error) {
+    return { data: fallback.data || [], error: null };
+  }
+
+  return { data: null, error: backend.error };
 };
 
 export const getAdminSuperAdmins = async () => {
@@ -764,11 +797,87 @@ export const createAdminAgency = async (payload) => {
 };
 
 export const updateAdminAgency = async (agencyId, payload) => {
-  const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}`, {
+  const backend = await backendApiRequest(`/admin/agencies/${agencyId}`, {
     method: 'PATCH',
     body: payload
   });
-  return { data: data?.agency || null, error };
+  if (!backend?.error) {
+    return { data: backend.data?.agency || null, error: null };
+  }
+
+  // Fallback for frontend-only deploys without /api/backend proxy.
+  const nextSettings = {};
+
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'widget_allowed_domains')) {
+    nextSettings.widget_allowed_domains = Array.isArray(payload.widget_allowed_domains)
+      ? payload.widget_allowed_domains
+      : [];
+  }
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'bank_details')) {
+    nextSettings.bank_details = payload.bank_details || {};
+  }
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'contact_person_name')) {
+    nextSettings.contact_person = { full_name: payload.contact_person_name || null };
+  }
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'commission_model') ||
+      Object.prototype.hasOwnProperty.call(payload || {}, 'commission_fixed_amount') ||
+      Object.prototype.hasOwnProperty.call(payload || {}, 'currency')) {
+    nextSettings.commission = {
+      model: payload?.commission_model || 'percent',
+      fixed_amount: Number(payload?.commission_fixed_amount || 0) || 0,
+      currency: String(payload?.currency || 'SAR').toUpperCase()
+    };
+  }
+
+  const updateRow = {
+    updated_at: new Date().toISOString()
+  };
+
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'name')) updateRow.name = payload.name;
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'domain')) updateRow.domain = payload.domain;
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'contact_email')) updateRow.contact_email = payload.contact_email;
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'contact_phone')) updateRow.contact_phone = payload.contact_phone;
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'country')) updateRow.country = payload.country;
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'address')) updateRow.address = payload.address;
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'is_active')) updateRow.is_active = !!payload.is_active;
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'commission_rate')) {
+    updateRow.commission_rate = Number(payload.commission_rate || 0) || 0;
+  }
+  if (Object.keys(nextSettings).length > 0) {
+    const current = await supabase
+      .from('agencies')
+      .select('settings')
+      .eq('id', agencyId)
+      .maybeSingle();
+    const currentSettings = current?.data?.settings && typeof current.data.settings === 'object'
+      ? current.data.settings
+      : {};
+    updateRow.settings = {
+      ...currentSettings,
+      ...nextSettings,
+      commission: {
+        ...(currentSettings?.commission || {}),
+        ...(nextSettings?.commission || {})
+      },
+      bank_details: {
+        ...(currentSettings?.bank_details || {}),
+        ...(nextSettings?.bank_details || {})
+      },
+      contact_person: {
+        ...(currentSettings?.contact_person || {}),
+        ...(nextSettings?.contact_person || {})
+      }
+    };
+  }
+
+  const fallback = await supabase
+    .from('agencies')
+    .update(updateRow)
+    .eq('id', agencyId)
+    .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
+    .single();
+
+  return { data: fallback.data || null, error: fallback.error || null };
 };
 
 export const deleteAdminAgency = async (agencyId) => {
