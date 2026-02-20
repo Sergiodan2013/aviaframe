@@ -22,6 +22,7 @@ function App() {
   const [useMockData, setUseMockData] = useState(false);
   const [selectedAirlines, setSelectedAirlines] = useState([]);
   const [quickFilter, setQuickFilter] = useState('all');
+  const [resultsSort, setResultsSort] = useState('price');
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
@@ -376,6 +377,25 @@ function App() {
       baggage: { count: groups.baggage.length, minPrice: minPrice(groups.baggage) },
     };
   }, [flights]);
+
+  const sortedFilteredFlights = useMemo(() => {
+    const arr = [...filteredFlights];
+    if (resultsSort === 'airline') {
+      arr.sort((a, b) => {
+        const an = String(a?.airline_name || a?.airline_code || a?.airline || '').toLowerCase();
+        const bn = String(b?.airline_name || b?.airline_code || b?.airline || '').toLowerCase();
+        return an.localeCompare(bn);
+      });
+      return arr;
+    }
+    if (resultsSort === 'fastest') {
+      const duration = (f) => Number(f?.duration_minutes || 999999);
+      arr.sort((a, b) => duration(a) - duration(b));
+      return arr;
+    }
+    arr.sort((a, b) => Number(a?.price?.total || 0) - Number(b?.price?.total || 0));
+    return arr;
+  }, [filteredFlights, resultsSort]);
 
   // Handle offer selection - check auth first, then proceed to passenger form
   const handleOfferSelect = (offer) => {
@@ -1172,10 +1192,10 @@ function App() {
                 {/* Quick Filters */}
                 <div className="mb-5 grid grid-cols-1 md:grid-cols-4 gap-3">
                   {[
-                    { id: 'all', label: 'Все' },
-                    { id: 'nonstop', label: 'Без пересадок' },
-                    { id: 'one_stop', label: '1 пересадка' },
-                    { id: 'baggage', label: 'С багажом' },
+                    { id: 'all', label: 'All' },
+                    { id: 'nonstop', label: 'Non-stop' },
+                    { id: 'one_stop', label: '1 stop' },
+                    { id: 'baggage', label: 'With baggage' },
                   ].map((item) => {
                     const stat = quickFilterStats[item.id];
                     const active = quickFilter === item.id;
@@ -1193,12 +1213,33 @@ function App() {
                           {item.label}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {stat?.count || 0} рейс(ов)
-                          {Number.isFinite(stat?.minPrice) ? ` · от ${stat.minPrice} UAH` : ''}
+                          {stat?.count || 0} flights
+                          {Number.isFinite(stat?.minPrice) ? ` · from ${stat.minPrice} UAH` : ''}
                         </div>
                       </button>
                     );
                   })}
+                </div>
+
+                <div className="mb-5 flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-gray-600">Sort by:</span>
+                  {[
+                    { id: 'price', label: 'Price' },
+                    { id: 'airline', label: 'Airline' },
+                    { id: 'fastest', label: 'Fastest' },
+                  ].map((sortItem) => (
+                    <button
+                      key={sortItem.id}
+                      onClick={() => setResultsSort(sortItem.id)}
+                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                        resultsSort === sortItem.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {sortItem.label}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Airline Filter */}
@@ -1210,7 +1251,7 @@ function App() {
 
                 {/* Flight Cards */}
                 <div className="space-y-4">
-                  {filteredFlights.map((offer, index) => (
+                  {sortedFilteredFlights.map((offer, index) => (
                     <FlightCard
                       key={offer.id || index}
                       offer={offer}
@@ -1220,7 +1261,7 @@ function App() {
                 </div>
 
                 {/* No results after filtering */}
-                {filteredFlights.length === 0 && (
+                {sortedFilteredFlights.length === 0 && (
                   <div className="bg-white rounded-lg shadow-md p-8 text-center mt-4">
                     <AlertCircle size={48} className="mx-auto text-gray-300 mb-3" />
                     <h3 className="text-lg font-semibold text-gray-700 mb-2">

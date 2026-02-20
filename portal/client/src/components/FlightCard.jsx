@@ -92,8 +92,8 @@ export default function FlightCard({ offer, onSelect }) {
     return 0;
   }, [offer]);
 
-  const stopsLabel = stopsCount === 0 ? 'Без пересадок' : stopsCount === 1 ? '1 пересадка' : `${stopsCount} пересадки`;
-  const baggageLabel = checkedBaggageQty > 0 ? `С багажом (${checkedBaggageQty})` : 'Без багажа';
+  const stopsLabel = stopsCount === 0 ? 'Non-stop' : stopsCount === 1 ? '1 stop' : `${stopsCount} stops`;
+  const baggageLabel = checkedBaggageQty > 0 ? `Checked bag (${checkedBaggageQty})` : 'No checked bag';
 
   const segments = useMemo(() => {
     if (!Array.isArray(offer?.segments)) return [];
@@ -162,16 +162,33 @@ export default function FlightCard({ offer, onSelect }) {
     (isRoundTripCollapsed ? segments[0]?.destinationCode : segments[segments.length - 1]?.destinationCode) ||
     (typeof shownDestination === 'string' && shownDestination.length <= 4 ? shownDestination.toUpperCase() : null);
   const outboundRouteCode = shownOriginCode && shownDestinationCode ? `${shownOriginCode}-${shownDestinationCode}` : null;
-  const returnSummary =
-    isRoundTripCollapsed && segments.length > 1
-      ? `${segments[segments.length - 1]?.origin || 'N/A'} → ${segments[segments.length - 1]?.destination || 'N/A'} • ${segments[segments.length - 1]?.departure || 'N/A'}`
-      : (offer?._searchReturnDate && offer?._searchDestination && offer?._searchOrigin
-          ? `${offer._searchDestination} → ${offer._searchOrigin} • ${offer._searchReturnDate}`
-          : null);
+  const hasReturnBlock = Boolean(
+    (offer?.return_origin && offer?.return_destination) ||
+    (isRoundTripCollapsed && segments.length > 1) ||
+    (offer?._searchReturnDate && offer?._searchDestination && offer?._searchOrigin)
+  );
+  const returnOrigin =
+    offer?.return_origin ||
+    (isRoundTripCollapsed && segments.length > 1 ? segments[segments.length - 1]?.origin : offer?._searchDestination) ||
+    'N/A';
+  const returnDestination =
+    offer?.return_destination ||
+    (isRoundTripCollapsed && segments.length > 1 ? segments[segments.length - 1]?.destination : offer?._searchOrigin) ||
+    'N/A';
+  const returnDeparture =
+    offer?.return_departure_time ||
+    (isRoundTripCollapsed && segments.length > 1 ? segments[segments.length - 1]?.departure : offer?._searchReturnDate) ||
+    'N/A';
+  const returnArrival =
+    offer?.return_arrival_time ||
+    (isRoundTripCollapsed && segments.length > 1 ? segments[segments.length - 1]?.arrival : 'N/A') ||
+    'N/A';
   const returnRouteCode =
-    isRoundTripCollapsed && segments.length > 1
-      ? `${segments[segments.length - 1]?.originCode || 'N/A'}-${segments[segments.length - 1]?.destinationCode || 'N/A'}`
-      : (offer?._searchDestination && offer?._searchOrigin ? `${offer._searchDestination}-${offer._searchOrigin}` : null);
+    offer?.return_origin && offer?.return_destination
+      ? `${String(offer.return_origin).toUpperCase()}-${String(offer.return_destination).toUpperCase()}`
+      : (isRoundTripCollapsed && segments.length > 1
+          ? `${segments[segments.length - 1]?.originCode || 'N/A'}-${segments[segments.length - 1]?.destinationCode || 'N/A'}`
+          : (offer?._searchDestination && offer?._searchOrigin ? `${offer._searchDestination}-${offer._searchOrigin}` : null));
 
   return (
     <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 p-6 border border-gray-200">
@@ -190,7 +207,7 @@ export default function FlightCard({ offer, onSelect }) {
 
           <div className="flex items-center gap-4">
             <div className="text-center min-w-[140px]">
-              <div className="text-2xl font-bold text-gray-800">{shownDeparture}</div>
+              <div className="text-xl font-bold text-gray-800">{shownDeparture}</div>
               <div className="text-sm text-gray-500">{shownOrigin}</div>
               {outboundRouteCode && <div className="text-xs text-gray-400">{outboundRouteCode}</div>}
             </div>
@@ -204,16 +221,33 @@ export default function FlightCard({ offer, onSelect }) {
             </div>
 
             <div className="text-center min-w-[140px]">
-              <div className="text-2xl font-bold text-gray-800">{shownArrival}</div>
+              <div className="text-xl font-bold text-gray-800">{shownArrival}</div>
               <div className="text-sm text-gray-500">{shownDestination}</div>
               {outboundRouteCode && <div className="text-xs text-gray-400">{outboundRouteCode}</div>}
             </div>
           </div>
 
-          {returnSummary && (
-            <div className="text-xs text-gray-500">
-              Обратно: {returnSummary}
-              {returnRouteCode ? ` (${returnRouteCode})` : ''}
+          {hasReturnBlock && (
+            <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
+              <div className="text-center min-w-[140px]">
+                <div className="text-xl font-bold text-gray-800">{returnDeparture}</div>
+                <div className="text-sm text-gray-500">{returnOrigin}</div>
+                {returnRouteCode && <div className="text-xs text-gray-400">{returnRouteCode}</div>}
+              </div>
+
+              <div className="flex-1 flex flex-col items-center">
+                <div className="text-xs text-gray-500 mb-1">Return</div>
+                <div className="w-full relative">
+                  <div className="border-t-2 border-gray-300"></div>
+                  <Plane size={16} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white text-blue-600" />
+                </div>
+              </div>
+
+              <div className="text-center min-w-[140px]">
+                <div className="text-xl font-bold text-gray-800">{returnArrival}</div>
+                <div className="text-sm text-gray-500">{returnDestination}</div>
+                {returnRouteCode && <div className="text-xs text-gray-400">{returnRouteCode}</div>}
+              </div>
             </div>
           )}
 
@@ -236,7 +270,7 @@ export default function FlightCard({ offer, onSelect }) {
                 onClick={() => setDetailsOpen((v) => !v)}
                 className="ml-auto inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
               >
-                {detailsOpen ? 'Коротко' : 'Детали'}
+                {detailsOpen ? 'Hide details' : 'Details'}
                 {detailsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
             )}
@@ -249,7 +283,7 @@ export default function FlightCard({ offer, onSelect }) {
                   <div key={`${seg.flightNumber}-${idx}`} className="text-sm text-gray-700">
                     <div className="font-semibold">{seg.origin} → {seg.destination}</div>
                     <div className="text-xs text-gray-500">{seg.departure} → {seg.arrival}</div>
-                    <div className="text-xs text-gray-500">{seg.airline} • рейс {seg.flightNumber}</div>
+                    <div className="text-xs text-gray-500">{seg.airline} • flight {seg.flightNumber}</div>
                   </div>
                 ))}
               </div>
@@ -259,7 +293,7 @@ export default function FlightCard({ offer, onSelect }) {
 
         <div className="flex flex-row md:flex-col items-center md:items-end gap-3 md:gap-2 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
           <div className="text-center md:text-right flex-1 md:flex-none">
-            <div className="text-3xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600">
               {price.toFixed(0)} {currency}
             </div>
             <div className="text-xs text-gray-500 mt-1">per person</div>
