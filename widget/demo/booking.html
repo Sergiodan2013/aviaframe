@@ -179,7 +179,22 @@
 
       console.log('Order created successfully via n8n:', responseData);
 
-      const orderNumber = responseData.order_number || responseData.booking_reference || responseData.drct_order_id || '—';
+      const resolved = Array.isArray(responseData)
+        ? (responseData[0] || {})
+        : (responseData?.data && typeof responseData.data === 'object' ? responseData.data : responseData);
+      const orderNumber =
+        resolved?.order_number ||
+        resolved?.booking_number ||
+        resolved?.booking_reference ||
+        resolved?.drct_order_id ||
+        resolved?.order_id ||
+        resolved?.id ||
+        '—';
+
+      if (orderNumber === '—' && (resolved?.error || resolved?.message)) {
+        root.innerHTML = `<div class="error">Failed to create booking.\n${resolved?.error || resolved?.message}</div>`;
+        return;
+      }
       const total = Math.round(totalPrice).toLocaleString('en-US');
       const departure = String(selectedOffer.departure_time || '').slice(0, 16).replace('T', ' ');
 
