@@ -137,15 +137,15 @@ const parseBackendResponse = async (resp, fallbackMessage) => {
   } catch {
     payload = null;
   }
+  if (looksLikeHtml) {
+    return {
+      data: null,
+      error: {
+        message: 'Backend API is not configured on this domain (/api/backend returned HTML). Configure VITE_BACKEND_API_BASE_URL or Netlify proxy.'
+      }
+    };
+  }
   if (!resp.ok) {
-    if (looksLikeHtml) {
-      return {
-        data: null,
-        error: {
-          message: 'Backend API is not configured on this domain (/api/backend returned HTML). Configure VITE_BACKEND_API_BASE_URL or Netlify proxy.'
-        }
-      };
-    }
     return {
       data: null,
       error: payload?.error || { message: raw || `${fallbackMessage} (${resp.status})` }
