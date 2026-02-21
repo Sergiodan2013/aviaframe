@@ -19,6 +19,7 @@ import {
   finalizeTicketDocument,
   getDocumentDownloadUrl,
   getOrderTicketDocument,
+  getProfile,
   getMyAgency,
   updateMyAgency
 } from '../lib/supabase';
@@ -322,11 +323,19 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
       let profile = userProfile;
       if (!profile) {
-        const role = normalizeRole(user?.role || 'user');
+        let dbProfile = null;
+        try {
+          const profileResp = await getProfile(user.id);
+          dbProfile = profileResp?.data || null;
+        } catch {
+          dbProfile = null;
+        }
+
+        const role = normalizeRole(dbProfile?.role || user?.role || 'user');
         profile = {
           id: user.id,
           role,
-          agency_id: user?.agency_id || null
+          agency_id: dbProfile?.agency_id || user?.agency_id || null
         };
 
         if (role === 'agent' && !profile.agency_id) {
@@ -364,8 +373,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         }
       }
 
-      if ((profile.role === 'agent' || isAgencyAdminPreview) && !agencyId) {
+      if (profile.role === 'agent' && !agencyId) {
         throw new Error('Agency is not linked to this account');
+      }
+      if (isAgencyAdminPreview && !agencyId) {
+        setNotice({ type: 'error', text: 'Agency link is missing. Open Agencies section and select/create agency.' });
       }
 
       if (agencyId) {
@@ -505,7 +517,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         const { data: agenciesData, error: agenciesError } = await getAdminAgencies({ limit: 100 });
         if (agenciesError) throw new Error(agenciesError.message || 'Agency settings load failed');
         const list = Array.isArray(agenciesData) ? agenciesData : [];
-        if (!list.length) throw new Error('No agencies found');
+        if (!list.length) {
+          const mine = await getMyAgency();
+          if (mine?.data?.id) {
+            applyAgencyToSelfForm(mine.data);
+            setAgencyPreviewId(mine.data.id);
+            setUserProfile((prev) => (prev ? { ...prev, agency_id: prev.agency_id || mine.data.id } : prev));
+            return mine.data.id;
+          }
+          throw new Error('No agencies found');
+        }
         setAgencies(list);
 
         const resolvedId = userProfile?.agency_id || agencyPreviewId || list[0]?.id || null;
@@ -532,6 +553,37 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     } finally {
       setAgencySelfLoading(false);
     }
+  };
+
+  const resolveAgencyIdForAgencyAdmin = async () => {
+    let resolvedId = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
+    if (resolvedId) return resolvedId;
+
+    const preferredEmail = String(user?.email || '').trim().toLowerCase();
+    const fromAdmin = await getAdminAgencies({ limit: 200 });
+    if (!fromAdmin?.error && Array.isArray(fromAdmin?.data) && fromAdmin.data.length > 0) {
+      const list = fromAdmin.data;
+      setAgencies(list);
+      const matched = list.find((a) => String(a?.contact_email || '').trim().toLowerCase() === preferredEmail) || list[0];
+      resolvedId = matched?.id || null;
+      if (resolvedId) {
+        setAgencyPreviewId(resolvedId);
+        setUserProfile((prev) => (prev ? { ...prev, agency_id: prev.agency_id || resolvedId } : prev));
+        if (matched) applyAgencyToSelfForm(matched);
+        return resolvedId;
+      }
+    }
+
+    const mine = await getMyAgency();
+    if (mine?.data?.id) {
+      resolvedId = mine.data.id;
+      setAgencyPreviewId(resolvedId);
+      setUserProfile((prev) => (prev ? { ...prev, agency_id: prev.agency_id || resolvedId } : prev));
+      applyAgencyToSelfForm(mine.data);
+      return resolvedId;
+    }
+
+    return null;
   };
 
   const loadAgencies = async () => {
@@ -867,7 +919,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         contact_person_name: agencySelfForm.contact_person_name || null,
         widget_allowed_domains: widgetDomains
       };
-      const agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
+      let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
+      if (isAgencyAdminPreview && !agencyIdForUpdate) {
+        const resolvedAgencyId = await loadMyAgencySettings();
+        agencyIdForUpdate = resolvedAgencyId || null;
+      }
+      if (isAgencyAdminPreview && !agencyIdForUpdate) {
+        agencyIdForUpdate = await resolveAgencyIdForAgencyAdmin();
+      }
       if (isAgencyAdminPreview && !agencyIdForUpdate) {
         throw new Error('Agency is not linked to this account');
       }
@@ -915,7 +974,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       const payload = {
         widget_allowed_domains: widgetDomains
       };
-      const agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
+      let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
+      if (isAgencyAdminPreview && !agencyIdForUpdate) {
+        const resolvedAgencyId = await loadMyAgencySettings();
+        agencyIdForUpdate = resolvedAgencyId || null;
+      }
+      if (isAgencyAdminPreview && !agencyIdForUpdate) {
+        agencyIdForUpdate = await resolveAgencyIdForAgencyAdmin();
+      }
       if (isAgencyAdminPreview && !agencyIdForUpdate) {
         throw new Error('Agency is not linked to this account');
       }

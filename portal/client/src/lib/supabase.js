@@ -4,6 +4,14 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const useBackendOrders = String(import.meta.env.VITE_USE_BACKEND_ORDERS || 'true').toLowerCase() === 'true';
 const backendApiBaseUrl = import.meta.env.VITE_BACKEND_API_BASE_URL || '/api/backend';
+const backendApiBaseCandidates = (() => {
+  const raw = String(backendApiBaseUrl || '/api/backend').replace(/\/+$/, '');
+  const candidates = [raw];
+  if (raw.endsWith('/backend')) {
+    candidates.push(raw.slice(0, -'/backend'.length) || '/api');
+  }
+  return [...new Set(candidates.filter(Boolean))];
+})();
 
 // Debug: Check if Supabase credentials are loaded
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -148,30 +156,39 @@ const parseBackendResponse = async (resp, fallbackMessage) => {
 
 const backendApiRequest = async (path, { method = 'GET', body } = {}) => {
   try {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const headers = await getBackendAuthHeaders();
-        const resp = await withTimeout(
-          `backend ${method} ${path}`,
-          fetch(`${backendApiBaseUrl}${path}`, {
-            method,
-            headers,
-            body: body ? JSON.stringify(body) : undefined
-          }),
-          30000
-        );
-        return await parseBackendResponse(resp, 'Backend API request failed');
-      } catch (innerErr) {
-        const msg = String(innerErr?.message || '');
-        const abortLike = msg.toLowerCase().includes('aborted');
-        if (attempt === 0 && abortLike) {
-          await sleep(150);
-          continue;
+    const headers = await getBackendAuthHeaders();
+    let lastResult = null;
+
+    for (const base of backendApiBaseCandidates) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const resp = await withTimeout(
+            `backend ${method} ${path}`,
+            fetch(`${base}${path}`, {
+              method,
+              headers,
+              body: body ? JSON.stringify(body) : undefined
+            }),
+            30000
+          );
+          const parsed = await parseBackendResponse(resp, 'Backend API request failed');
+          if (!parsed?.error) return parsed;
+          lastResult = parsed;
+          // On 404, try next base candidate; for non-404 keep current error.
+          if (resp.status === 404) break;
+          return parsed;
+        } catch (innerErr) {
+          const msg = String(innerErr?.message || '');
+          const abortLike = msg.toLowerCase().includes('aborted');
+          if (attempt === 0 && abortLike) {
+            await sleep(150);
+            continue;
+          }
+          throw innerErr;
         }
-        throw innerErr;
       }
     }
-    return { data: null, error: { message: 'Backend API request failed' } };
+    return lastResult || { data: null, error: { message: 'Backend API request failed' } };
   } catch (err) {
     return { data: null, error: { message: err?.message || 'Backend API request failed' } };
   }
@@ -972,15 +989,43 @@ export const getMyAgency = async () => {
       .eq('id', userId)
       .maybeSingle();
     if (profileError) return { data: null, error: profileError };
-    if (!profile?.agency_id) {
-      return { data: null, error: { message: 'AGENCY_NOT_ASSIGNED' } };
+    let resolvedAgencyId = profile?.agency_id || null;
+    let agency = null;
+    let agencyError = null;
+
+    if (resolvedAgencyId) {
+      const byId = await supabase
+        .from('agencies')
+        .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
+        .eq('id', resolvedAgencyId)
+        .single();
+      agency = byId.data || null;
+      agencyError = byId.error || null;
+    } else {
+      const userEmail = String(authData?.user?.email || '').trim().toLowerCase();
+      if (userEmail) {
+        const byContactEmail = await supabase
+          .from('agencies')
+          .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
+          .eq('contact_email', userEmail)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        agency = byContactEmail.data || null;
+        agencyError = byContactEmail.error || null;
+        resolvedAgencyId = agency?.id || null;
+        if (resolvedAgencyId) {
+          await supabase
+            .from('profiles')
+            .update({ agency_id: resolvedAgencyId, updated_at: new Date().toISOString() })
+            .eq('id', userId);
+        }
+      }
     }
 
-    const { data: agency, error: agencyError } = await supabase
-      .from('agencies')
-      .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
-      .eq('id', profile.agency_id)
-      .single();
+    if (!resolvedAgencyId && !agency) {
+      return { data: null, error: { message: 'AGENCY_NOT_ASSIGNED' } };
+    }
     return { data: agency || null, error: agencyError || null };
   } catch (err) {
     return { data: null, error: { message: err?.message || 'Agency load failed' } };
