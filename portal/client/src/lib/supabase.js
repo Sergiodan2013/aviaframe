@@ -892,16 +892,52 @@ export const updateAdminAgency = async (agencyId, payload) => {
     .update(updateRow)
     .eq('id', agencyId)
     .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
-    .single();
+    .maybeSingle();
 
-  return { data: fallback.data || null, error: fallback.error || null };
+  if (fallback.error) {
+    return { data: null, error: fallback.error };
+  }
+  if (!fallback.data) {
+    return {
+      data: null,
+      error: {
+        message: 'Agency update was not applied. Check permissions (admin role) and agency id.'
+      }
+    };
+  }
+
+  return { data: fallback.data, error: null };
 };
 
 export const deleteAdminAgency = async (agencyId) => {
   const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}`, {
     method: 'DELETE'
   });
-  return { data: data?.agency || null, error };
+  if (!error) {
+    return { data: data?.agency || null, error: null };
+  }
+
+  // Fallback for frontend-only deploys without /api/backend proxy.
+  const fallback = await supabase
+    .from('agencies')
+    .delete()
+    .eq('id', agencyId)
+    .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
+    .maybeSingle();
+
+  if (fallback.error) {
+    return { data: null, error: fallback.error };
+  }
+  if (!fallback.data) {
+    return {
+      data: null,
+      error: {
+        message: 'Agency delete was not applied. Check permissions (admin role) and agency id.'
+      }
+    };
+  }
+
+  return { data: fallback.data, error: null };
 };
 
 export const getAdminOrdersReport = async (params = {}) => {
