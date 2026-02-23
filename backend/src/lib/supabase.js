@@ -3,19 +3,19 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Load Supabase configuration from environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
 // Validate required environment variables
 if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable');
 }
 
-if (!supabaseAnonKey) {
-  throw new Error('Missing SUPABASE_ANON_KEY environment variable');
+if (!supabaseKey) {
+  throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY environment variable');
 }
 
 // Create Supabase client
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: false, // Backend doesn't need to persist sessions

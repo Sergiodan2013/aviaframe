@@ -1,13 +1,17 @@
 {
   "name": "@aviaframe/widget",
-  "version": "0.1.0",
-  "private": true,
-  "main": "src/index.js",
+  "version": "1.0.0",
+  "description": "Embeddable flight search widget for Aviaframe partners",
+  "main": "dist/aviaframe-widget.js",
   "scripts": {
-    "build": "echo \"Building widget...\" && mkdir -p dist && cp -R src/* dist/ || true",
-    "test": "jest --runInBand",
-    "lint": "eslint src tests"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "keywords": ["aviaframe", "flight", "search", "widget", "embed"],
+  "author": "Aviaframe",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
 }

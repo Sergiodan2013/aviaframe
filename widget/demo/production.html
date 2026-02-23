@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aviaframe Widget - Production Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .page-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      text-align: center;
+      color: white;
+      margin-bottom: 48px;
+    }
+
+    .hero h1 {
+      font-size: 56px;
+      margin-bottom: 16px;
+      font-weight: 800;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .hero p {
+      font-size: 24px;
+      opacity: 0.95;
+      margin-bottom: 12px;
+    }
+
+    .hero .version {
+      font-size: 14px;
+      opacity: 0.8;
+      background: rgba(255,255,255,0.2);
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+
+    .feature {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 24px;
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .feature-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+    }
+
+    .feature h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .feature p {
+      font-size: 14px;
+      opacity: 0.9;
+      line-height: 1.5;
+    }
+
+    .widget-section {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      margin-bottom: 32px;
+    }
+
+    .section-title {
+      font-size: 28px;
+      color: #1f2937;
+      margin-bottom: 24px;
+      font-weight: 700;
+    }
+
+    .code-section {
+      background: #1f2937;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+
+    .code-header {
+      color: #60a5fa;
+      font-weight: 600;
+      margin-bottom: 16px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .code-block {
+      background: #111827;
+      color: #e5e7eb;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .copy-button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: auto;
+      transition: all 0.2s;
+    }
+
+    .copy-button:hover {
+      background: #2563eb;
+    }
+
+    .footer {
+      text-align: center;
+      color: white;
+      padding: 32px 0;
+      border-top: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .footer a {
+      color: white;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.5);
+    }
+
+    .footer a:hover {
+      border-bottom-color: white;
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 36px;
+      }
+
+      .hero p {
+        font-size: 18px;
+      }
+
+      .widget-section {
+        padding: 24px;
+      }
+
+      .section-title {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <!-- Hero Section -->
+    <div class="hero">
+      <h1>✈️ Aviaframe Widget</h1>
+      <p>The easiest way to add flight search to your website</p>
+      <div class="version">Version 1.0.0 • Production Build • 17.8 KB</div>
+    </div>
+
+    <!-- Features -->
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🚀</div>
+        <h3>Zero Dependencies</h3>
+        <p>Pure JavaScript. No React, Vue, or jQuery needed. Works everywhere.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📦</div>
+        <h3>Tiny Bundle</h3>
+        <p>Only 17.8 KB minified, 5.4 KB gzipped. Lightning fast page loads.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎨</div>
+        <h3>Beautiful UI</h3>
+        <p>Modern, responsive design. Looks great on desktop and mobile.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🌍</div>
+        <h3>Multilingual</h3>
+        <p>Search airports in English or Russian. More languages coming soon.</p>
+      </div>
+    </div>
+
+    <!-- Widget Demo -->
+    <div class="widget-section">
+      <h2 class="section-title">Try it yourself</h2>
+
+      <!-- Aviaframe Widget -->
+      <div id="aviaframe-widget" data-api-url="https://benedictory-tyrannous-norris.ngrok-free.dev/webhook/drct/search"></div>
+    </div>
+
+    <!-- Integration Code -->
+    <div class="code-section">
+      <div class="code-header">
+        <span>📋 Integration Code</span>
+        <button class="copy-button" onclick="copyCode()">Copy Code</button>
+      </div>
+      <pre class="code-block" id="integration-code">&lt;!-- Step 1: Add container div --&gt;
+&lt;div id="aviaframe-widget" data-api-url="https://benedictory-tyrannous-norris.ngrok-free.dev/webhook/drct/search"&gt;&lt;/div&gt;
+
+&lt;!-- Step 2: Add widget script --&gt;
+&lt;script src="https://cdn.aviaframe.com/widget/aviaframe-widget.js"&gt;&lt;/script&gt;
+
+&lt;!-- For localhost testing --&gt;
+&lt;!-- &lt;script src="../dist/aviaframe-widget.iife.js"&gt;&lt;/script&gt; --&gt;</pre>
+    </div>
+
+    <!-- API Format -->
+    <div class="code-section">
+      <div class="code-header">
+        <span>🔌 API Request Format</span>
+      </div>
+      <pre class="code-block">{
+  "origin": "CDG",
+  "destination": "LHR",
+  "depart_date": "2026-03-15",
+  "return_date": "2026-03-22",
+  "adults": 2,
+  "children": 0,
+  "infants": 0,
+  "cabin_class": "economy"
+}</pre>
+    </div>
+
+    <!-- API Response Format -->
+    <div class="code-section">
+      <div class="code-header">
+        <span>📥 API Response Format</span>
+      </div>
+      <pre class="code-block">{
+  "search_id": "abc123",
+  "offers": [
+    {
+      "id": "offer-1",
+      "price": {
+        "total": 250.50,
+        "currency": "EUR"
+      },
+      "segments": [
+        {
+          "origin": "CDG",
+          "destination": "LHR",
+          "departure": "2026-03-15T10:30:00Z",
+          "arrival": "2026-03-15T11:00:00Z",
+          "carrier": "AF",
+          "flight_number": "AF1234",
+          "duration": 90
+        }
+      ],
+      "fare_family": "ECONOMY",
+      "available_seats": 7
+    }
+  ]
+}</pre>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p><strong>Documentation:</strong> <a href="../README.md">README.md</a> • <a href="../INTEGRATION_GUIDE.md">Integration Guide</a></p>
+      <p style="margin-top: 16px; opacity: 0.8;">Built with ❤️ by Aviaframe • <a href="https://aviaframe.com">aviaframe.com</a></p>
+    </div>
+  </div>
+
+  <!-- Widget Script (using production build) -->
+  <script src="../dist/aviaframe-widget.iife.js"></script>
+
+  <!-- Copy Code Functionality -->
+  <script>
+    function copyCode() {
+      const code = document.getElementById('integration-code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.querySelector('.copy-button');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      });
+    }
+
+    // Analytics example
+    document.addEventListener('aviaframe:search', function(e) {
+      console.log('🔍 Search initiated:', e.detail);
+    });
+
+    document.addEventListener('aviaframe:results', function(e) {
+      console.log('✅ Results received:', e.detail.offers?.length, 'offers');
+    });
+  </script>
+</body>
+</html>
