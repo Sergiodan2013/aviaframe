@@ -1159,7 +1159,7 @@ export const getOrderPaymentInstructions = async (orderRef) => {
       .from('orders')
       .select('id,order_number,user_id,agency_id,total_price,currency,status,contact_email,drct_order_id,origin,destination,departure_time,created_at')
       .eq('id', inputOrderId)
-      .single();
+      .maybeSingle();
     order = resp.data || null;
     orderError = resp.error || null;
   }
