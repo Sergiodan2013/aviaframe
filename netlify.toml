@@ -1,27 +1,12 @@
 [build]
   base = "portal/client"
-  command = "npm ci && npm run build"
+  # After vite build, write-redirects.js generates dist/_redirects using BACKEND_URL env var.
+  # Set BACKEND_URL in Netlify → Site configuration → Environment variables.
+  # Example: BACKEND_URL=https://your-ngrok-subdomain.ngrok-free.dev
+  command = "npm ci && npm run build && node scripts/write-redirects.js"
   publish = "dist"
 
-[[redirects]]
-  from = "/api/backend/*"
-  to = "https://benedictory-tyrannous-norris.ngrok-free.dev/api/:splat"
-  status = 200
-  force = true
-
-# Backward compatibility: client still calls /api/n8n/webhook-test/*
-[[redirects]]
-  from = "/api/n8n/webhook-test/*"
-  to = "https://benedictory-tyrannous-norris.ngrok-free.dev/webhook/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/n8n/*"
-  to = "https://benedictory-tyrannous-norris.ngrok-free.dev/:splat"
-  status = 200
-  force = true
-
+# SPA fallback — all /api/* rules are in dist/_redirects (generated at build time).
 [[redirects]]
   from = "/*"
   to = "/index.html"
