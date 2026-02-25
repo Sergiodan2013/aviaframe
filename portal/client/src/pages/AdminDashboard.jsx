@@ -647,6 +647,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   };
 
   const handleCreateAgency = async () => {
+    if (!agencyForm.name || !agencyForm.contact_email) {
+      setNotice({ type: 'error', text: 'Name and email are required' });
+      return;
+    }
+    if (!agencyForm.bank_name || !agencyForm.iban) {
+      setNotice({ type: 'error', text: 'Bank name and IBAN are required — they are shown to clients in payment instructions' });
+      return;
+    }
     try {
       const payload = {
         name: agencyForm.name,
@@ -1581,14 +1589,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 </div>
                 {showCreateAgencyForm && (
                   <div className="space-y-2">
-                    <input value={agencyForm.name} onChange={(e) => setAgencyForm((p) => ({ ...p, name: e.target.value }))} placeholder="Name" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.name} onChange={(e) => setAgencyForm((p) => ({ ...p, name: e.target.value }))} placeholder="Name *" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.domain} onChange={(e) => setAgencyForm((p) => ({ ...p, domain: e.target.value }))} placeholder="Domain (subdomain)" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.contact_email} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_email: e.target.value }))} placeholder="Email (agency admin login)" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.contact_email} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_email: e.target.value }))} placeholder="Email (agency admin login) *" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.contact_phone} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_phone: e.target.value }))} placeholder="Phone" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.contact_person_name} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_person_name: e.target.value }))} placeholder="Contact person full name" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.bank_name} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_name: e.target.value }))} placeholder="Bank name" className="w-full border rounded px-2 py-1" />
+                    <p className="text-xs text-gray-500 pt-1">Bank details — shown to clients in payment instructions</p>
+                    <input value={agencyForm.bank_name} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_name: e.target.value }))} placeholder="Bank name *" className={`w-full border rounded px-2 py-1 ${!agencyForm.bank_name ? 'border-orange-300' : ''}`} />
                     <input value={agencyForm.bank_account} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_account: e.target.value }))} placeholder="Account number" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.iban} onChange={(e) => setAgencyForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} placeholder="IBAN (SA...)" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.iban} onChange={(e) => setAgencyForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} placeholder="IBAN (SA...) *" className={`w-full border rounded px-2 py-1 ${!agencyForm.iban ? 'border-orange-300' : ''}`} />
                     <input value={agencyForm.swift_bic} onChange={(e) => setAgencyForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} placeholder="SWIFT/BIC" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.sama_code} onChange={(e) => setAgencyForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} placeholder="SAMA bank code" className="w-full border rounded px-2 py-1" />
                     <textarea
