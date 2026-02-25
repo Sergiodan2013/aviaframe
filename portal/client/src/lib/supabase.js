@@ -1284,17 +1284,11 @@ export const getOrderPaymentInstructions = async (orderRef) => {
   }
 
   const bank = agency?.settings?.bank_details || {};
-  const hasBankDetails = !!(
-    bank.bank_name ||
-    bank.bank_account ||
-    bank.iban ||
-    bank.swift_bic ||
-    bank.sama_code
-  );
+  const hasBankDetails = !!(bank.bank_name && bank.iban);
   if (!hasBankDetails) {
     return {
       data: null,
-      error: { message: 'Agency bank details are incomplete' }
+      error: { message: 'Agency bank details are incomplete. Contact your agency to fill in Bank name and IBAN.' }
     };
   }
 

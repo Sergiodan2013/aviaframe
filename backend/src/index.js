@@ -1621,6 +1621,16 @@ app.post('/api/admin/agencies', async (req, res) => {
     });
   }
 
+  const bd = bankDetails || {};
+  if (!bd.bank_name || !bd.iban) {
+    return res.status(400).json({
+      error: {
+        code: 'INVALID_INPUT',
+        message: 'bank_details.bank_name and bank_details.iban are required — they are displayed to clients in payment instructions'
+      }
+    });
+  }
+
   const apiKey = `ag_${crypto.randomBytes(20).toString('hex')}`;
   const safeDomain = domain ? String(domain).trim().toLowerCase() : null;
   const settings = {
