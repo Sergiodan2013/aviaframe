@@ -193,10 +193,32 @@ Core features (MVP)
   - POST /public/orders (idempotent), POST /public/orders/{id}/issue (idempotent).
 - Manual payment by agency
   - Payment processing occurs outside Aviaframe in the MVP; API accepts payment reference and records it.
-- Portal features
-  - Tenant creation, user invite, widget-config and embed snippet, agent UI for search/create/issue/cancel.
-- Observability & Security
+- Whitelabel widget (MVP — not v2)
+  - Agency branding: logo, primary color, accent color, font, locale (en/ar with RTL), currency.
+  - Custom domain per agency (e.g., `widget.myagency.com`) with automatic SSL.
+  - Origin allowlist with domain manager UI.
+  - No Aviaframe branding visible to end users.
+  - Widget preview in Agency Admin portal.
+  - See docs/13_WIDGET_CUSTOMIZATION_SPEC.md.
+- Email service via Resend (MVP — not v2)
+  - Invite/onboarding emails with magic link.
+  - Booking confirmation, e-ticket with branded PDF itinerary, cancellation, payment instructions.
+  - All emails branded per agency (logo, colors, sender name, reply-to).
+  - Custom sender domain per agency (DKIM/SPF).
+  - See docs/12_EMAIL_SERVICE_SPEC.md.
+- Super Admin Console (all UI in English)
+  - Agency CRUD, member management, platform analytics, audit log, integration health.
+  - See docs/09_SUPER_ADMIN_MVP.md.
+- Agency Admin Console (all UI in English)
+  - Widget Builder with live preview, domain manager, team management, orders, analytics, email settings.
+  - See docs/09_SUPER_ADMIN_MVP.md.
+- Security & reliability
+  - 2FA for super_admin and agency_admin.
+  - API keys per agency, rate limiting per tenant, webhook system, feature flags.
+  - Correlation ID (UI → backend → n8n → DRCT).
+- Observability & compliance
   - DRCTRequestLog, AuditLog, idempotency persistence, tenant-scoped auth, PII masking in logs.
+  - Data export for GDPR, soft delete everywhere.
 - Dev & Ops
   - Sandbox integration with DRCT, CI with lint/test/build, Docker Compose for local dev.
 
@@ -215,8 +237,8 @@ High-value additions (v2+)
   - Per-tenant dashboards: booking volumes, revenue, conversion funnels, search heatmaps.
 - Multi-language widget
   - Full i18n support including Arabic (RTL), currency formatting and locale-aware date handling.
-- White-label & Custom domains
-  - Tenant-branded widget hosting options, custom domains and deeper theming.
+- Advanced white-label & CMS
+  - Full CMS-level template customization, drag-and-drop email editor, deeper widget theming (Enterprise).
 - Webhooks & integrations
   - Robust webhook delivery with retry/backoff, subscription management for order events.
 - Multi-provider aggregation
