@@ -81,14 +81,20 @@ In-scope (MVP)
   - Order creation (booking) with idempotency safeguards.
   - Ticket issuing (issue) and cancellation flows (as supported by DRCT).
 - Embeddable, tenant-configurable JavaScript widget for search and booking UI.
-- Tenant-based access control, audit logging and basic billing metering (search and booking counts).
+- **Whitelabel widget**: agency branding (logo, colors, font, locale, currency), no Aviaframe branding visible to end users.
+- **Custom domain per agency** (e.g., `widget.myagency.com`) with automatic SSL via CNAME delegation.
+- **Transactional email service** (Resend): invite/onboarding emails, booking confirmation, e-ticket with branded PDF itinerary, cancellation emails — all branded per agency.
+- **Agency API keys** for server-to-server integrations and **webhook system** for order event callbacks.
+- Tenant-based access control (RBAC roles: `super_admin`, `agency_admin`, `agency_manager`), audit logging and basic billing metering (search and booking counts).
 - Developer documentation, sandbox environment and CI for tests and deployments.
+- All UI (portal, admin consoles) in English.
 
 Out-of-scope (MVP)
-- Direct end-customer payment processing (initially payments are handled by the agency or external payment provider).
+- Direct end-customer payment processing (payments handled by agency or external provider).
 - Full refund automation and reconciliation workflows (partial manual processes acceptable in MVP).
-- Advanced enterprise integrations (SSO, custom domains) — planned for v2.
+- Enterprise SSO (SAML/OIDC) — planned for v2.
 - Multi-provider fare shopping beyond DRCT in MVP (possible extension later).
+- Dynamic pricing rules and markup engine — planned for v2.
 
 ---
 
