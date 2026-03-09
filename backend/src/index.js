@@ -3,9 +3,12 @@ require('dotenv').config();
 
 const express = require('express');
 const crypto = require('crypto');
+const http = require('http');
+const rateLimit = require('express-rate-limit');
 const supabase = require('./lib/supabase');
-const { buildInvoicePdf, buildTicketPdf } = require('./services/pdfService');
-const { sendTicketEmail, sendSupportEmail } = require('./services/emailService');
+const { buildInvoicePdf, buildTicketPdf, buildItineraryPdf } = require('./services/pdfService');
+const { sendTicketEmail, sendSupportEmail, sendBookingConfirmation, sendBookingCancelled, sendBookingConfirmed, sendAgencyWelcome, sendSupportReceived, loadTemplate, previewTemplate } = require('./services/emailService');
+const drctService = require('./services/drctService');
 const app = express();
 const ORDERS_LIST_COLUMNS = [
   'id',
@@ -23,6 +26,8 @@ const ORDERS_LIST_COLUMNS = [
   'total_price',
   'currency',
   'status',
+  'payment_method',
+  'payment_status',
   'contact_email',
   'contact_phone',
   'created_at',
@@ -674,6 +679,34 @@ function forbidden(res, message = 'Access denied') {
   });
 }
 
+/**
+ * Check if user has one of the required roles
+ * @param {Object} auth - Auth context from resolveAuthContext()
+ * @param {...string} allowedRoles - Roles that are allowed
+ * @returns {boolean} - true if user has required role
+ */
+function hasRole(auth, ...allowedRoles) {
+  if (auth.error || !auth.profile) return false;
+  const userRole = normalizeRole(auth.profile.role);
+  return allowedRoles.some(role => normalizeRole(role) === userRole);
+}
+
+/**
+ * Require user to have one of the specified roles
+ * Returns 403 if user doesn't have required role
+ * @param {Object} res - Express response
+ * @param {Object} auth - Auth context from resolveAuthContext()
+ * @param {...string} allowedRoles - Roles that are allowed
+ * @returns {boolean} - true if authorized, false if forbidden (response sent)
+ */
+function requireRole(res, auth, ...allowedRoles) {
+  if (!hasRole(auth, ...allowedRoles)) {
+    const userRole = auth.profile?.role || 'none';
+    return forbidden(res, `Access denied. Required role: ${allowedRoles.join(' or ')}. Your role: ${userRole}`), false;
+  }
+  return true;
+}
+
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -700,6 +733,378 @@ function requireInternalToken(req, res) {
   return true;
 }
 
+// ── DRCT DIRECT ENDPOINTS ─────────────────────────────────────────────────────
+// These intercept /webhook/drct/* BEFORE the n8n proxy middleware so that
+// search, pricing and order creation go straight to the DRCT API without n8n.
+
+const searchLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many search requests. Please wait a minute.' } },
+});
+
+const orderLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many order requests. Please wait a minute.' } },
+});
+
+// POST /webhook/drct/search
+app.post('/webhook/drct/search', searchLimiter, express.json({ limit: '2mb' }), async (req, res) => {
+  try {
+    const result = await drctService.search(req.body || {});
+    return res.json(result);
+  } catch (err) {
+    console.error('[drct/search]', err.message);
+    return res.status(err.status || 502).json({ error: { code: 'DRCT_ERROR', message: err.message } });
+  }
+});
+
+// POST /webhook/drct/price
+app.post('/webhook/drct/price', express.json({ limit: '2mb' }), async (req, res) => {
+  const { offer_id, passengers } = req.body || {};
+  if (!offer_id) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'offer_id is required' } });
+  try {
+    const result = await drctService.priceOffer(offer_id, passengers || []);
+    return res.json(result);
+  } catch (err) {
+    console.error('[drct/price]', err.message);
+    return res.status(err.status || 502).json({ error: { code: 'DRCT_ERROR', message: err.message } });
+  }
+});
+
+// POST /webhook/drct/order/create — validate → price → create → save → email
+app.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2mb' }), async (req, res) => {
+  try {
+    const body = req.body || {};
+
+    // ─── 1. Normalize input (three formats: portal, widget-new, widget-legacy) ─
+    let normalized;
+    if (body.offer && Array.isArray(body.passengers) && body.passengers.length) {
+      // Widget new format: {offer, passengers[], contacts}
+      const offerId = (body.offer.offer_id || body.offer.id || body.offer_id || '').trim();
+      if (!offerId) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'offer.offer_id is required' } });
+      if (!body.contacts?.email || !body.contacts?.phone) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'contacts.email and contacts.phone are required' } });
+      normalized = {
+        offer_id: offerId,
+        passengers: body.passengers.map((p, i) => {
+          const g = String(p.gender || 'male').toLowerCase();
+          return {
+            type: p.type || 'ADT',
+            first_name: p.first_name || p.firstName || 'Guest',
+            last_name: p.last_name || p.lastName || `Passenger${i + 1}`,
+            date_of_birth: p.date_of_birth || p.dateOfBirth || '1990-01-01',
+            gender: (g === 'female' || g === 'f') ? 'F' : 'M',
+            email: p.email || body.contacts.email,
+            phone: p.phone || body.contacts.phone,
+            document: {
+              type: p.document?.type || 'REGULAR_PASSPORT',
+              number: p.document?.number || p.passportNumber || '',
+              expiry_date: p.document?.expiry_date || p.passportExpiry || '2035-12-31',
+              issuing_country: p.document?.issuing_country || p.nationality || 'AE',
+              citizenship: p.document?.citizenship || p.document?.issuing_country || p.nationality || 'AE',
+              country_of_issue: p.document?.country_of_issue || p.document?.issuing_country || p.nationality || 'AE',
+            },
+            payment_method: p.payment_method || 'bank_transfer',
+          };
+        }),
+        contacts: body.contacts,
+        user_id: body.user_id || null,
+        agency_id: body.agency_id || null,
+      };
+    } else if (body.offer && body.passenger) {
+      // Widget legacy format: {offer, passenger}
+      const p = body.passenger;
+      const offerId = (body.offer.offer_id || body.offer.id || body.offer_id || '').trim();
+      if (!offerId || !p.email || !p.phone) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'offer.offer_id, passenger.email and passenger.phone are required' } });
+      normalized = {
+        offer_id: offerId,
+        passengers: [{
+          type: 'ADT',
+          first_name: p.firstName || p.first_name || 'Guest',
+          last_name: p.lastName || p.last_name || 'Passenger',
+          date_of_birth: p.dateOfBirth || p.date_of_birth || '1990-01-01',
+          gender: String(p.gender || 'male').toLowerCase() === 'female' ? 'F' : 'M',
+          email: p.email,
+          phone: p.phone,
+          document: {
+            type: 'REGULAR_PASSPORT',
+            number: p.passportNumber || p.passport_number || '',
+            expiry_date: p.passportExpiry || p.passport_expiry || '2035-12-31',
+            issuing_country: p.nationality || 'AE',
+            citizenship: p.nationality || 'AE',
+            country_of_issue: p.nationality || 'AE',
+          },
+          payment_method: p.paymentMethod || p.payment_method || 'bank_transfer',
+        }],
+        contacts: { email: p.email, phone: p.phone },
+        user_id: body.user_id || null,
+        agency_id: body.agency_id || null,
+      };
+    } else {
+      // Portal format: {offer_id, passengers[], contacts}
+      const missing = ['offer_id', 'passengers', 'contacts'].filter(f => !body[f]);
+      if (missing.length) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: `Missing required fields: ${missing.join(', ')}` } });
+      if (!Array.isArray(body.passengers) || !body.passengers.length) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'passengers must be a non-empty array' } });
+      if (!body.contacts.email || !body.contacts.phone) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'contacts.email and contacts.phone are required' } });
+      normalized = {
+        offer_id: body.offer_id,
+        passengers: body.passengers.map((p, i) => {
+          const g = String(p.gender || '').toUpperCase();
+          return {
+            type: p.type || 'ADT',
+            first_name: p.first_name || p.firstName || 'Guest',
+            last_name: p.last_name || p.lastName || `Passenger${i + 1}`,
+            date_of_birth: p.date_of_birth || p.dateOfBirth || '1990-01-01',
+            gender: (g === 'M' || g === 'MALE') ? 'M' : 'F',
+            email: p.email || body.contacts.email,
+            phone: p.phone || body.contacts.phone,
+            document: {
+              type: p.document?.type || 'REGULAR_PASSPORT',
+              number: p.document?.number || '',
+              expiry_date: p.document?.expiry_date || '2035-12-31',
+              issuing_country: p.document?.issuing_country || 'AE',
+              citizenship: p.document?.citizenship || p.document?.issuing_country || 'AE',
+              country_of_issue: p.document?.country_of_issue || p.document?.issuing_country || 'AE',
+            },
+            payment_method: p.payment_method || 'bank_transfer',
+          };
+        }),
+        contacts: body.contacts,
+        user_id: body.user_id || null,
+        agency_id: body.agency_id || null,
+      };
+    }
+
+    // ─── 2. Deduplication: reject if same offer+email booked in last 2 minutes ─
+    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const { data: existingOrder } = await supabase
+      .from('orders')
+      .select('id,order_number,drct_order_id,status')
+      .eq('offer_id', normalized.offer_id)
+      .eq('contact_email', normalized.contacts.email)
+      .gte('created_at', twoMinAgo)
+      .neq('status', 'failed')
+      .maybeSingle();
+    if (existingOrder) {
+      console.log(`[drct/order/create] duplicate suppressed: ${existingOrder.order_number}`);
+      return res.json({
+        id: existingOrder.id,
+        order_id: existingOrder.id,
+        order_number: existingOrder.order_number,
+        drct_order_id: existingOrder.drct_order_id,
+        booking_reference: existingOrder.order_number,
+        status: existingOrder.status,
+        duplicate: true,
+      });
+    }
+
+    // ─── 3. DRCT Price ────────────────────────────────────────────────────────
+    let pricedOffer;
+    try {
+      pricedOffer = await drctService.priceOffer(
+        normalized.offer_id,
+        normalized.passengers.map(p => ({ type: p.type || 'ADT' }))
+      );
+    } catch (err) {
+      console.error('[drct/order/create] price failed:', err.message);
+      return res.status(err.status || 502).json({ error: { code: 'DRCT_PRICE_FAILED', message: err.message } });
+    }
+
+    // ─── 3. Build DRCT passenger list from priced offer slots ─────────────────
+    const priced = pricedOffer.passengers || [];
+    const contacts = normalized.contacts;
+    const today = new Date();
+    const used = {};
+
+    const drctPassengers = priced.map((pp, idx) => {
+      const t = String(pp.type || 'ADT').toUpperCase();
+      if (!used[t]) used[t] = 0;
+      const src = normalized.passengers.filter(p => String(p.type || 'ADT').toUpperCase() === t)[used[t]]
+        || normalized.passengers[idx]
+        || normalized.passengers[0]
+        || {};
+      used[t]++;
+      const doc = src.document || {};
+      const country = doc.issuing_country || doc.country_of_issue || 'AE';
+      let dob = src.date_of_birth;
+      if (!dob || String(src.type || 'ADT').toUpperCase() !== t) {
+        if (t === 'INF') { const d = new Date(today); d.setMonth(d.getMonth() - 10); dob = d.toISOString().slice(0, 10); }
+        else if (t === 'CHD') { const d = new Date(today); d.setFullYear(d.getFullYear() - 5); dob = d.toISOString().slice(0, 10); }
+        else { dob = dob || '1990-01-01'; }
+      }
+      const g = String(src.gender || '').toUpperCase();
+      const gender = (g === 'M' || g === 'MALE') ? 'M' : 'F';
+      return {
+        id: pp.id,
+        type: t,
+        individual: { first_name: src.first_name || 'Test', last_name: src.last_name || `Passenger${idx + 1}`, gender, date_of_birth: dob },
+        phone: contacts.phone || src.phone || '',
+        email: contacts.email || src.email || '',
+        document: {
+          type: 'REGULAR_PASSPORT',
+          number: doc.number || `P${Date.now()}${idx}`.slice(0, 12),
+          gender,
+          expiration_date: doc.expiry_date || '2035-12-31',
+          issuing_country: country,
+          citizenship: country,
+          country_of_issue: country,
+        },
+      };
+    });
+
+    // ─── 4. DRCT Create Order ─────────────────────────────────────────────────
+    let drctOrder;
+    try {
+      drctOrder = await drctService.createOrder({ offer_id: pricedOffer.id, passengers: drctPassengers });
+    } catch (err) {
+      console.error('[drct/order/create] create failed:', err.message);
+      return res.status(err.status || 502).json({ error: { code: 'DRCT_ORDER_FAILED', message: err.message } });
+    }
+
+    // ─── 5. Save order to Supabase ────────────────────────────────────────────
+    const flight0 = drctOrder.flights?.[0] || {};
+    const segs = flight0.segments || [];
+    const firstSeg = segs[0] || {};
+    const lastSeg = segs[segs.length - 1] || firstSeg;
+    const paymentMethod = normalized.passengers[0]?.payment_method || 'bank_transfer';
+    const claimToken = crypto.randomUUID();
+    const orderNumber = drctOrder.locator || generateOrderNumber();
+    const totalPrice = Number(drctOrder.price?.amount || drctOrder.price?.total || 0);
+    const currency = drctOrder.price?.currency || 'USD';
+
+    const orderInsert = {
+      drct_order_id: drctOrder.id,
+      order_number: orderNumber,
+      offer_id: normalized.offer_id,
+      user_id: normalized.user_id || null,
+      agency_id: normalized.agency_id || null,
+      origin: firstSeg.departure_airport?.name || firstSeg.departure_airport?.code || body.offer?.origin || '',
+      destination: lastSeg.arrival_airport?.name || lastSeg.arrival_airport?.code || body.offer?.destination || '',
+      departure_time: firstSeg.departure_date ? `${firstSeg.departure_date}T${firstSeg.departure_time || '00:00'}:00` : (body.offer?.departure_time || null),
+      arrival_time: lastSeg.arrival_time || body.offer?.arrival_time || null,
+      airline_name: firstSeg.carrier?.airline_name || body.offer?.airline_name || '',
+      airline_code: firstSeg.carrier?.airline_code || body.offer?.airline_code || '',
+      flight_number: firstSeg.flight_number || body.offer?.flight_number || '',
+      base_price: totalPrice,
+      taxes: Number(drctOrder.price_details?.[0]?.taxes?.amount || 0),
+      total_price: totalPrice,
+      currency,
+      contact_email: contacts.email,
+      contact_phone: contacts.phone,
+      status: 'pending',
+      payment_method: paymentMethod,
+      payment_status: 'pending',
+      claim_token: claimToken,
+      claim_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      raw_drct_response: drctOrder,
+    };
+
+    const { data: savedOrder, error: orderErr } = await supabase
+      .from('orders').insert(orderInsert).select(ORDERS_LIST_COLUMNS).single();
+
+    if (orderErr) {
+      console.error('[drct/order/create] supabase insert failed:', orderErr.message);
+      return res.status(500).json({ error: { code: 'ORDER_SAVE_FAILED', message: orderErr.message } });
+    }
+
+    // ─── 6. Save passengers to Supabase ──────────────────────────────────────
+    const passengerRows = normalized.passengers.map(p => ({
+      order_id: savedOrder.id,
+      first_name: p.first_name,
+      last_name: p.last_name,
+      date_of_birth: p.date_of_birth || null,
+      passport_number: p.document?.number || 'UNKNOWN',
+      passport_expiry: p.document?.expiry_date || '2035-12-31',
+      passport_issuing_country: p.document?.issuing_country || 'AE',
+      nationality: p.document?.citizenship || p.document?.issuing_country || 'AE',
+      gender: (p.gender === 'F' || p.gender === 'female') ? 'female' : 'male',
+      passenger_type: p.type || 'ADT',
+    }));
+    if (passengerRows.length) {
+      const { error: paxErr } = await supabase.from('passengers').insert(passengerRows);
+      if (paxErr) console.warn('[drct/order/create] passengers save failed:', paxErr.message);
+    }
+
+    // ─── 7. Send booking email (non-blocking) ─────────────────────────────────
+    supabase.from('agencies').select('id,name,settings').eq('id', savedOrder.agency_id).maybeSingle()
+      .then(({ data: agency }) =>
+        sendBookingConfirmation({ order: savedOrder, passengers: passengerRows, agency: agency || null, claimToken })
+      )
+      .then(r => { if (!r?.sent) console.warn('[drct/order/create] email not sent:', r?.error); })
+      .catch(e => console.error('[drct/order/create] email error:', e.message));
+
+    // ─── 8. Return response ───────────────────────────────────────────────────
+    console.log(`[drct/order/create] success: order ${orderNumber} (${savedOrder.id})`);
+    return res.json({
+      id: savedOrder.id,
+      order_id: savedOrder.id,
+      order_number: orderNumber,
+      drct_order_id: drctOrder.id,
+      booking_reference: drctOrder.locator || orderNumber,
+      status: 'pending',
+    });
+  } catch (err) {
+    console.error('[drct/order/create] unexpected error:', err.message);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// POST /webhook/drct/order/issue
+app.post('/webhook/drct/order/issue', express.json({ limit: '1mb' }), async (req, res) => {
+  const { order_id } = req.body || {};
+  if (!order_id) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'order_id is required' } });
+  try {
+    const result = await drctService.issueOrder(order_id);
+    return res.json(result);
+  } catch (err) {
+    console.error('[drct/order/issue]', err.message);
+    return res.status(err.status || 502).json({ error: { code: 'DRCT_ERROR', message: err.message } });
+  }
+});
+// ──────────────────────────────────────────────────────────────────────────────
+
+// ── N8N WEBHOOK PROXY ─────────────────────────────────────────────────────────
+// Forward /webhook* and /webhook-test* to n8n (Railway or local)
+const N8N_BASE_URL = process.env.N8N_BASE_URL || 'http://localhost:5678';
+async function proxyToN8n(req, res) {
+  try {
+    const targetUrl = N8N_BASE_URL + req.originalUrl;
+    const headers = { ...req.headers };
+    // Fix host header for the target
+    const n8nHost = new URL(N8N_BASE_URL).host;
+    headers['host'] = n8nHost;
+    // Collect raw body
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    await new Promise(resolve => req.on('end', resolve));
+    const body = chunks.length ? Buffer.concat(chunks) : undefined;
+    const proxyRes = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: ['GET', 'HEAD'].includes(req.method) ? undefined : body,
+      signal: AbortSignal.timeout(60000),
+    });
+    res.status(proxyRes.status);
+    proxyRes.headers.forEach((v, k) => {
+      if (!['transfer-encoding', 'connection'].includes(k.toLowerCase())) res.setHeader(k, v);
+    });
+    const buf = await proxyRes.arrayBuffer();
+    res.end(Buffer.from(buf));
+  } catch (err) {
+    console.error('[n8n proxy] error:', err.message);
+    res.status(502).json({ error: 'n8n unavailable' });
+  }
+}
+// Raw body needed for n8n webhooks — bypass express.json for these paths
+app.use('/webhook', proxyToN8n);
+app.use('/webhook-test', proxyToN8n);
+// ──────────────────────────────────────────────────────────────────────────────
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -714,10 +1119,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS (simple implementation for development)
+// CORS
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (config.corsOrigins.includes(origin)) {
+  const isAviaframeSubdomain = origin && /^https:\/\/([a-z0-9-]+\.)?aviaframe\.com$/.test(origin);
+  const isAviaframeNetlify = origin && /^https:\/\/[a-z0-9-]+-aviaframe(-demo-\d+)?\.netlify\.app$/.test(origin);
+  if (isAviaframeSubdomain || isAviaframeNetlify || config.corsOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
@@ -894,8 +1301,14 @@ app.post('/api/widget/orders', async (req, res) => {
     pricing = {},
     passengers = [],
     metadata = {},
-    user_id: userIdFromBody = null
+    user_id: userIdFromBody = null,
+    payment_method: paymentMethodFromBody = null
   } = req.body || {};
+
+  const VALID_PAYMENT_METHODS = ['cash', 'bank_transfer', 'online'];
+  const paymentMethod = VALID_PAYMENT_METHODS.includes(paymentMethodFromBody)
+    ? paymentMethodFromBody
+    : 'bank_transfer';
 
   const contactEmail = String(contacts.email || '').trim().toLowerCase();
   const contactPhone = String(contacts.phone || '').trim();
@@ -965,6 +1378,10 @@ app.post('/api/widget/orders', async (req, res) => {
       total_price: totalPrice,
       currency,
       status: 'pending',
+      payment_method: paymentMethod,
+      payment_status: 'pending',
+      claim_token: crypto.randomUUID(),
+      claim_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       contact_email: contactEmail,
       contact_phone: contactPhone,
       raw_offer_data: {
@@ -982,7 +1399,7 @@ app.post('/api/widget/orders', async (req, res) => {
     const { data: createdOrder, error: createOrderError } = await supabase
       .from('orders')
       .insert(orderInsert)
-      .select(ORDERS_LIST_COLUMNS)
+      .select(ORDERS_LIST_COLUMNS + ',claim_token')
       .single();
 
     if (createOrderError || !createdOrder) {
@@ -1016,8 +1433,29 @@ app.post('/api/widget/orders', async (req, res) => {
       }
     }
 
+    // Send booking confirmation email (non-blocking — don't fail order if email fails)
+    const passengerList = (Array.isArray(passengers) && passengers.length > 0)
+      ? passengers.map((p) => ({
+          first_name: p.first_name || p.firstName || 'N/A',
+          last_name: p.last_name || p.lastName || 'N/A',
+          passenger_type: p.passenger_type || p.type || 'ADT',
+          passport_number: p.passport_number || p.passportNumber || 'N/A',
+        }))
+      : [];
+
+    buildItineraryPdf({ order: createdOrder, passengers: passengerList, agency })
+      .then((pdfBuffer) =>
+        sendBookingConfirmation({ order: createdOrder, passengers: passengerList, agency, pdfBuffer, claimToken: createdOrder.claim_token })
+      )
+      .then((result) => {
+        if (!result.sent) console.warn('[order] booking confirmation email not sent:', result.error);
+        else console.log('[order] booking confirmation email sent:', result.messageId);
+      })
+      .catch((err) => console.error('[order] booking confirmation email error:', err.message));
+
     return res.status(201).json({
-      order: createdOrder,
+      order: { ...createdOrder, claim_token: undefined },
+      claim_token: createdOrder.claim_token,
       agency: {
         id: agency.id,
         name: agency.name,
@@ -1053,6 +1491,239 @@ app.get('/api/profile/me', async (req, res) => {
       email: auth.user.email || null
     }
   });
+});
+
+// ─── CLAIM FLOW ───────────────────────────────────────────────────────────────
+
+// POST /api/orders/prepare-claim
+// Called by frontend after n8n creates an order.
+// Generates claim_token (if not set), sends booking confirmation email with claim link.
+// Secured by contact_email match — no JWT required.
+app.post('/api/orders/prepare-claim', async (req, res) => {
+  const { order_number, contact_email } = req.body || {};
+  if (!order_number || !contact_email) {
+    return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'order_number and contact_email are required' } });
+  }
+
+  const normalizedEmail = String(contact_email).trim().toLowerCase();
+
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select('id,order_number,contact_email,claim_token,claim_token_expires_at,user_id,agency_id,origin,destination,departure_time,arrival_time,airline_name,airline_code,flight_number,total_price,currency,payment_method,status')
+    .eq('order_number', order_number)
+    .maybeSingle();
+
+  if (orderError || !order) {
+    return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' } });
+  }
+  if (order.contact_email !== normalizedEmail) {
+    return res.status(403).json({ error: { code: 'EMAIL_MISMATCH', message: 'Email does not match order' } });
+  }
+  if (order.user_id) {
+    return res.json({ already_claimed: true, order_number });
+  }
+
+  let claimToken = order.claim_token;
+  if (!claimToken) {
+    claimToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from('orders').update({ claim_token: claimToken, claim_token_expires_at: expiresAt }).eq('id', order.id);
+  }
+
+  // Fetch agency for email branding
+  const { data: agency } = await supabase.from('agencies').select('id,name,settings').eq('id', order.agency_id).maybeSingle();
+
+  // Fetch passengers for email
+  const { data: passengerRows } = await supabase.from('passengers').select('first_name,last_name,passenger_type,passport_number').eq('order_id', order.id);
+  const passengers = Array.isArray(passengerRows) ? passengerRows : [];
+
+  // Send confirmation email with claim link (non-blocking)
+  buildItineraryPdf({ order, passengers, agency })
+    .then((pdfBuffer) => sendBookingConfirmation({ order, passengers, agency, pdfBuffer, claimToken }))
+    .then((result) => {
+      if (!result.sent) console.warn('[prepare-claim] email not sent:', result.error);
+      else console.log('[prepare-claim] confirmation email sent:', result.messageId);
+    })
+    .catch((err) => console.error('[prepare-claim] email error:', err.message));
+
+  return res.json({ claim_token: claimToken, order_number });
+});
+
+// Helper: extract rich flight/passenger data from raw DRCT order response
+function extractDrctFlightData(raw) {
+  const buildFlight = (flight) => {
+    if (!flight || !Array.isArray(flight.segments) || !flight.segments.length) return null;
+    const segs = flight.segments;
+    const first = segs[0];
+    const last = segs[segs.length - 1];
+    const depDate = first.departure_date || '';
+    const depTime = first.departure_time || '';
+    const arrDate = last.arrival_date || '';
+    const arrTime = last.arrival_time || '';
+    return {
+      origin_code: first.departure_airport?.code || first.origin || '',
+      origin_name: first.departure_airport?.name || '',
+      destination_code: last.arrival_airport?.code || last.destination || '',
+      destination_name: last.arrival_airport?.name || '',
+      departure: depDate && depTime ? `${depDate} ${depTime}` : depDate || depTime || '',
+      arrival: arrDate && arrTime ? `${arrDate} ${arrTime}` : arrDate || arrTime || '',
+      airline_name: first.carrier?.airline_name || '',
+      airline_code: first.carrier?.airline_code || '',
+      flight_number: segs.map(s => s.flight_number).filter(Boolean).join(', '),
+      stops: segs.length - 1,
+    };
+  };
+
+  const passengers = (raw?.passengers || []).map(p => ({
+    first_name: p.individual?.first_name || p.first_name || '',
+    last_name: p.individual?.last_name || p.last_name || '',
+    passenger_type: p.type || 'ADT',
+    passport_number: p.document?.number || '',
+  }));
+
+  const outbound = buildFlight(raw?.flights?.[0]);
+  const returnFlight = raw?.flights?.[1] ? buildFlight(raw.flights[1]) : null;
+
+  return { passengers, outbound, returnFlight };
+}
+
+// POST /api/internal/send-booking-email
+// Called by n8n after order creation. Generates PDF itinerary and sends full booking confirmation.
+// Secured by Authorization: Bearer INTERNAL_API_TOKEN header.
+app.post('/api/internal/send-booking-email', async (req, res) => {
+  const token = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
+  if (!token || token !== process.env.INTERNAL_API_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  const { order_id } = req.body || {};
+  if (!order_id) {
+    return res.status(400).json({ error: 'order_id required' });
+  }
+
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select('id,order_number,contact_email,contact_phone,claim_token,claim_token_expires_at,user_id,agency_id,origin,destination,departure_time,arrival_time,airline_name,airline_code,flight_number,total_price,currency,payment_method,status,raw_drct_response')
+    .eq('id', order_id)
+    .maybeSingle();
+
+  if (orderError || !order) {
+    return res.status(404).json({ error: 'order not found', detail: orderError?.message });
+  }
+
+  // Ensure claim token exists for anonymous bookers
+  let claimToken = order.claim_token;
+  if (!claimToken && !order.user_id) {
+    claimToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from('orders').update({ claim_token: claimToken, claim_token_expires_at: expiresAt }).eq('id', order.id);
+  }
+
+  const { data: agency } = await supabase
+    .from('agencies')
+    .select('id,name,settings')
+    .eq('id', order.agency_id)
+    .maybeSingle();
+
+  // Extract rich data from raw DRCT response
+  const { passengers: drctPassengers, outbound, returnFlight } = extractDrctFlightData(order.raw_drct_response || {});
+
+  // Try passengers table first, fall back to DRCT response
+  const { data: passengerRows } = await supabase
+    .from('passengers')
+    .select('first_name,last_name,passenger_type,passport_number')
+    .eq('order_id', order.id);
+  const passengers = (Array.isArray(passengerRows) && passengerRows.length > 0)
+    ? passengerRows
+    : drctPassengers;
+
+  // Enrich order object with correct flight data from DRCT
+  const enrichedOrder = {
+    ...order,
+    origin: outbound?.origin_code || order.origin,
+    destination: outbound?.destination_code || order.destination,
+    departure_time: outbound?.departure || order.departure_time,
+    arrival_time: outbound?.arrival || order.arrival_time,
+    airline_name: outbound?.airline_name || order.airline_name,
+    airline_code: outbound?.airline_code || order.airline_code,
+    flight_number: outbound?.flight_number || order.flight_number,
+  };
+
+  try {
+    const pdfBuffer = await buildItineraryPdf({ order: enrichedOrder, passengers, agency, outbound, returnFlight });
+    const result = await sendBookingConfirmation({ order: enrichedOrder, passengers, agency, pdfBuffer, claimToken, outbound, returnFlight });
+    if (!result.sent) {
+      console.warn('[internal/send-booking-email] not sent:', result.error);
+      return res.status(500).json({ sent: false, error: result.error });
+    }
+    console.log('[internal/send-booking-email] sent:', result.messageId);
+    return res.json({ sent: true, messageId: result.messageId });
+  } catch (err) {
+    console.error('[internal/send-booking-email] error:', err.message);
+    return res.status(500).json({ sent: false, error: err.message });
+  }
+});
+
+// POST /api/auth/claim-order
+// Links an order to the authenticated user via claim_token.
+app.post('/api/auth/claim-order', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+
+  const { claim_token } = req.body || {};
+  if (!claim_token) {
+    return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'claim_token is required' } });
+  }
+
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select('id,user_id,claim_token_expires_at,order_number')
+    .eq('claim_token', claim_token)
+    .maybeSingle();
+
+  if (orderError || !order) {
+    return res.status(404).json({ error: { code: 'INVALID_TOKEN', message: 'Invalid or expired claim token' } });
+  }
+  if (order.user_id) {
+    return res.json({ success: true, already_claimed: true, order_number: order.order_number });
+  }
+  if (order.claim_token_expires_at && new Date(order.claim_token_expires_at) < new Date()) {
+    return res.status(410).json({ error: { code: 'TOKEN_EXPIRED', message: 'Claim token has expired' } });
+  }
+
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({ user_id: auth.user.id, claimed_at: new Date().toISOString(), claim_token: null, claim_token_expires_at: null })
+    .eq('id', order.id);
+
+  if (updateError) {
+    return res.status(500).json({ error: { code: 'CLAIM_FAILED', message: updateError.message } });
+  }
+
+  return res.json({ success: true, order_number: order.order_number });
+});
+
+// GET /api/me/orders
+// Returns all orders claimed by the authenticated user.
+app.get('/api/me/orders', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+
+  const { data: orders, error: ordersError } = await supabase
+    .from('orders')
+    .select(ORDERS_LIST_COLUMNS)
+    .eq('user_id', auth.user.id)
+    .order('created_at', { ascending: false });
+
+  if (ordersError) {
+    return res.status(500).json({ error: { code: 'FETCH_FAILED', message: ordersError.message } });
+  }
+
+  return res.json({ orders: orders || [] });
 });
 
 // Stage 0 non-breaking endpoint for orders list compatibility.
@@ -1232,6 +1903,26 @@ app.patch('/api/orders/:orderId/status', async (req, res) => {
           message: updateError.message
         }
       });
+    }
+
+    // Send cancellation email (non-blocking)
+    if (normalizedStatus === 'cancelled' && updated?.contact_email) {
+      supabase.from('agencies').select('id,name,settings').eq('id', updated.agency_id).single()
+        .then(({ data: ag }) =>
+          sendBookingCancelled({ order: updated, agency: ag || null })
+        )
+        .then((r) => { if (!r.sent) console.warn('[order] cancellation email not sent:', r.error); })
+        .catch((e) => console.error('[order] cancellation email error:', e.message));
+    }
+
+    // Send payment-confirmed email (non-blocking)
+    if (normalizedStatus === 'confirmed' && updated?.contact_email) {
+      supabase.from('agencies').select('id,name,settings').eq('id', updated.agency_id).single()
+        .then(({ data: ag }) =>
+          sendBookingConfirmed({ order: updated, agency: ag || null })
+        )
+        .then((r) => { if (!r.sent) console.warn('[order] confirmed email not sent:', r.error); })
+        .catch((e) => console.error('[order] confirmed email error:', e.message));
     }
 
     return res.json({ order: updated });
@@ -1560,6 +2251,13 @@ app.delete('/api/admin/agencies/:agencyId', async (req, res) => {
 
   const { agencyId } = req.params;
   try {
+    // Downgrade agent profiles before deleting (schema sets agency_id=null but not role)
+    await supabase
+      .from('profiles')
+      .update({ role: 'user' })
+      .eq('agency_id', agencyId)
+      .eq('role', 'agent');
+
     const { data, error } = await supabase
       .from('agencies')
       .delete()
@@ -1688,6 +2386,11 @@ app.post('/api/admin/agencies', async (req, res) => {
     if (linkError) {
       console.warn('Agency created, but profile linking failed:', linkError.message);
     }
+
+    // Send welcome email to the new agency admin (non-blocking)
+    sendAgencyWelcome({ agency: data })
+      .then((r) => { if (!r.sent) console.warn('[agency] welcome email not sent:', r.error); })
+      .catch((e) => console.error('[agency] welcome email error:', e.message));
 
     return res.status(201).json({ agency: data, linked_profile: linkedProfile || null });
   } catch (err) {
@@ -2905,6 +3608,16 @@ app.post('/api/support/requests', async (req, res) => {
       attachment: parsedAttachment
     });
 
+    // Send confirmation to the user who submitted the request (non-blocking)
+    sendSupportReceived({
+      userEmail: auth.profile.email,
+      subject,
+      requestMessage: String(message),
+      order: order || null,
+    })
+      .then((r) => { if (!r.sent) console.warn('[support] confirmation email not sent:', r.error); })
+      .catch((e) => console.error('[support] confirmation email error:', e.message));
+
     return res.status(201).json({
       support_request: {
         sent: !!emailResult.sent,
@@ -3013,7 +3726,7 @@ app.post('/api/orders/:orderId/ticket/finalize', async (req, res) => {
 });
 
 // Public search endpoint (with database integration)
-app.post('/public/search', async (req, res) => {
+app.post('/public/search', searchLimiter, async (req, res) => {
   const startTime = Date.now();
 
   // Extract search parameters
@@ -3044,44 +3757,14 @@ app.post('/public/search', async (req, res) => {
     // Use demo tenant ID if not provided (from .env)
     const searchTenantId = tenant_id || process.env.DEMO_TENANT_ID;
 
-    // Mock search results (DRCT adapter not yet implemented)
-    const mockOffers = [];
+    // Call DRCT directly (no n8n dependency)
+    const searchResult = await drctService.search({ origin, destination, depart_date, return_date, adults, children, infants, cabin_class });
     const searchDuration = Date.now() - startTime;
 
-    // Save search to database
-    const { data: searchRecord, error: dbError } = await supabase
-      .from('searches')
-      .insert([
-        {
-          tenant_id: searchTenantId,
-          origin: origin.toUpperCase(),
-          destination: destination.toUpperCase(),
-          depart_date,
-          return_date,
-          adults,
-          children,
-          infants,
-          cabin_class,
-          offers_count: mockOffers.length,
-          search_duration_ms: searchDuration,
-          source: 'api',
-          metadata: {
-            user_agent: req.headers['user-agent'],
-            ip: req.ip
-          }
-        }
-      ])
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('Database error:', dbError);
-      // Continue even if database save fails (don't break user experience)
-    }
-
-    // Return search results
-    res.json({
-      search_id: searchRecord?.id || `search-${Date.now()}`,
+    // Save search stats to DB asynchronously (fire and forget)
+    const offers = Array.isArray(searchResult?.offers) ? searchResult.offers : [];
+    supabase.from('searches').insert([{
+      tenant_id: searchTenantId,
       origin: origin.toUpperCase(),
       destination: destination.toUpperCase(),
       depart_date,
@@ -3090,11 +3773,15 @@ app.post('/public/search', async (req, res) => {
       children,
       infants,
       cabin_class,
-      offers: mockOffers,
-      offers_count: mockOffers.length,
-      message: 'DRCT adapter not yet implemented. This is a placeholder response.',
-      saved_to_db: !dbError
+      offers_count: offers.length,
+      search_duration_ms: searchDuration,
+      source: 'widget',
+      metadata: { user_agent: req.headers['user-agent'], ip: req.ip }
+    }]).then(({ error: dbError }) => {
+      if (dbError) console.error('Search DB save error:', dbError);
     });
+
+    return res.json(searchResult);
 
   } catch (err) {
     console.error('Search endpoint error:', err);
@@ -3104,6 +3791,171 @@ app.post('/public/search', async (req, res) => {
         message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
       }
     });
+  }
+});
+
+// n8n webhook proxy (legacy — kept for backwards compat; active proxy is above)
+app.all('/webhook/*', proxyToN8n);
+
+// ── Email Templates CRUD ───────────────────────────────────────────────────────
+
+// GET /api/admin/email-templates — list all global templates
+app.get('/api/admin/email-templates', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  const { data, error } = await supabase
+    .from('email_templates')
+    .select('event_type,subject,blocks,variables,is_active,updated_at')
+    .order('event_type');
+
+  if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: error.message } });
+  return res.json({ templates: data || [] });
+});
+
+// PATCH /api/admin/email-templates/:eventType — update a global template
+app.patch('/api/admin/email-templates/:eventType', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  const { eventType } = req.params;
+  const { subject, blocks, is_active } = req.body;
+
+  const updateData = { updated_at: new Date().toISOString(), updated_by: auth.user.id };
+  if (subject !== undefined) updateData.subject = subject;
+  if (blocks !== undefined) updateData.blocks = blocks;
+  if (is_active !== undefined) updateData.is_active = is_active;
+
+  const { data, error } = await supabase
+    .from('email_templates')
+    .update(updateData)
+    .eq('event_type', eventType)
+    .select('event_type,subject,blocks,variables,is_active,updated_at')
+    .single();
+
+  if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: error.message } });
+  return res.json({ template: data });
+});
+
+// POST /api/admin/email-templates/:eventType/preview — render preview HTML
+app.post('/api/admin/email-templates/:eventType/preview', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  const { eventType } = req.params;
+  const { agency_id } = req.body;
+
+  try {
+    const result = await previewTemplate(eventType, { agencyId: agency_id || null });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: { code: 'PREVIEW_ERROR', message: err.message } });
+  }
+});
+
+// GET /api/admin/agencies/:agencyId/email-templates/:eventType — get agency override
+app.get('/api/admin/agencies/:agencyId/email-templates/:eventType', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  const { agencyId, eventType } = req.params;
+  const { data, error } = await supabase
+    .from('agency_email_templates')
+    .select('id,agency_id,event_type,subject,blocks,is_active,updated_at')
+    .eq('agency_id', agencyId)
+    .eq('event_type', eventType)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: error.message } });
+  return res.json({ template: data || null });
+});
+
+// PATCH /api/admin/agencies/:agencyId/email-templates/:eventType — upsert agency override
+app.patch('/api/admin/agencies/:agencyId/email-templates/:eventType', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  const { agencyId, eventType } = req.params;
+  const { subject, blocks, is_active } = req.body;
+
+  const upsertData = {
+    agency_id: agencyId,
+    event_type: eventType,
+    updated_at: new Date().toISOString(),
+    updated_by: auth.user.id
+  };
+  if (subject !== undefined) upsertData.subject = subject;
+  if (blocks !== undefined) upsertData.blocks = blocks;
+  if (is_active !== undefined) upsertData.is_active = is_active;
+
+  const { data, error } = await supabase
+    .from('agency_email_templates')
+    .upsert(upsertData, { onConflict: 'agency_id,event_type' })
+    .select('id,agency_id,event_type,subject,blocks,is_active,updated_at')
+    .single();
+
+  if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: error.message } });
+  return res.json({ template: data });
+});
+
+// DELETE /api/admin/agencies/:agencyId/email-templates/:eventType — remove agency override
+app.delete('/api/admin/agencies/:agencyId/email-templates/:eventType', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  const { agencyId, eventType } = req.params;
+  const { error } = await supabase
+    .from('agency_email_templates')
+    .delete()
+    .eq('agency_id', agencyId)
+    .eq('event_type', eventType);
+
+  if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: error.message } });
+  return res.json({ deleted: true });
+});
+
+// POST /api/internal/send-email — called by n8n for queued email events
+// Secured by Authorization: Bearer INTERNAL_API_TOKEN
+app.post('/api/internal/send-email', async (req, res) => {
+  const token = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
+  if (!token || token !== process.env.INTERNAL_API_TOKEN) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid internal token' } });
+  }
+
+  const { event_type, order_id, agency_id } = req.body;
+  if (!event_type) {
+    return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'event_type is required' } });
+  }
+
+  try {
+    if (event_type === 'booking_cancelled' && order_id) {
+      const [{ data: order }, { data: agency }] = await Promise.all([
+        supabase.from('orders').select(ORDERS_LIST_COLUMNS).eq('id', order_id).single(),
+        supabase.from('agencies').select('id,name,settings').eq('id', agency_id).single()
+      ]);
+      const result = await sendBookingCancelled({ order, agency: agency || null });
+      return res.json(result);
+    }
+
+    if (event_type === 'booking_confirmed' && order_id) {
+      const [{ data: order }, { data: agency }] = await Promise.all([
+        supabase.from('orders').select(ORDERS_LIST_COLUMNS).eq('id', order_id).single(),
+        supabase.from('agencies').select('id,name,settings').eq('id', agency_id).single()
+      ]);
+      const result = await sendBookingConfirmed({ order, agency: agency || null });
+      return res.json(result);
+    }
+
+    return res.status(400).json({ error: { code: 'UNKNOWN_EVENT', message: `Unsupported event_type: ${event_type}` } });
+  } catch (err) {
+    console.error('[internal/send-email] error:', err.message);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
 });
 

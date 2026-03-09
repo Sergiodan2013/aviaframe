@@ -12,7 +12,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import { Plane, AlertCircle, TestTube2, User, LogOut, CheckCircle, BookOpen, Shield } from 'lucide-react';
 import { mockFlightData } from './mock/flightData';
 import { drctApi, formatDRCTError, calculateBaggagePrice } from './lib/drctApi';
-import { supabase, getProfile } from './lib/supabase';
+import { supabase, getProfile, claimOrder } from './lib/supabase';
+import { getSafeSearchUrl } from './lib/runtimeConfig';
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
@@ -125,6 +126,14 @@ function App() {
     };
 
     const bootstrap = async () => {
+      // Detect claim token in URL (?token=...) and save for post-auth processing
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlClaimToken = urlParams.get('token');
+      if (urlClaimToken) {
+        localStorage.setItem('pending_claim_token', urlClaimToken);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
       try {
         const storedUserRaw = localStorage.getItem('user');
         let storedUser = null;
@@ -141,10 +150,20 @@ function App() {
           const msg = String(error?.message || '').toLowerCase();
           if (storedUser?.id) {
             if (mounted) setUser({ ...storedUser, role: normalizeRole(storedUser.role) });
+            // If there's a pending claim token and user is already logged in, claim now
+            const pendingToken = localStorage.getItem('pending_claim_token');
+            if (pendingToken) {
+              localStorage.removeItem('pending_claim_token');
+              claimOrder(pendingToken).then(() => {
+                if (mounted) setCurrentPage('bookings');
+              });
+            }
             return;
           }
           localStorage.removeItem('user');
           if (mounted) setUser(null);
+          // Open auth modal so the user can sign in and claim their booking
+          if (urlClaimToken && mounted) setIsAuthModalOpen(true);
           return;
         }
 
@@ -153,6 +172,14 @@ function App() {
         const nextUser = await getSessionUserView(sessionUser, cached);
         localStorage.setItem('user', JSON.stringify(nextUser));
         if (mounted) setUser(nextUser);
+        // If there's a pending claim token and user just got a session, claim now
+        const pendingToken = localStorage.getItem('pending_claim_token');
+        if (pendingToken) {
+          localStorage.removeItem('pending_claim_token');
+          claimOrder(pendingToken).then(() => {
+            if (mounted) setCurrentPage('bookings');
+          });
+        }
       } catch {
         const storedUserRaw = localStorage.getItem('user');
         if (storedUserRaw) {
@@ -196,6 +223,15 @@ function App() {
           localStorage.setItem('user', JSON.stringify(nextUser));
           setUser(nextUser);
           setIsAuthModalOpen(false);
+
+          // Process pending claim token (from booking email link)
+          const pendingToken = localStorage.getItem('pending_claim_token');
+          if (pendingToken) {
+            localStorage.removeItem('pending_claim_token');
+            claimOrder(pendingToken).then(() => {
+              setCurrentPage('bookings');
+            });
+          }
         }
 
         if (event === 'SIGNED_OUT') {
@@ -464,6 +500,13 @@ function App() {
       // Calculate baggage price
       const baggagePrice = calculateBaggagePrice(data.baggage);
 
+      const requestedCounts = {
+        adults: Number(lastSearchData?.adults || 1),
+        children: Number(lastSearchData?.children || 0),
+        infants: Number(lastSearchData?.infants || 0)
+      };
+      const submittedPassengers = Array.isArray(data.passengers) ? data.passengers : [];
+
       // Prepare complete order payload for n8n webhook
       // n8n will handle: DRCT API call + Supabase writes (orders + passengers)
       const orderPayload = {
@@ -475,19 +518,19 @@ function App() {
         offer_id: selectedOffer.offer_id,
 
         // 2. passengers - массив с данными пассажиров (обязательно!)
-        passengers: [{
-          type: 'ADT', // Adult passenger type
-          first_name: data.firstName,
-          last_name: data.lastName,
-          date_of_birth: data.dateOfBirth,
-          gender: data.gender === 'male' ? 'M' : 'F', // DRCT expects M/F, not 'male'/'female'
+        passengers: submittedPassengers.map((p) => ({
+          type: p.type || 'ADT',
+          first_name: p.firstName,
+          last_name: p.lastName,
+          date_of_birth: p.dateOfBirth,
+          gender: p.gender === 'female' ? 'F' : 'M',
           document: {
             type: 'passport',
-            number: data.passportNumber,
-            expiry_date: data.passportExpiry,
-            issuing_country: data.nationality || 'SA'
+            number: p.passportNumber,
+            expiry_date: p.passportExpiry,
+            issuing_country: p.nationality || 'SA'
           }
-        }],
+        })),
 
         // 3. contacts - email и phone (обязательно!)
         contacts: {
@@ -520,9 +563,7 @@ function App() {
         // Additional passenger info (для таблицы passengers в Supabase)
         passenger_details: {
           baggage_allowance: data.baggage,
-          nationality: data.nationality,
-          passport_number: data.passportNumber,
-          passport_expiry: data.passportExpiry
+          requested_counts: requestedCounts
         },
 
         // Pricing breakdown (для расчета итоговой стоимости)
@@ -558,7 +599,8 @@ function App() {
         bookingReference: n8nResponse.booking_reference || n8nResponse.drct_order_id,
         status: 'pending_payment',
         offer: selectedOffer,
-        passenger: data,
+        passenger: submittedPassengers[0] || null,
+        passengers: submittedPassengers,
         totalPrice: (selectedOffer.price?.total || 0) + baggagePrice.amount,
         currency: selectedOffer.price?.currency || 'UAH'
       };
@@ -572,7 +614,7 @@ function App() {
         user_id: user?.id || null,
         contact_email: data.email,
         contact_phone: data.phone,
-        passenger_count: 1,
+        passenger_count: submittedPassengers.length || 1,
         origin: selectedOffer.origin,
         destination: selectedOffer.destination,
         departure_time: selectedOffer.departure_time,
@@ -740,8 +782,7 @@ function App() {
 
     try {
       // Prefer explicit search URL; otherwise derive from configured n8n base URL.
-      const n8nBaseUrl = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
-      const searchUrl = import.meta.env.VITE_N8N_SEARCH_URL || `${n8nBaseUrl}/drct/search`;
+      const searchUrl = getSafeSearchUrl();
 
       console.log('=== Flight Search Started ===');
       console.log('Search payload:', JSON.stringify(searchData, null, 2));
@@ -1318,6 +1359,7 @@ function App() {
             onSubmit={handlePassengerSubmit}
             onBack={handleBackToSearch}
             userEmail={user?.email}
+            passengerCounts={lastSearchData}
             isLoading={isLoading}
           />
         )}

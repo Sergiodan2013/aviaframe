@@ -21,9 +21,16 @@ import {
   getOrderTicketDocument,
   getProfile,
   getMyAgency,
-  updateMyAgency
+  updateMyAgency,
+  getEmailTemplates,
+  updateEmailTemplate,
+  previewEmailTemplate,
+  getAgencyEmailTemplate,
+  updateAgencyEmailTemplate,
+  deleteAgencyEmailTemplate
 } from '../lib/supabase';
 import { drctApi } from '../lib/drctApi';
+import { getSafeN8nBaseUrl } from '../lib/runtimeConfig';
 
 export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_admin' }) {
   const [orders, setOrders] = useState([]);
@@ -127,6 +134,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
   const [agencySelfLoading, setAgencySelfLoading] = useState(false);
+  const [emailTemplates, setEmailTemplates] = useState([]);
+  const [emailTemplatesLoading, setEmailTemplatesLoading] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null); // {template, agencyId}
+  const [templateAgencyId, setTemplateAgencyId] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState(null);
   const [widgetDomains, setWidgetDomains] = useState([]);
   const [domainDraft, setDomainDraft] = useState('');
   const [showAddDomain, setShowAddDomain] = useState(false);
@@ -221,6 +234,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
     if (activeAdminSection === 'tickets') {
       void loadTickets();
+      return;
+    }
+    if (activeAdminSection === 'email-templates') {
+      void loadEmailTemplates();
     }
   }, [activeAdminSection, userProfile?.role]);
 
@@ -643,6 +660,90 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setNotice({ type: 'error', text: `Failed to load tickets: ${err.message}` });
     } finally {
       setTicketsLoading(false);
+    }
+  };
+
+  const loadEmailTemplates = async () => {
+    try {
+      setEmailTemplatesLoading(true);
+      const { data, error } = await getEmailTemplates();
+      if (error) throw new Error(error.message || 'Failed to load email templates');
+      setEmailTemplates(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to load email templates: ${err.message}` });
+    } finally {
+      setEmailTemplatesLoading(false);
+    }
+  };
+
+  const handleOpenEditTemplate = async (template) => {
+    if (templateAgencyId) {
+      const { data } = await getAgencyEmailTemplate(templateAgencyId, template.event_type);
+      const merged = {
+        ...template,
+        ...(data || {}),
+        blocks: { ...template.blocks, ...(data?.blocks || {}) },
+        subject: data?.subject || template.subject,
+        _agencyOverride: !!data
+      };
+      setEditingTemplate({ template: merged, agencyId: templateAgencyId });
+    } else {
+      setEditingTemplate({ template: { ...template }, agencyId: null });
+    }
+    setPreviewHtml(null);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!editingTemplate) return;
+    const { template, agencyId } = editingTemplate;
+    try {
+      setSavingTemplate(true);
+      const payload = { subject: template.subject, blocks: template.blocks };
+      if (agencyId) {
+        const { error } = await updateAgencyEmailTemplate(agencyId, template.event_type, payload);
+        if (error) throw new Error(error.message || 'Save failed');
+      } else {
+        const { error } = await updateEmailTemplate(template.event_type, payload);
+        if (error) throw new Error(error.message || 'Save failed');
+      }
+      setNotice({ type: 'success', text: 'Template saved' });
+      setEditingTemplate(null);
+      void loadEmailTemplates();
+    } catch (err) {
+      setNotice({ type: 'error', text: `Save failed: ${err.message}` });
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handlePreviewTemplate = async () => {
+    if (!editingTemplate) return;
+    const { template } = editingTemplate;
+    try {
+      const { data, error } = await previewEmailTemplate(template.event_type, {
+        subject: template.subject,
+        blocks: template.blocks
+      });
+      if (error) throw new Error(error.message || 'Preview failed');
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(data.html || '<p>No preview</p>');
+        win.document.close();
+      }
+    } catch (err) {
+      setNotice({ type: 'error', text: `Preview failed: ${err.message}` });
+    }
+  };
+
+  const handleDeleteAgencyOverride = async (eventType) => {
+    if (!templateAgencyId) return;
+    try {
+      const { error } = await deleteAgencyEmailTemplate(templateAgencyId, eventType);
+      if (error) throw new Error(error.message || 'Delete failed');
+      setNotice({ type: 'success', text: 'Agency override removed' });
+      void loadEmailTemplates();
+    } catch (err) {
+      setNotice({ type: 'error', text: `Delete failed: ${err.message}` });
     }
   };
 
@@ -1199,7 +1300,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       return '<!-- Save agency settings first to get the widget key -->';
     }
     const widgetBase = typeof window !== 'undefined' ? window.location.origin : '';
-    const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
+    const rawN8nBase = getSafeN8nBaseUrl();
     const n8nBaseAbsolute = rawN8nBase.startsWith('http')
       ? rawN8nBase
       : `${widgetBase}${rawN8nBase.startsWith('/') ? '' : '/'}${rawN8nBase}`;
@@ -1224,7 +1325,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     if (!widgetBase) return '/widget-preview.html';
     const preview = new URL('/widget-preview.html', widgetBase);
     if (agencyKey) preview.searchParams.set('agency_key', agencyKey);
-    const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
+    const rawN8nBase = getSafeN8nBaseUrl();
     const n8nBaseAbsolute = rawN8nBase.startsWith('http')
       ? rawN8nBase
       : `${widgetBase}${rawN8nBase.startsWith('/') ? '' : '/'}${rawN8nBase}`;
@@ -1567,6 +1668,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'tickets' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
                 Tickets
+              </button>
+              <button
+                onClick={() => setActiveAdminSection('email-templates')}
+                className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'email-templates' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Email Templates
               </button>
             </div>
           </div>
@@ -1919,6 +2026,178 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 </div>
               ))}
               {tickets.length === 0 && <p className="text-gray-500">No tickets</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Email Templates Section */}
+        {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'email-templates' && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Email Templates</h2>
+              <button onClick={loadEmailTemplates} className="bg-gray-100 px-3 py-1 rounded text-sm">
+                {emailTemplatesLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {/* Mode selector */}
+            <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+              <span className="text-sm font-medium text-gray-700">Mode:</span>
+              <label className="flex items-center gap-1 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="templateMode"
+                  checked={templateAgencyId === ''}
+                  onChange={() => setTemplateAgencyId('')}
+                />
+                Global defaults
+              </label>
+              <label className="flex items-center gap-1 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="templateMode"
+                  checked={templateAgencyId !== ''}
+                  onChange={() => setTemplateAgencyId(agencies[0]?.id || '')}
+                />
+                Agency override:
+              </label>
+              <select
+                value={templateAgencyId}
+                onChange={(e) => setTemplateAgencyId(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                <option value="">— select agency —</option>
+                {agencies.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Template list */}
+            <div className="space-y-3">
+              {emailTemplatesLoading && <p className="text-gray-500 text-sm">Loading templates...</p>}
+              {!emailTemplatesLoading && emailTemplates.map((tpl) => (
+                <div key={tpl.event_type} className="border rounded-lg p-3 flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-gray-900">{tpl.event_type}</span>
+                      {tpl.is_active !== false && (
+                        <span className="text-xs bg-green-100 text-green-700 rounded px-1">Active</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 truncate mt-1">{tpl.subject}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {templateAgencyId && (
+                      <button
+                        onClick={() => handleDeleteAgencyOverride(tpl.event_type)}
+                        className="text-xs bg-red-50 text-red-600 border border-red-200 rounded px-2 py-1"
+                      >
+                        Reset override
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleOpenEditTemplate(tpl)}
+                      className="text-xs bg-blue-600 text-white rounded px-3 py-1"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!emailTemplatesLoading && emailTemplates.length === 0 && (
+                <p className="text-gray-500 text-sm">No templates found. Check that the SQL migration has been run.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Edit Template Modal */}
+        {editingTemplate && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-8 mb-8">
+              <div className="p-5 border-b flex items-center justify-between">
+                <h3 className="font-bold text-lg">
+                  Edit: {editingTemplate.template.event_type}
+                  {editingTemplate.agencyId && (
+                    <span className="ml-2 text-sm font-normal text-blue-600">
+                      (agency override: {agencies.find(a => a.id === editingTemplate.agencyId)?.name || editingTemplate.agencyId})
+                    </span>
+                  )}
+                </h3>
+                <button onClick={() => setEditingTemplate(null)} className="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <input
+                    value={editingTemplate.template.subject || ''}
+                    onChange={(e) => setEditingTemplate(prev => ({
+                      ...prev,
+                      template: { ...prev.template, subject: e.target.value }
+                    }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                    placeholder="Email subject"
+                  />
+                </div>
+
+                {(() => {
+                  const vars = editingTemplate.template.variables || {};
+                  const varList = Object.entries(vars);
+                  return varList.length > 0 ? (
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <p className="text-xs font-medium text-blue-700 mb-1">Available variables:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {varList.map(([key, desc]) => (
+                          <span key={key} title={desc} className="text-xs bg-white border border-blue-200 rounded px-1 font-mono cursor-help">
+                            {`{{${key}}}`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {['greeting', 'intro', 'payment_note', 'closing'].map((blockKey) => {
+                  const val = editingTemplate.template.blocks?.[blockKey];
+                  if (val === undefined && blockKey === 'payment_note' &&
+                      !['booking_created'].includes(editingTemplate.template.event_type)) return null;
+                  return (
+                    <div key={blockKey}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+                        {blockKey.replace(/_/g, ' ')}
+                      </label>
+                      <textarea
+                        value={val || ''}
+                        onChange={(e) => setEditingTemplate(prev => ({
+                          ...prev,
+                          template: {
+                            ...prev.template,
+                            blocks: { ...prev.template.blocks, [blockKey]: e.target.value }
+                          }
+                        }))}
+                        className="w-full border rounded-lg px-3 py-2 text-sm min-h-20 font-mono"
+                        placeholder={`${blockKey} text...`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="p-5 border-t flex gap-3 justify-end">
+                <button onClick={() => setEditingTemplate(null)} className="bg-gray-100 text-gray-700 rounded px-4 py-2 text-sm">
+                  Cancel
+                </button>
+                <button onClick={handlePreviewTemplate} className="bg-gray-700 text-white rounded px-4 py-2 text-sm">
+                  Preview
+                </button>
+                <button
+                  onClick={handleSaveTemplate}
+                  disabled={savingTemplate}
+                  className="bg-blue-600 text-white rounded px-4 py-2 text-sm disabled:opacity-50"
+                >
+                  {savingTemplate ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
             </div>
           </div>
         )}

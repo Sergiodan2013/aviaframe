@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { logDRCTRequest } from './supabase';
+import { getSafeN8nBaseUrl } from './runtimeConfig';
 
 // Local dev must hit n8n test webhooks unless explicitly overridden.
-const N8N_BASE_URL = import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test';
+const N8N_BASE_URL = getSafeN8nBaseUrl();
 console.log('[DRCTApi] N8N_BASE_URL =', N8N_BASE_URL);
 
 // ====================================================
@@ -80,17 +81,19 @@ class DRCTApiClient {
 
       return { data: response.data, error: null };
     } catch (error) {
-      // Common local-dev case: workflow is active under /webhook, not /webhook-test.
-      const canFallbackToProdWebhook =
-        error?.response?.status === 404 &&
+      const status = error?.response?.status;
+      const canFallbackBetweenWebhookModes =
+        [404, 500, 502, 503, 504].includes(status) &&
         typeof this.baseURL === 'string' &&
-        this.baseURL.includes('/webhook-test');
+        (this.baseURL.includes('/webhook-test') || this.baseURL.includes('/webhook'));
 
-      if (canFallbackToProdWebhook) {
+      if (canFallbackBetweenWebhookModes) {
         try {
-          const fallbackBase = this.baseURL.replace('/webhook-test', '/webhook');
+          const fallbackBase = this.baseURL.includes('/webhook-test')
+            ? this.baseURL.replace('/webhook-test', '/webhook')
+            : this.baseURL.replace('/webhook', '/webhook-test');
           const fallbackUrl = `${fallbackBase}/${endpoint}`;
-          console.warn('[DRCTApi] 404 on webhook-test, retrying with webhook:', fallbackUrl);
+          console.warn('[DRCTApi] primary webhook failed, retrying with fallback:', fallbackUrl);
 
           const fallbackResponse = await axios({
             url: fallbackUrl,

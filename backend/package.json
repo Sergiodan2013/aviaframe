@@ -9,6 +9,10 @@
     "build": "echo \"Building backend...\" && mkdir -p dist && cp -R src/* dist/ || true",
     "test": "jest --runInBand",
     "test:n8n": "node scripts/test_n8n.js",
+    "check:tenant-propagation": "node scripts/check_tenant_propagation.js",
+    "check:n8n-boundary": "node scripts/check_n8n_write_boundary.js",
+    "check:policy": "npm run check:tenant-propagation && npm run check:n8n-boundary",
+    "smoke:routing": "bash scripts/smoke_routing.sh",
     "lint": "eslint src tests"
   },
   "dependencies": {
@@ -16,9 +20,12 @@
     "axios": "^1.13.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.3.0",
+    "handlebars": "^4.7.8",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^6.10.1",
     "pdfkit": "^0.17.2",
+    "resend": "^6.9.2",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

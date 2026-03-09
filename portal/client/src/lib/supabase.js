@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getAuthRedirectUrl } from './runtimeConfig';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -199,20 +200,22 @@ const backendApiRequest = async (path, { method = 'GET', body } = {}) => {
 // ====================================================
 
 export const signInWithGoogle = async () => {
+  const redirectUrl = getAuthRedirectUrl();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.origin
+      redirectTo: redirectUrl
     }
   });
   return { data, error };
 };
 
 export const signInWithEmail = async (email) => {
+  const redirectUrl = getAuthRedirectUrl();
   const { data, error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: window.location.origin
+      emailRedirectTo: redirectUrl
     }
   });
   return { data, error };
@@ -338,8 +341,11 @@ export const getUserOrders = async (userId) => {
     'total_price',
     'currency',
     'status',
+    'payment_method',
+    'payment_status',
     'contact_email',
     'contact_phone',
+    'claimed_at',
     'created_at',
     'updated_at',
     'confirmed_at',
@@ -391,8 +397,11 @@ export const getOrdersList = async ({ userId, agencyId, limit = 200 } = {}) => {
     'total_price',
     'currency',
     'status',
+    'payment_method',
+    'payment_status',
     'contact_email',
     'contact_phone',
+    'claimed_at',
     'created_at',
     'updated_at',
     'confirmed_at',
@@ -474,6 +483,63 @@ export const updateOrderStatus = async (orderId, status, additionalData = {}) =>
     .select()
     .single();
   return { data, error };
+};
+
+export const claimOrder = async (claimToken) => {
+  if (!claimToken) {
+    return { data: null, error: { message: 'claimToken is required' } };
+  }
+  const result = await backendApiRequest('/auth/claim-order', {
+    method: 'POST',
+    body: { claim_token: claimToken }
+  });
+  return {
+    data: result.data?.order || null,
+    error: result.error || null
+  };
+};
+
+export const getOrderMessages = async (orderId, { limit = 200 } = {}) => {
+  if (!orderId) {
+    return { data: null, error: { message: 'orderId is required' } };
+  }
+  const result = await backendApiRequest(`/orders/${orderId}/messages?limit=${encodeURIComponent(limit)}`, {
+    method: 'GET'
+  });
+  return {
+    data: result.data?.messages || [],
+    error: result.error || null
+  };
+};
+
+export const sendOrderMessage = async (orderId, body) => {
+  if (!orderId) return { data: null, error: { message: 'orderId is required' } };
+  const text = String(body || '').trim();
+  if (!text) return { data: null, error: { message: 'Message body is required' } };
+
+  const result = await backendApiRequest(`/orders/${orderId}/messages`, {
+    method: 'POST',
+    body: { body: text }
+  });
+  return {
+    data: result.data?.message || null,
+    error: result.error || null
+  };
+};
+
+export const markOrderMessagesRead = async (orderId, messageIds = []) => {
+  if (!orderId) return { data: null, error: { message: 'orderId is required' } };
+  const ids = Array.isArray(messageIds) ? messageIds.filter(Boolean) : [];
+  const result = await backendApiRequest(`/orders/${orderId}/messages/read`, {
+    method: 'POST',
+    body: {
+      message_ids: ids
+    }
+  });
+  return {
+    data: result.data || { ok: true },
+    error: result.error || null
+  };
 };
 
 // ====================================================
@@ -649,7 +715,7 @@ export const createAdminSuperAdmin = async (payload) => {
         email: normalizedEmail,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: window.location.origin
+          emailRedirectTo: getAuthRedirectUrl()
         }
       });
 
@@ -751,6 +817,12 @@ export const createAdminAgency = async (payload) => {
   const contactEmail = String(payload?.contact_email || '').trim().toLowerCase();
   if (!name || !contactEmail) {
     return { data: null, error: { message: 'name and contact_email are required' } };
+  }
+
+  const bankName = String(payload?.bank_details?.bank_name || '').trim();
+  const iban = String(payload?.bank_details?.iban || '').trim();
+  if (!bankName || !iban) {
+    return { data: null, error: { message: 'bank_details.bank_name and bank_details.iban are required — they are displayed to clients in payment instructions' } };
   }
 
   const domainRaw = String(payload?.domain || '').trim().toLowerCase();
@@ -1371,4 +1443,49 @@ export const subscribeToUserOrders = (userId, callback) => {
       callback
     )
     .subscribe();
+};
+
+// ====================================================
+// EMAIL TEMPLATES
+// ====================================================
+
+export const getEmailTemplates = async () => {
+  const { data, error } = await backendApiRequest('/admin/email-templates');
+  return { data: data?.templates || [], error };
+};
+
+export const updateEmailTemplate = async (eventType, payload) => {
+  const { data, error } = await backendApiRequest(`/admin/email-templates/${eventType}`, {
+    method: 'PATCH',
+    body: payload
+  });
+  return { data, error };
+};
+
+export const previewEmailTemplate = async (eventType, payload) => {
+  const { data, error } = await backendApiRequest(`/admin/email-templates/${eventType}/preview`, {
+    method: 'POST',
+    body: payload
+  });
+  return { data, error };
+};
+
+export const getAgencyEmailTemplate = async (agencyId, eventType) => {
+  const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}/email-templates/${eventType}`);
+  return { data, error };
+};
+
+export const updateAgencyEmailTemplate = async (agencyId, eventType, payload) => {
+  const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}/email-templates/${eventType}`, {
+    method: 'PATCH',
+    body: payload
+  });
+  return { data, error };
+};
+
+export const deleteAgencyEmailTemplate = async (agencyId, eventType) => {
+  const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}/email-templates/${eventType}`, {
+    method: 'DELETE'
+  });
+  return { data, error };
 };

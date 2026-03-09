@@ -48,3 +48,5 @@ All product and technical documentation lives in this directory.
 | File | Description |
 |---|---|
 | [PROD_READINESS_AND_EMAIL_SERVICE_AUDIT_2026-02-23.md](PROD_READINESS_AND_EMAIL_SERVICE_AUDIT_2026-02-23.md) | Production readiness audit — current state, gaps, priorities |
+| [CURRENT_SETUP_PRE_RAILWAY_2026-03-07.md](CURRENT_SETUP_PRE_RAILWAY_2026-03-07.md) | Frozen snapshot of active setup before Railway migration (ngrok + local backend/n8n) |
+| [PIPEDRIVE_CRM_SALES_AUTOMATION_BLUEPRINT.md](PIPEDRIVE_CRM_SALES_AUTOMATION_BLUEPRINT.md) | End-to-end CRM + sales automation architecture and implementation plan |

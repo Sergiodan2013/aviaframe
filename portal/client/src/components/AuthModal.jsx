@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Mail, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase, signInWithEmail, signInWithGoogle } from '../lib/supabase';
+import { getAuthRedirectUrl } from '../lib/runtimeConfig';
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [email, setEmail] = useState('');
@@ -38,7 +39,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'apple',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: getAuthRedirectUrl()
         }
       });
 
