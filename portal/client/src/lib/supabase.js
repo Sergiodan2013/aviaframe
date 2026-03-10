@@ -30,7 +30,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
   });
 }
 
-export const supabase = createClient(supabaseUrl || 'https://example.supabase.co', supabaseAnonKey || 'dummy-key');
+// Override navigator.locks to avoid LockManager timeout errors in multi-tab scenarios.
+// The default Supabase lock waits up to 10s for an exclusive lock; if a previous tab
+// holds it (e.g. during Google OAuth redirect), subsequent tabs throw and break the UI.
+// Bypassing the lock is safe here: worst case two tabs refresh the token simultaneously
+// and write the same value to localStorage — harmless.
+const noOpLock = (_name, _acquireTimeout, fn) => fn();
+
+export const supabase = createClient(supabaseUrl || 'https://example.supabase.co', supabaseAnonKey || 'dummy-key', {
+  auth: {
+    lock: noOpLock,
+  },
+});
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
