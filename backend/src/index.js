@@ -3507,9 +3507,9 @@ app.get('/api/orders/:orderId/payment-instructions', async (req, res) => {
         sama_code: bank.sama_code || null
       },
       notes: [
-        'Переведите сумму по реквизитам агентства.',
-        `В комментарии укажите номер заказа: ${order.order_number}`,
-        'После поступления оплаты статус будет подтвержден и билет выписан.'
+        'Transfer the amount to the agency bank details.',
+        `In the payment reference, include the order number: ${order.order_number}`,
+        'Once payment is received, the booking will be confirmed and the ticket issued.'
       ]
     };
 

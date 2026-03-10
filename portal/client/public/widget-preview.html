@@ -38,8 +38,8 @@
   <div class="wrap">
     <div class="card">
       <h1>Widget Preview</h1>
-      <p>Это предпросмотр реального поискового виджета для сайта агентства.</p>
-      <p class="hint">Проверьте поиск и выдачу рейсов на этой странице.</p>
+      <p>This is a live preview of the flight search widget for your agency website.</p>
+      <p class="hint">Test the flight search and results on this page.</p>
     </div>
     <div
       id="aviaframe-widget"
@@ -59,8 +59,8 @@
       const node = document.getElementById('aviaframe-widget');
       node.innerHTML = `
         <div class="card" style="border-color:#fecaca;background:#fff5f5;color:#991b1b;">
-          <strong>Не задан API URL виджета</strong><br/>
-          Откройте предпросмотр из админки агентства, где URL формируется автоматически.
+          <strong>Widget API URL is not set</strong><br/>
+          Open the preview from your agency settings — the URL is generated automatically.
         </div>
       `;
     } else {
