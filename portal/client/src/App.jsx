@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useLocation, Routes, Route } from 'react-router-dom';
 import axios from 'axios';
 import SearchForm from './components/SearchForm';
 import FlightCard from './components/FlightCard';
@@ -14,8 +15,21 @@ import { mockFlightData } from './mock/flightData';
 import { drctApi, formatDRCTError, calculateBaggagePrice } from './lib/drctApi';
 import { supabase, getProfile, claimOrder } from './lib/supabase';
 import { getSafeSearchUrl } from './lib/runtimeConfig';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Derive currentPage from URL (replaces useState)
+  const currentPage = (() => {
+    if (location.pathname === '/bookings') return 'bookings';
+    if (location.pathname.startsWith('/admin')) {
+      return new URLSearchParams(location.search).get('mode') === 'agency' ? 'adminAgency' : 'admin';
+    }
+    return 'search';
+  })();
+
   const [isLoading, setIsLoading] = useState(false);
   const [flights, setFlights] = useState([]);
   const [error, setError] = useState(null);
@@ -27,8 +41,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Page navigation state
-  const [currentPage, setCurrentPage] = useState('search'); // 'search', 'bookings', 'admin', 'adminAgency'
+  // bookingsRefreshKey forces MyBookings remount when navigating back to /bookings
   const [bookingsRefreshKey, setBookingsRefreshKey] = useState(0);
 
   // Booking flow state
@@ -155,7 +168,7 @@ function App() {
             if (pendingToken) {
               localStorage.removeItem('pending_claim_token');
               claimOrder(pendingToken).then(() => {
-                if (mounted) setCurrentPage('bookings');
+                if (mounted) navigate('/bookings');
               });
             }
             return;
@@ -177,7 +190,7 @@ function App() {
         if (pendingToken) {
           localStorage.removeItem('pending_claim_token');
           claimOrder(pendingToken).then(() => {
-            if (mounted) setCurrentPage('bookings');
+            if (mounted) navigate('/bookings');
           });
         }
       } catch {
@@ -229,7 +242,7 @@ function App() {
           if (pendingToken) {
             localStorage.removeItem('pending_claim_token');
             claimOrder(pendingToken).then(() => {
-              setCurrentPage('bookings');
+              navigate('/bookings');
             });
           }
         }
@@ -681,7 +694,7 @@ function App() {
   // Handle new search
   const handleNewSearch = () => {
     setCurrentStep('search');
-    setCurrentPage('search');
+    navigate('/');
     setSelectedOffer(null);
     setPassengerData(null);
     setBooking(null);
@@ -697,7 +710,8 @@ function App() {
       setIsAuthModalOpen(true);
       return;
     }
-    setCurrentPage('bookings');
+    setBookingsRefreshKey(k => k + 1);
+    navigate('/bookings');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -712,7 +726,7 @@ function App() {
       setError('You do not have access to the admin panel');
       return;
     }
-    setCurrentPage('admin');
+    navigate('/admin');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -725,13 +739,13 @@ function App() {
       setError('You do not have access to agency admin mode');
       return;
     }
-    setCurrentPage('adminAgency');
+    navigate('/admin?mode=agency');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Navigate back to home/search
   const handleBackToHome = () => {
-    setCurrentPage('search');
+    navigate('/');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1150,24 +1164,24 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page: My Bookings */}
-        {currentPage === 'bookings' && (
-          <MyBookings key={bookingsRefreshKey} user={user} onBackToHome={handleBackToHome} />
-        )}
-
-        {/* Page: Admin Dashboard */}
-        {currentPage === 'admin' && (
-          <AdminDashboard user={user} onBackToHome={handleBackToHome} />
-        )}
-
-        {/* Page: Agency Admin View (under same super-admin creds) */}
-        {currentPage === 'adminAgency' && (
-          <AdminDashboard user={user} onBackToHome={handleBackToHome} viewMode="agency_admin" />
-        )}
-
-        {/* Page: Search/Booking Flow */}
-        {currentPage === 'search' && (
-          <>
+        <Routes>
+          <Route path="/bookings" element={
+            <ErrorBoundary>
+              <MyBookings key={bookingsRefreshKey} user={user} onBackToHome={handleBackToHome} />
+            </ErrorBoundary>
+          } />
+          <Route path="/admin" element={
+            <ErrorBoundary>
+              <AdminDashboard
+                user={user}
+                onBackToHome={handleBackToHome}
+                viewMode={new URLSearchParams(location.search).get('mode') === 'agency' ? 'agency_admin' : undefined}
+              />
+            </ErrorBoundary>
+          } />
+          <Route path="/*" element={
+            <ErrorBoundary>
+              <>
             {/* Step: Search */}
             {currentStep === 'search' && (
           <>
@@ -1452,8 +1466,10 @@ function App() {
             </div>
           </div>
         )}
-          </>
-        )}
+              </>
+            </ErrorBoundary>
+          } />
+        </Routes>
       </main>
 
       {/* Auth Modal */}
