@@ -44,6 +44,9 @@ const supportRouter = require('./routes/support');
 const publicRouter = require('./routes/public');
 const internalRouter = require('./routes/internal');
 
+// ── CORS must run BEFORE drctRouter and n8n proxy so OPTIONS preflights are handled ──
+app.use(buildCorsMiddleware(config.corsOrigins));
+
 // ── DRCT routes (before n8n proxy — intercept /webhook/drct/*) ─────────────────
 app.use('/', drctRouter);
 
@@ -97,9 +100,6 @@ app.use((req, res, next) => {
   });
   next();
 });
-
-// CORS
-app.use(buildCorsMiddleware(config.corsOrigins));
 
 // ── Health / Info ───────────────────────────────────────────────────────────────
 app.get('/healthz', (req, res) => {
