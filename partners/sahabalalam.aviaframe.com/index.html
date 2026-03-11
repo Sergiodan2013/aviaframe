@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sahab Al Alam - Travel & Tourism | AviaFrame Demo</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+</head>
+<body>
+  <header class="header">
+    <button class="lang-toggle" onclick="toggleLang()">عربي</button>
+    <div class="container header-inner">
+      <img class="logo" src="./assets/sahabalalam-logo.png" alt="Sahab Al Alam Logo" />
+      <div class="brand-name" data-i18n="brandName">Sahab Al Alam Travel & Tourism</div>
+      <div class="brand-tag" data-i18n="brandTag">Best flight deals and trusted travel support</div>
+      <div class="contact-mini">+966 53 531 6584 · +966 53 962 8781</div>
+    </div>
+  </header>
+
+  <section class="widget-first">
+    <div class="container">
+      <div class="widget-main">
+        <h2 class="widget-title" data-i18n="widgetTitle">Find the Best Flight Deals Now</h2>
+        <p class="widget-subtitle" data-i18n="widgetSubtitle">Powered by AviaFrame search. Compare options and book with confidence.</p>
+
+        <div
+          id="aviaframe-widget"
+          data-aviaframe-widget
+          data-api-url="https://admin.aviaframe.com/api/n8n/webhook/drct/search"
+          data-booking-url="https://admin.aviaframe.com/api/n8n/webhook/drct/order/create"
+          data-brand-name="Sahab Al Alam"
+          data-brand-color="#0d6fd6"
+          data-accent-color="#f28a1d"
+          data-title="Search Flights"
+          data-primary-color="#0d6fd6"
+        ></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hero">
+    <div class="container hero-grid">
+      <article class="hero-card">
+        <span class="badge">sahabalalam.aviaframe.com</span>
+        <h1 data-i18n="heroTitle">Best Airfares, Visa Support, and Complete Travel Services</h1>
+        <p class="lead" data-i18n="heroLead">
+          We are pleased to support your travel plans with professional service from our Jizan office.
+          With God's help and according to current regulations, we assist clients with long-term Schengen visa preparation,
+          flight and hotel bookings, and all core travel documents.
+        </p>
+      </article>
+
+      <aside class="hero-card">
+        <h3 class="side-title" data-i18n="sideTitle">Included Services</h3>
+        <ul class="clean-list">
+          <li data-i18n="s1">Flight ticket booking</li>
+          <li data-i18n="s2">Hotel reservation</li>
+          <li data-i18n="s3">Schengen visa application support (up to 5 years, subject to current rules)</li>
+          <li data-i18n="s4">Medical travel insurance</li>
+          <li data-i18n="s5">Application form completion</li>
+          <li data-i18n="s6">Fingerprint appointment scheduling at our office in Jizan</li>
+          <li data-i18n="s7">ID and family card translation support for family visa applications</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <main class="main">
+    <div class="container main-grid">
+      <article class="info-card">
+        <h2 data-i18n="aboutTitle">About Sahab Al Alam</h2>
+        <p class="about" data-i18n="aboutText">
+          Sahab Al Alam Travel & Tourism offers end-to-end travel planning for individuals and families.
+          Our team combines competitive flight pricing with practical visa guidance and document preparation,
+          helping clients travel with confidence and clarity.
+        </p>
+
+        <h2 data-i18n="contactTitle">Contact</h2>
+        <div class="phones">
+          <div class="phone">📞 +966 53 531 6584</div>
+          <div class="phone">📞 +966 53 962 8781</div>
+          <div class="phone">📍 Jizan, Saudi Arabia</div>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <strong data-i18n="brandName">Sahab Al Alam Travel & Tourism</strong><br />
+        Jizan, Saudi Arabia
+      </div>
+      <div>
+        +966 53 531 6584 • +966 53 962 8781
+      </div>
+      <div class="subdomain-note">Host: sahabalalam.aviaframe.com</div>
+    </div>
+  </footer>
+
+  <script src="./assets/aviaframe-widget.js"></script>
+  <script>
+    var I18N = {
+      en: {
+        brandName: 'Sahab Al Alam Travel & Tourism',
+        brandTag: 'Best flight deals and trusted travel support',
+        widgetTitle: 'Find the Best Flight Deals Now',
+        widgetSubtitle: 'Powered by AviaFrame search. Compare options and book with confidence.',
+        heroTitle: 'Best Airfares, Visa Support, and Complete Travel Services',
+        heroLead: 'We are pleased to support your travel plans with professional service from our Jizan office. With God\'s help and according to current regulations, we assist clients with long-term Schengen visa preparation, flight and hotel bookings, and all core travel documents.',
+        sideTitle: 'Included Services',
+        s1: 'Flight ticket booking',
+        s2: 'Hotel reservation',
+        s3: 'Schengen visa application support (up to 5 years, subject to current rules)',
+        s4: 'Medical travel insurance',
+        s5: 'Application form completion',
+        s6: 'Fingerprint appointment scheduling at our office in Jizan',
+        s7: 'ID and family card translation support for family visa applications',
+        aboutTitle: 'About Sahab Al Alam',
+        aboutText: 'Sahab Al Alam Travel & Tourism offers end-to-end travel planning for individuals and families. Our team combines competitive flight pricing with practical visa guidance and document preparation, helping clients travel with confidence and clarity.',
+        contactTitle: 'Contact',
+      },
+      ar: {
+        brandName: 'صحاب العالم للسفر والسياحة',
+        brandTag: 'أفضل صفقات الطيران ودعم سفر موثوق',
+        widgetTitle: 'ابحث عن أفضل صفقات الطيران الآن',
+        widgetSubtitle: 'مدعوم من بحث أفيافريم. قارن الخيارات واحجز بثقة.',
+        heroTitle: 'أفضل أسعار الطيران، دعم التأشيرة، وخدمات السفر الشاملة',
+        heroLead: 'يسعدنا دعم خططكم في السفر بخدمة احترافية من مكتبنا في جازان. بعون الله ووفقاً للأنظمة الحالية، نساعد عملاءنا في استعداد تأشيرة شنغن طويلة الأمد، وحجز الرحلات والفنادق، وجميع وثائق السفر الأساسية.',
+        sideTitle: 'الخدمات المقدمة',
+        s1: 'حجز تذاكر الطيران',
+        s2: 'حجز الفنادق',
+        s3: 'دعم تأشيرة شنغن (حتى 5 سنوات، وفق الأنظمة الحالية)',
+        s4: 'تأمين السفر الطبي',
+        s5: 'تعبئة استمارات الطلبات',
+        s6: 'جدولة مواعيد البصمة في مكتبنا بجازان',
+        s7: 'ترجمة الهوية وبطاقة العائلة لطلبات تأشيرة العائلة',
+        aboutTitle: 'عن صحاب العالم',
+        aboutText: 'تقدم شركة صحاب العالم للسفر والسياحة خدمات السفر الشاملة للأفراد والعائلات. يجمع فريقنا بين أسعار رحلات تنافسية مع توجيه عملي للتأشيرات وإعداد الوثائق، مما يساعد العملاء على السفر بثقة ووضوح.',
+        contactTitle: 'التواصل',
+      }
+    };
+
+    var currentLang = localStorage.getItem('aviaframe_lang') || 'en';
+
+    function applyLang(lang) {
+      currentLang = lang;
+      localStorage.setItem('aviaframe_lang', lang);
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var key = el.dataset.i18n;
+        if (I18N[lang] && I18N[lang][key]) el.textContent = I18N[lang][key];
+      });
+      var btn = document.querySelector('.lang-toggle');
+      if (btn) btn.textContent = lang === 'ar' ? 'English' : 'عربي';
+    }
+
+    function toggleLang() {
+      applyLang(currentLang === 'en' ? 'ar' : 'en');
+    }
+
+    applyLang(currentLang);
+  </script>
+</body>
+</html>

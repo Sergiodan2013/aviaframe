@@ -1,18 +1,17 @@
 :root {
-  --blue: #1a3c8e;
-  --blue-dark: #0e2460;
-  --blue-mid: #1a6cbe;
-  --blue-light: #e8f0fb;
-  --cyan: #00c8e0;
-  --text: #0e1f3d;
-  --muted: #4a5f82;
-  --line: #c8d8f0;
+  --green: #2d6e38;
+  --green-dark: #1a4524;
+  --green-mid: #3a8a47;
+  --green-light: #e8f5ec;
+  --text: #1a2e1e;
+  --muted: #4a6852;
+  --line: #cce5d3;
   --max: 1180px;
   --radius: 16px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { background: #f2f6ff; }
+html, body { background: #f4fbf6; }
 body {
   font-family: "Avenir Next", "Segoe UI", Tahoma, Arial, sans-serif;
   color: var(--text);
@@ -22,8 +21,8 @@ body {
 
 /* ─── HEADER ──────────────────────────────────────────────────── */
 .header {
-  background: linear-gradient(135deg, #0e2460 0%, #1a3c8e 55%, #1a6cbe 100%);
-  box-shadow: 0 4px 20px rgba(14, 36, 96, .35);
+  background: linear-gradient(135deg, #1a4524 0%, #2d6e38 55%, #3a8a47 100%);
+  box-shadow: 0 4px 20px rgba(26, 69, 36, .35);
   position: relative;
   overflow: hidden;
 }
@@ -43,7 +42,7 @@ body {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #00c8e0, #fff, #00c8e0);
+  background: linear-gradient(90deg, #a8d5b0, #fff, #a8d5b0);
 }
 
 .header-inner {
@@ -103,7 +102,7 @@ body {
 .widget-main {
   background: #fff;
   border-radius: 24px;
-  box-shadow: 0 24px 60px rgba(26,60,142,.12), 0 4px 12px rgba(0,0,0,.06);
+  box-shadow: 0 24px 60px rgba(45,110,56,.14), 0 4px 12px rgba(0,0,0,.06);
   padding: 28px 28px 24px;
   position: relative;
 }
@@ -111,7 +110,7 @@ body {
   content: "";
   position: absolute;
   top: 0; left: 28px; right: 28px; height: 3px;
-  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  background: linear-gradient(90deg, var(--green), var(--green-mid));
   border-radius: 0 0 4px 4px;
 }
 
@@ -147,16 +146,16 @@ body {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 28px;
-  box-shadow: 0 8px 24px rgba(26,60,142,.07);
+  box-shadow: 0 8px 24px rgba(45,110,56,.07);
   transition: box-shadow .2s;
 }
-.hero-card:hover { box-shadow: 0 16px 40px rgba(26,60,142,.12); }
+.hero-card:hover { box-shadow: 0 16px 40px rgba(45,110,56,.12); }
 
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: linear-gradient(90deg, var(--blue), var(--blue-mid));
+  background: linear-gradient(90deg, var(--green), var(--green-mid));
   color: #fff;
   border-radius: 999px;
   padding: 6px 14px;
@@ -185,7 +184,7 @@ h1 {
   color: var(--text);
   margin-bottom: 16px;
   padding-bottom: 10px;
-  border-bottom: 2px solid var(--blue);
+  border-bottom: 2px solid var(--green);
   display: inline-block;
 }
 
@@ -202,7 +201,7 @@ h1 {
 .clean-list li::before {
   content: "✓";
   color: #fff;
-  background: var(--blue);
+  background: var(--green);
   border-radius: 50%;
   width: 20px; height: 20px;
   min-width: 20px;
@@ -223,41 +222,41 @@ h1 {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 28px;
-  box-shadow: 0 8px 24px rgba(26,60,142,.07);
+  box-shadow: 0 8px 24px rgba(45,110,56,.07);
 }
 .info-card h2 {
   font-size: 1.2rem;
   font-weight: 800;
-  color: var(--blue);
+  color: var(--green);
   margin: 0 0 16px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.info-card h2::before { content: ""; display: inline-block; width: 4px; height: 20px; background: var(--blue); border-radius: 2px; }
+.info-card h2::before { content: ""; display: inline-block; width: 4px; height: 20px; background: var(--green); border-radius: 2px; }
 
 .phones { display: flex; flex-direction: column; gap: 10px; }
 .phone {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  background: linear-gradient(90deg, #e8f0fb, #f0f5ff);
-  border: 1px solid #c0d0f0;
+  background: linear-gradient(90deg, #e8f5ec, #f2fbf4);
+  border: 1px solid #c0dfc7;
   border-radius: 12px;
   padding: 12px 18px;
   font-weight: 700;
   font-size: 1rem;
-  color: var(--blue-dark);
+  color: var(--green-dark);
   width: fit-content;
   text-decoration: none;
   transition: background .2s;
 }
-.phone:hover { background: linear-gradient(90deg, #d8e5f8, #e5eeff); }
+.phone:hover { background: linear-gradient(90deg, #d5ecda, #e5f6e9); }
 .phone-wa { color: #1a6b2a; }
 .phone-email { word-break: break-all; }
 
 .manager-card {
-  background: var(--blue-light);
+  background: var(--green-light);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 20px;
@@ -265,7 +264,7 @@ h1 {
 .manager-name {
   font-size: 1.2rem;
   font-weight: 800;
-  color: var(--blue-dark);
+  color: var(--green-dark);
   margin-bottom: 4px;
 }
 .manager-role {
@@ -274,7 +273,7 @@ h1 {
   margin-bottom: 10px;
 }
 .manager-contact a {
-  color: var(--blue);
+  color: var(--green);
   font-weight: 600;
   text-decoration: none;
 }
@@ -282,7 +281,7 @@ h1 {
 
 /* ─── FOOTER ────────────────────────────────────────────────────── */
 .footer {
-  background: linear-gradient(135deg, #070f26, #0e2460);
+  background: linear-gradient(135deg, #0f2e16, #1a4524);
   color: rgba(255,255,255,.8);
   padding: 24px 0 32px;
 }

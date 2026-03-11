@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { User, Calendar, Briefcase, ArrowRight, Phone, Mail, Globe } from 'lucide-react';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
+import { useTranslation } from '../i18n/index.jsx';
 
 function buildPassengers(counts) {
   const adults = Math.max(1, Number(counts?.adults || 1));
@@ -60,6 +61,7 @@ function validateAgeByType(type, dateOfBirth) {
 }
 
 export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEmail, passengerCounts, isLoading }) {
+  const { t } = useTranslation();
   const initialPassengers = useMemo(() => buildPassengers(passengerCounts), [passengerCounts]);
 
   const [formData, setFormData] = useState({
@@ -224,13 +226,13 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
           <div className="border-b pb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Mail size={20} className="text-blue-600" />
-              Contact Information
+              {t('passenger.contactInfo')}
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address *
+                  {t('passenger.email')} *
                 </label>
                 <input
                   type="email"
@@ -310,7 +312,7 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('passenger.firstName')} *</label>
                       <input
                         type="text"
                         value={passenger.firstName}
@@ -326,7 +328,7 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('passenger.lastName')} *</label>
                       <input
                         type="text"
                         value={passenger.lastName}
@@ -345,7 +347,7 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <Calendar className="inline mr-2" size={16} />
-                      Date of Birth *
+                      {t('passenger.dob')} *
                     </label>
                     <input
                       type="date"
@@ -363,7 +365,7 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Passport Number *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('passenger.passport')} *</label>
                       <input
                         type="text"
                         value={passenger.passportNumber}
@@ -379,7 +381,7 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Date *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('passenger.expiry')} *</label>
                       <input
                         type="date"
                         value={passenger.passportExpiry}
@@ -398,7 +400,7 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <Globe className="inline mr-2" size={16} />
-                      Nationality *
+                      {t('passenger.nationality')} *
                     </label>
                     <select
                       value={passenger.nationality}
@@ -510,14 +512,14 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
                 onClick={onBack}
                 className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
               >
-                Back
+                {t('passenger.back')}
               </button>
             )}
             <button
               type="submit"
               className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 px-6 rounded-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
             >
-              Book now
+              {t('passenger.bookNow')}
               <ArrowRight size={20} />
             </button>
           </div>
