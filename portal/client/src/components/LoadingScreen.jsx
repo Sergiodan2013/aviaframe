@@ -44,9 +44,10 @@ export default function LoadingScreen() {
       <h3 className="text-2xl font-bold text-gray-800 mb-3">
         Searching flights
       </h3>
-      <p className="text-gray-600 mb-6">
+      <p className="text-gray-600 mb-1">
         Comparing offers from multiple airlines...
       </p>
+      <p className="text-gray-400 text-sm mb-6">Usually 10–20 seconds</p>
 
       {/* Progress bar */}
       <div className="max-w-md mx-auto">

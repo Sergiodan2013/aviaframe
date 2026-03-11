@@ -1,18 +1,17 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAgencies, useSuperAdmins, useInvoices, useTickets, useEmailTemplates } from '../hooks/useQueries';
 import { Plane, Calendar, User, CreditCard, AlertCircle, CheckCircle, Clock, XCircle, ArrowLeft, Phone, Mail, Search, Filter, X, MapPin, Ticket } from 'lucide-react';
 import {
   supabase,
   getOrdersList,
   updateOrderStatus as updateOrderStatusApi,
   getAdminAgencies,
-  getAdminSuperAdmins,
   createAdminSuperAdmin,
   createAdminAgency,
   updateAdminAgency,
   deleteAdminAgency,
   getAdminOrdersSummary,
-  getAdminInvoices,
-  getAdminTickets,
   createAdminInvoice,
   updateAdminInvoice,
   generateAdminInvoicePdf,
@@ -22,7 +21,6 @@ import {
   getProfile,
   getMyAgency,
   updateMyAgency,
-  getEmailTemplates,
   updateEmailTemplate,
   previewEmailTemplate,
   getAgencyEmailTemplate,
@@ -44,16 +42,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [ticketDocLoadingId, setTicketDocLoadingId] = useState(null);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  const [agencies, setAgencies] = useState([]);
   const [reportSummary, setReportSummary] = useState(null);
-  const [invoices, setInvoices] = useState([]);
-  const [tickets, setTickets] = useState([]);
-  const [superAdmins, setSuperAdmins] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
-  const [agenciesLoading, setAgenciesLoading] = useState(false);
-  const [invoicesLoading, setInvoicesLoading] = useState(false);
-  const [ticketsLoading, setTicketsLoading] = useState(false);
-  const [superAdminsLoading, setSuperAdminsLoading] = useState(false);
   const [creatingSuperAdmin, setCreatingSuperAdmin] = useState(false);
   const [activeAdminSection, setActiveAdminSection] = useState('agencies');
   const [showCreateAgencyForm, setShowCreateAgencyForm] = useState(false);
@@ -134,8 +124,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
   const [agencySelfLoading, setAgencySelfLoading] = useState(false);
-  const [emailTemplates, setEmailTemplates] = useState([]);
-  const [emailTemplatesLoading, setEmailTemplatesLoading] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null); // {template, agencyId}
   const [templateAgencyId, setTemplateAgencyId] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -148,6 +136,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const loadingRef = useRef(false);
   const isAgencyAdminPreview = viewMode === 'agency_admin';
   const isSuperAdminView = !isAgencyAdminPreview;
+
+  const queryClient = useQueryClient();
+  const isAdmin = ['admin', 'super_admin'].includes(userProfile?.role);
+  const { data: agencies = [], isLoading: agenciesLoading } = useAgencies(agencyFilters, isAdmin);
+  const { data: superAdmins = [], isLoading: superAdminsLoading } = useSuperAdmins(isAdmin && activeAdminSection === 'agencies');
+  const { data: invoices = [], isLoading: invoicesLoading } = useInvoices(invoiceFilters, isAdmin && activeAdminSection === 'invoices');
+  const { data: tickets = [], isLoading: ticketsLoading } = useTickets(ticketFilters, isAdmin && activeAdminSection === 'tickets');
+  const { data: emailTemplates = [], isLoading: emailTemplatesLoading } = useEmailTemplates(isAdmin && activeAdminSection === 'email-templates');
 
   const normalizeRole = (role) => {
     const normalized = String(role || 'user').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -219,27 +215,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   }, [isAgencyAdminPreview, userProfile?.role, userProfile?.agency_id, agencies, agencyPreviewId]);
 
-  useEffect(() => {
-    if (!['admin', 'super_admin'].includes(userProfile?.role)) return;
-    if (activeAdminSection === 'agencies') {
-      void loadAgencies();
-      if (['admin', 'super_admin'].includes(userProfile?.role)) {
-        void loadSuperAdmins();
-      }
-      return;
-    }
-    if (activeAdminSection === 'invoices') {
-      void loadInvoices();
-      return;
-    }
-    if (activeAdminSection === 'tickets') {
-      void loadTickets();
-      return;
-    }
-    if (activeAdminSection === 'email-templates') {
-      void loadEmailTemplates();
-    }
-  }, [activeAdminSection, userProfile?.role]);
+  // Section data is loaded automatically by TanStack Query hooks above (enabled by activeAdminSection)
 
   const withTimeout = async (label, promise, ms = 30000) => {
     let timeoutId;
@@ -449,31 +425,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const loadAdminData = async () => {
     try {
       setAdminLoading(true);
-      const [agenciesRes, summaryRes, invoicesRes, ticketsRes, superAdminsRes] = await Promise.allSettled([
-        getAdminAgencies(),
-        getAdminOrdersSummary(),
-        getAdminInvoices({ limit: 20 }),
-        getAdminTickets({ limit: 20 }),
-        ['admin', 'super_admin'].includes(userProfile?.role)
-          ? getAdminSuperAdmins()
-          : Promise.resolve({ data: [], error: null })
-      ]);
-
-      if (agenciesRes.status === 'fulfilled' && !agenciesRes.value?.error) {
-        setAgencies(Array.isArray(agenciesRes.value?.data) ? agenciesRes.value.data : []);
-      }
-      if (summaryRes.status === 'fulfilled' && !summaryRes.value?.error) {
-        setReportSummary(summaryRes.value?.data || null);
-      }
-      if (invoicesRes.status === 'fulfilled' && !invoicesRes.value?.error) {
-        setInvoices(Array.isArray(invoicesRes.value?.data) ? invoicesRes.value.data : []);
-      }
-      if (ticketsRes.status === 'fulfilled' && !ticketsRes.value?.error) {
-        setTickets(Array.isArray(ticketsRes.value?.data) ? ticketsRes.value.data : []);
-      }
-      if (superAdminsRes.status === 'fulfilled' && !superAdminsRes.value?.error) {
-        setSuperAdmins(Array.isArray(superAdminsRes.value?.data) ? superAdminsRes.value.data : []);
-      }
+      const summaryRes = await getAdminOrdersSummary();
+      if (!summaryRes?.error) setReportSummary(summaryRes?.data || null);
     } catch (err) {
       console.error('Admin tools load failed:', err);
     } finally {
@@ -481,18 +434,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
-  const loadSuperAdmins = async () => {
-    try {
-      setSuperAdminsLoading(true);
-      const { data, error } = await getAdminSuperAdmins();
-      if (error) throw new Error(error.message || 'Super admins load failed');
-      setSuperAdmins(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load super admins: ${err.message}` });
-    } finally {
-      setSuperAdminsLoading(false);
-    }
-  };
 
   const applyAgencyToSelfForm = (agencyData) => {
     const commission = agencyData?.settings?.commission || {};
@@ -544,7 +485,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           }
           throw new Error('No agencies found');
         }
-        setAgencies(list);
+        queryClient.setQueryData(['agencies', { q: undefined, is_active: undefined }], { data: list });
 
         const resolvedId = userProfile?.agency_id || agencyPreviewId || list[0]?.id || null;
         if (!resolvedId) {
@@ -580,7 +521,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     const fromAdmin = await getAdminAgencies({ limit: 200 });
     if (!fromAdmin?.error && Array.isArray(fromAdmin?.data) && fromAdmin.data.length > 0) {
       const list = fromAdmin.data;
-      setAgencies(list);
+      queryClient.setQueryData(['agencies', { q: undefined, is_active: undefined }], { data: list });
       const matched = list.find((a) => String(a?.contact_email || '').trim().toLowerCase() === preferredEmail) || list[0];
       resolvedId = matched?.id || null;
       if (resolvedId) {
@@ -603,78 +544,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     return null;
   };
 
-  const loadAgencies = async () => {
-    try {
-      setAgenciesLoading(true);
-      const params = {
-        q: agencyFilters.q || undefined,
-        is_active: agencyFilters.is_active === 'all' ? undefined : agencyFilters.is_active
-      };
-      const { data, error } = await getAdminAgencies(params);
-      if (error) throw new Error(error.message || 'Agencies load failed');
-      setAgencies(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load agencies: ${err.message}` });
-    } finally {
-      setAgenciesLoading(false);
-    }
-  };
-
-  const loadInvoices = async () => {
-    try {
-      setInvoicesLoading(true);
-      const params = {
-        agency_id: invoiceFilters.agency_id || undefined,
-        currency: invoiceFilters.currency || undefined,
-        date_from: invoiceFilters.date_from || undefined,
-        date_to: invoiceFilters.date_to || undefined
-      };
-      const { data, error } = await getAdminInvoices(params);
-      if (error) throw new Error(error.message || 'Invoices load failed');
-      setInvoices(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load invoices: ${err.message}` });
-    } finally {
-      setInvoicesLoading(false);
-    }
-  };
-
-  const loadTickets = async () => {
-    try {
-      setTicketsLoading(true);
-      const params = {
-        agency_id: ticketFilters.agency_id || undefined,
-        order_status: ticketFilters.order_status || undefined,
-        status: ticketFilters.status || undefined,
-        email_status: ticketFilters.email_status || undefined,
-        date_from: ticketFilters.date_from || undefined,
-        date_to: ticketFilters.date_to || undefined,
-        q: ticketFilters.q || undefined
-      };
-      const { data, error } = await getAdminTickets(params);
-      if (error) throw new Error(error.message || 'Tickets load failed');
-      const rows = Array.isArray(data) ? data : [];
-      rows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-      setTickets(rows);
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load tickets: ${err.message}` });
-    } finally {
-      setTicketsLoading(false);
-    }
-  };
-
-  const loadEmailTemplates = async () => {
-    try {
-      setEmailTemplatesLoading(true);
-      const { data, error } = await getEmailTemplates();
-      if (error) throw new Error(error.message || 'Failed to load email templates');
-      setEmailTemplates(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load email templates: ${err.message}` });
-    } finally {
-      setEmailTemplatesLoading(false);
-    }
-  };
 
   const handleOpenEditTemplate = async (template) => {
     if (templateAgencyId) {
@@ -708,7 +577,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       }
       setNotice({ type: 'success', text: 'Template saved' });
       setEditingTemplate(null);
-      void loadEmailTemplates();
+      queryClient.invalidateQueries({ queryKey: ['emailTemplates'] });
     } catch (err) {
       setNotice({ type: 'error', text: `Save failed: ${err.message}` });
     } finally {
@@ -741,7 +610,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       const { error } = await deleteAgencyEmailTemplate(templateAgencyId, eventType);
       if (error) throw new Error(error.message || 'Delete failed');
       setNotice({ type: 'success', text: 'Agency override removed' });
-      void loadEmailTemplates();
+      queryClient.invalidateQueries({ queryKey: ['emailTemplates'] });
     } catch (err) {
       setNotice({ type: 'error', text: `Delete failed: ${err.message}` });
     }
@@ -791,7 +660,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         widget_allowed_domains: ''
       }));
       setShowCreateAgencyForm(false);
-      await Promise.all([loadAdminData(), loadAgencies()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['agencies'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to create agency: ${err.message}` });
     }
@@ -820,7 +689,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           : `Super admin permissions updated: ${data?.email || email}`
       });
       setSuperAdminForm({ email: '', full_name: '', phone: '' });
-      await loadSuperAdmins();
+      queryClient.invalidateQueries({ queryKey: ['superAdmins'] });
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to create super admin: ${err.message}` });
     } finally {
@@ -870,7 +739,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (error) throw new Error(error.message || 'Agency update failed');
       setNotice({ type: 'success', text: 'Agency updated' });
       setAgencyEditId(null);
-      await Promise.all([loadAdminData(), loadAgencies()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['agencies'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to update agency: ${err.message}` });
     }
@@ -883,7 +752,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       });
       if (error) throw new Error(error.message || 'Agency status update failed');
       setNotice({ type: 'success', text: agency.is_active ? 'Agency suspended' : 'Agency activated' });
-      await Promise.all([loadAdminData(), loadAgencies()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['agencies'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to update agency status: ${err.message}` });
     }
@@ -894,7 +763,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       const { error } = await deleteAdminAgency(agency.id);
       if (error) throw new Error(error.message || 'Agency delete failed');
       setNotice({ type: 'success', text: `Agency deleted: ${agency.name}` });
-      await Promise.all([loadAdminData(), loadAgencies()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['agencies'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to delete agency: ${err.message}` });
     }
@@ -919,7 +788,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (error) throw new Error(error.message || 'Failed to create invoice');
       setNotice({ type: 'success', text: `Invoice created: ${data?.invoice_number || data?.id}` });
       setInvoiceForm((prev) => ({ ...prev, manual_total: '' }));
-      await Promise.all([loadAdminData(), loadInvoices()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['invoices'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to create invoice: ${err.message}` });
     }
@@ -940,7 +809,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       } else if (popup) {
         popup.close();
       }
-      await loadInvoices();
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
     } catch (err) {
       if (popup) popup.close();
       setNotice({ type: 'error', text: `Failed to generate PDF: ${err.message}` });
@@ -962,7 +831,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       } else if (popup) {
         popup.close();
       }
-      await loadInvoices();
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
     } catch (err) {
       if (popup) popup.close();
       setNotice({ type: 'error', text: `Failed to update invoice status: ${err.message}` });
@@ -1740,7 +1609,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-purple-100">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Super Admin</h2>
-              <button onClick={loadSuperAdmins} className="bg-gray-100 px-3 py-1 rounded text-sm">
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['superAdmins'] })} className="bg-gray-100 px-3 py-1 rounded text-sm">
                 {superAdminsLoading ? 'Loading...' : 'Refresh list'}
               </button>
             </div>
@@ -1794,7 +1663,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Agencies</h2>
-              <button onClick={loadAgencies} className="bg-gray-100 px-3 py-1 rounded text-sm">
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['agencies'] })} className="bg-gray-100 px-3 py-1 rounded text-sm">
                 {agenciesLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>
@@ -1814,7 +1683,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
-              <button onClick={loadAgencies} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['agencies'] })} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
             </div>
             <div className="space-y-2">
               {agencies.map((a) => (
@@ -1871,7 +1740,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Invoices</h2>
-              <button onClick={loadInvoices} className="bg-gray-100 px-3 py-1 rounded text-sm">
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })} className="bg-gray-100 px-3 py-1 rounded text-sm">
                 {invoicesLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>
@@ -1933,7 +1802,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <span className="text-xs text-gray-500">To</span>
                 <input type="date" value={invoiceFilters.date_to} onChange={(e) => setInvoiceFilters((p) => ({ ...p, date_to: e.target.value }))} className="w-full outline-none" />
               </div>
-              <button onClick={loadInvoices} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
             </div>
             <div className="space-y-2 text-sm">
               {invoices.map((inv) => (
@@ -2035,7 +1904,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">Email Templates</h2>
-              <button onClick={loadEmailTemplates} className="bg-gray-100 px-3 py-1 rounded text-sm">
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['emailTemplates'] })} className="bg-gray-100 px-3 py-1 rounded text-sm">
                 {emailTemplatesLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>

@@ -1343,9 +1343,28 @@ function App() {
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
                   No flights found
                 </h3>
-                <p className="text-gray-500">
-                  Try adjusting your search criteria and try again.
+                <p className="text-gray-500 mb-6">
+                  Try different dates — flights may be available nearby
                 </p>
+                {lastSearchData?.depart_date && (
+                  <div className="flex gap-2 justify-center flex-wrap">
+                    {[-3, -2, -1, 1, 2, 3].map(offset => {
+                      const d = new Date(lastSearchData.depart_date);
+                      d.setDate(d.getDate() + offset);
+                      if (d < new Date()) return null;
+                      const label = d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+                      return (
+                        <button
+                          key={offset}
+                          onClick={() => handleRetryWithDate(d.toISOString().split('T')[0])}
+                          className="px-4 py-2 border border-blue-300 text-blue-600 rounded-lg text-sm hover:bg-blue-50 transition-colors"
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1368,6 +1387,24 @@ function App() {
 
         {/* Step: Passenger Form */}
         {currentStep === 'passenger' && selectedOffer && (
+          <>
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+                <div>
+                  <h3 className="text-red-800 font-semibold">Booking Error</h3>
+                  <p className="text-red-700 text-sm mt-1">{error}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setCurrentStep('results'); setError(null); }}
+                className="flex-shrink-0 text-sm text-blue-600 hover:underline whitespace-nowrap"
+              >
+                ← Try another flight
+              </button>
+            </div>
+          )}
           <PassengerForm
             selectedOffer={selectedOffer}
             onSubmit={handlePassengerSubmit}
@@ -1376,6 +1413,7 @@ function App() {
             passengerCounts={lastSearchData}
             isLoading={isLoading}
           />
+          </>
         )}
 
         {/* Step: Payment */}
