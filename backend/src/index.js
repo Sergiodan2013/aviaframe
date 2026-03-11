@@ -1,5 +1,5 @@
-// Load environment variables from .env file
-require('dotenv').config();
+// Load environment variables from .env file (local dev only; Railway injects vars directly)
+try { require('dotenv').config(); } catch (_) { /* not installed in production */ }
 
 const express = require('express');
 const app = express();
