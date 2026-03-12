@@ -360,7 +360,8 @@ export const getUserOrders = async (userId) => {
     'created_at',
     'updated_at',
     'confirmed_at',
-    'cancelled_at'
+    'cancelled_at',
+    'metadata'
   ].join(',');
 
   // Use base table directly to avoid view-related timeouts in UI.
@@ -416,7 +417,8 @@ export const getOrdersList = async ({ userId, agencyId, limit = 200 } = {}) => {
     'created_at',
     'updated_at',
     'confirmed_at',
-    'cancelled_at'
+    'cancelled_at',
+    'metadata'
   ].join(',');
 
   let query = supabase
@@ -1047,6 +1049,11 @@ export const getAdminOrdersSummary = async (params = {}) => {
     filters: data?.filters || null,
     error
   };
+};
+
+export const cancelAdminOrder = async (orderId) => {
+  const { data, error } = await backendApiRequest(`/admin/orders/${orderId}/cancel`, { method: 'POST' });
+  return { data: data?.order || null, error };
 };
 
 export const getAdminInvoices = async (params = {}) => {

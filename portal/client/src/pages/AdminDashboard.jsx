@@ -25,7 +25,8 @@ import {
   previewEmailTemplate,
   getAgencyEmailTemplate,
   updateAgencyEmailTemplate,
-  deleteAgencyEmailTemplate
+  deleteAgencyEmailTemplate,
+  cancelAdminOrder
 } from '../lib/supabase';
 import { drctApi } from '../lib/drctApi';
 import { getSafeN8nBaseUrl } from '../lib/runtimeConfig';
@@ -41,6 +42,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [issuingOrderId, setIssuingOrderId] = useState(null);
   const [ticketDocLoadingId, setTicketDocLoadingId] = useState(null);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [cancelConfirmOrder, setCancelConfirmOrder] = useState(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [reportSummary, setReportSummary] = useState(null);
   const [adminLoading, setAdminLoading] = useState(false);
@@ -142,7 +145,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const { data: agencies = [], isLoading: agenciesLoading } = useAgencies(agencyFilters, isAdmin);
   const { data: superAdmins = [], isLoading: superAdminsLoading } = useSuperAdmins(isAdmin && activeAdminSection === 'agencies');
   const { data: invoices = [], isLoading: invoicesLoading } = useInvoices(invoiceFilters, isAdmin && activeAdminSection === 'invoices');
-  const { data: tickets = [], isLoading: ticketsLoading } = useTickets(ticketFilters, isAdmin && activeAdminSection === 'tickets');
+  const { data: tickets = [], isLoading: ticketsLoading, refetch: refetchTickets } = useTickets(ticketFilters, isAdmin && activeAdminSection === 'tickets');
+  const loadTickets = () => refetchTickets();
   const { data: emailTemplates = [], isLoading: emailTemplatesLoading } = useEmailTemplates(isAdmin && activeAdminSection === 'email-templates');
 
   const normalizeRole = (role) => {
@@ -875,6 +879,47 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
+  const exportTicketsToExcel = () => {
+    const headers = [
+      'Agency', 'Agency Code (SAMA / Domain)', 'Agency ID',
+      'Ticket №', 'PNR', 'Order №',
+      'Origin', 'Destination',
+      'Passenger Email', 'Price', 'Currency',
+      'Order Status', 'Issuance Status', 'Email Status',
+      'Issued At', 'Created At'
+    ];
+    const rows = tickets.map((t) => [
+      t.agency?.name || '',
+      t.agency?.sama_code || t.agency?.domain || '',
+      t.agency_id || '',
+      t.ticket_number || '',
+      t.pnr || '',
+      t.order?.order_number || t.order_id || '',
+      t.order?.origin || '',
+      t.order?.destination || '',
+      t.order?.contact_email || '',
+      t.order?.total_price ?? '',
+      t.order?.currency || '',
+      t.order?.status || '',
+      t.status || '',
+      t.email_status || '',
+      t.issued_at ? new Date(t.issued_at).toLocaleString() : '',
+      t.created_at ? new Date(t.created_at).toLocaleString() : ''
+    ]);
+    const csv = [headers, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tickets_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleSaveMyAgencySettings = async () => {
     try {
       setAgencySelfLoading(true);
@@ -1030,6 +1075,30 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       });
     } finally {
       setUpdatingOrderId(null);
+    }
+  };
+
+  const handleCancelOrder = async (order) => {
+    try {
+      setCancellingOrderId(order.id);
+      const { data, error } = await cancelAdminOrder(order.id);
+      if (error) throw new Error(error.message || 'Cancel failed');
+      const nowIso = new Date().toISOString();
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id ? { ...o, status: 'cancelled', cancelled_at: nowIso } : o
+        )
+      );
+      setSelectedOrder((prev) =>
+        prev && prev.id === order.id ? { ...prev, status: 'cancelled', cancelled_at: nowIso } : prev
+      );
+      setNotice({ type: 'success', text: `Order ${order.order_number} cancelled successfully.` });
+    } catch (err) {
+      console.error('Cancel order error:', err);
+      setNotice({ type: 'error', text: `Failed to cancel: ${err.message}` });
+    } finally {
+      setCancellingOrderId(null);
+      setCancelConfirmOrder(null);
     }
   };
 
@@ -1840,9 +1909,18 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Tickets</h2>
-              <button onClick={loadTickets} className="bg-gray-100 px-3 py-1 rounded text-sm">
-                {ticketsLoading ? 'Loading...' : 'Refresh'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportTicketsToExcel}
+                  disabled={tickets.length === 0}
+                  className="bg-green-600 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-40 hover:bg-green-700"
+                >
+                  Export CSV ({tickets.length})
+                </button>
+                <button onClick={loadTickets} className="bg-gray-100 px-3 py-1 rounded text-sm">
+                  {ticketsLoading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mb-3">
               <select value={ticketFilters.agency_id} onChange={(e) => setTicketFilters((p) => ({ ...p, agency_id: e.target.value }))} className="border rounded px-2 py-1">
@@ -2265,6 +2343,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                           {ticketDocLoadingId === order.id ? 'Preparing PDF...' : 'Download ticket PDF'}
                         </button>
                       )}
+                      {order.metadata?.cancelable === true && normalizeStatus(order.status) !== 'cancelled' && (
+                        <button
+                          onClick={() => setCancelConfirmOrder(order)}
+                          disabled={cancellingOrderId === order.id}
+                          className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-4 rounded-lg transition-all text-sm disabled:opacity-60 border border-red-300"
+                        >
+                          {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel (Refundable)'}
+                        </button>
+                      )}
                       <select
                         value={normalizeStatus(order.status)}
                         onChange={(e) => updateOrderStatus(order.id, e.target.value)}
@@ -2290,6 +2377,51 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
             })}
           </div>
         ))}
+
+        {/* Cancel Confirmation Modal */}
+        {cancelConfirmOrder && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setCancelConfirmOrder(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Cancel booking?</h2>
+              <p className="text-sm text-gray-600 mb-1">
+                Order: <span className="font-mono font-semibold">{cancelConfirmOrder.order_number}</span>
+              </p>
+              <p className="text-sm text-gray-600 mb-1">
+                {cancelConfirmOrder.origin} → {cancelConfirmOrder.destination} · {cancelConfirmOrder.airline_name}
+              </p>
+              <p className="text-sm text-gray-600 mb-4">
+                {cancelConfirmOrder.total_price} {cancelConfirmOrder.currency}
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 text-xs text-amber-800">
+                This will send a real cancellation request to DRCT. The ticket will be voided. This action cannot be undone.
+                {cancelConfirmOrder.metadata?.cancel_fee && (
+                  <span className="block mt-1 font-semibold">Note: a cancellation fee may apply.</span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCancelConfirmOrder(null)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-all text-sm"
+                >
+                  Keep booking
+                </button>
+                <button
+                  onClick={() => handleCancelOrder(cancelConfirmOrder)}
+                  disabled={cancellingOrderId === cancelConfirmOrder.id}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm disabled:opacity-60"
+                >
+                  {cancellingOrderId === cancelConfirmOrder.id ? 'Cancelling...' : 'Yes, cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Order Details Modal */}
         {selectedOrder && (

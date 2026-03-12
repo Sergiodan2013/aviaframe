@@ -83,8 +83,19 @@ router.post('/webhook/drct/price', express.json({ limit: '2mb' }), async (req, r
   }
 });
 
-// POST /webhook/drct/order/create — validate → price → create → save → email
-router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2mb' }), async (req, res) => {
+// POST /webhook/drct-v2/search — prod API, enriched response (search only, no booking)
+router.post('/webhook/drct-v2/search', searchLimiter, express.json({ limit: '2mb' }), async (req, res) => {
+  try {
+    const result = await drctService.search(req.body || {}, 'prod');
+    return res.json(result);
+  } catch (err) {
+    console.error('[drct-v2/search]', err.message);
+    return res.status(err.status || 502).json({ error: { code: 'DRCT_ERROR', message: err.message } });
+  }
+});
+
+// ─── Shared order-create handler (sandbox by default, pass envName='prod' for prod) ─
+async function orderCreateHandler(req, res, envName) {
   try {
     const body = req.body || {};
 
@@ -214,7 +225,8 @@ router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2
     try {
       pricedOffer = await drctService.priceOffer(
         normalized.offer_id,
-        normalized.passengers.map(p => ({ type: p.type || 'ADT' }))
+        normalized.passengers.map(p => ({ type: p.type || 'ADT' })),
+        envName
       );
     } catch (err) {
       console.error('[drct/order/create] price failed:', err.message);
@@ -248,7 +260,7 @@ router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2
       return {
         id: pp.id,
         type: t,
-        individual: { first_name: src.first_name || 'Test', last_name: src.last_name || `Passenger${idx + 1}`, gender, date_of_birth: dob },
+        individual: { title: gender === 'F' ? 'Ms' : 'Mr', first_name: src.first_name || 'Test', last_name: src.last_name || `Passenger${idx + 1}`, gender, date_of_birth: dob },
         phone: contacts.phone || src.phone || '',
         email: contacts.email || src.email || '',
         document: {
@@ -266,9 +278,11 @@ router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2
     // ─── 4. DRCT Create Order ─────────────────────────────────────────────────
     let drctOrder;
     try {
-      drctOrder = await drctService.createOrder({ offer_id: pricedOffer.id, passengers: drctPassengers });
+      const orderPayload = { offer_id: pricedOffer.id, passengers: drctPassengers };
+      console.log('[drct/order/create] payload:', JSON.stringify(orderPayload));
+      drctOrder = await drctService.createOrder(orderPayload, envName);
     } catch (err) {
-      console.error('[drct/order/create] create failed:', err.message);
+      console.error('[drct/order/create] create failed:', err.message, JSON.stringify(err.data || {}));
       return res.status(err.status || 502).json({ error: { code: 'DRCT_ORDER_FAILED', message: err.message } });
     }
 
@@ -282,6 +296,11 @@ router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2
     const orderNumber = drctOrder.locator || generateOrderNumber();
     const totalPrice = Number(drctOrder.price?.amount || drctOrder.price?.total || 0);
     const currency = drctOrder.price?.currency || 'USD';
+
+    // Extract cancelable from offer conditions (sent by portal/widget) or priced fare
+    const offerCond = (body.offer || body).conditions || {};
+    const pricedFare0 = (pricedOffer?.fares || [])[0] || {};
+    const cancelable = offerCond.cancelable ?? pricedFare0?.cancellation?.cancelable ?? null;
 
     const orderInsert = {
       drct_order_id: drctOrder.id,
@@ -308,6 +327,13 @@ router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2
       claim_token: claimToken,
       claim_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       raw_drct_response: drctOrder,
+      metadata: {
+        cancelable,
+        cancel_fee: offerCond.cancel_fee ?? pricedFare0?.cancellation?.fee_applies ?? null,
+        drct_env: envName || null,
+        fare_basis_code: offerCond.fare_basis_code || pricedFare0?.fare_basis_code || null,
+        price_class_name: offerCond.price_class_name || pricedFare0?.price_class_name || null,
+      },
     };
 
     const { data: savedOrder, error: orderErr } = await supabase
@@ -336,6 +362,62 @@ router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2
       if (paxErr) console.warn('[drct/order/create] passengers save failed:', paxErr.message);
     }
 
+    // ─── 6b. Write booking analytics (non-blocking, fire-and-forget) ─────────
+    setImmediate(async () => {
+      try {
+        const offer = body.offer || {};
+        const pd    = (drctOrder.price_details || pricedOffer?.price_details || [])[0] || {};
+        const fare  = (drctOrder.fares         || pricedOffer?.fares         || [])[0] || {};
+        const cond  = offer.conditions || {};
+        const analyticsRow = {
+          order_id:          savedOrder.id,
+          agency_id:         savedOrder.agency_id || null,
+          drct_env:          envName || process.env.DRCT_ENV || 'sandbox',
+          // Flight
+          origin:            savedOrder.origin || null,
+          destination:       savedOrder.destination || null,
+          departure_date:    savedOrder.departure_time ? savedOrder.departure_time.slice(0, 10) : null,
+          airline_code:      savedOrder.airline_code || null,
+          airline_name:      savedOrder.airline_name || null,
+          flight_number:     savedOrder.flight_number || null,
+          aircraft:          offer.aircraft || null,
+          cabin_class:       offer.cabin_class || null,
+          // Fare
+          drct_offer_id:     savedOrder.offer_id || null,
+          fare_basis_code:   offer.fare_basis_code || fare.fare_basis_code || null,
+          price_class_name:  offer.price_class_name || fare.price_class_name || null,
+          class_of_service:  offer.class_of_service || fare.class_of_service || null,
+          channel:           offer.channel || null,
+          content_type:      offer.content_type || null,
+          // Pricing
+          total_amount:      savedOrder.total_price || 0,
+          currency:          savedOrder.currency || null,
+          fare_amount:       pd.fare?.amount   ?? Number(drctOrder.price_details?.[0]?.fare?.amount   || 0),
+          taxes_amount:      pd.taxes?.amount  ?? Number(drctOrder.price_details?.[0]?.taxes?.amount  || 0),
+          tax_breakdown:     pd.taxes?.breakdown || drctOrder.price_details?.[0]?.taxes?.breakdown || null,
+          price_details:     drctOrder.price_details || pricedOffer?.price_details || null,
+          // Conditions
+          changeable:        cond.changeable ?? null,
+          change_fee_applies: cond.change_fee ?? null,
+          cancelable:        cond.cancelable ?? null,
+          cancel_fee_applies: cond.cancel_fee ?? null,
+          // Baggage
+          baggage:           offer.baggage || null,
+          // Passengers
+          pax_adt: normalized.passengers.filter(p => p.type === 'ADT').length,
+          pax_chd: normalized.passengers.filter(p => p.type === 'CHD').length,
+          pax_inf: normalized.passengers.filter(p => p.type === 'INF').length,
+          // Offer metadata
+          offer_expire_at:   offer.expire_at || null,
+        };
+        const { error: analyticsErr } = await supabase.from('booking_analytics').insert(analyticsRow);
+        if (analyticsErr) console.warn('[analytics] insert failed:', analyticsErr.message);
+        else console.log(`[analytics] recorded for order ${savedOrder.id}`);
+      } catch (e) {
+        console.warn('[analytics] error:', e.message);
+      }
+    });
+
     // ─── 7. Send booking email (non-blocking) ─────────────────────────────────
     const { sendBookingConfirmation } = require('../services/emailService');
     supabase.from('agencies').select('id,name,settings').eq('id', savedOrder.agency_id).maybeSingle()
@@ -346,7 +428,8 @@ router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2
       .catch(e => console.error('[drct/order/create] email error:', e.message));
 
     // ─── 8. Return response ───────────────────────────────────────────────────
-    console.log(`[drct/order/create] success: order ${orderNumber} (${savedOrder.id})`);
+    const env = envName || 'sandbox';
+    console.log(`[drct/order/create] success: order ${orderNumber} (${savedOrder.id}) env=${env}`);
     return res.json({
       id: savedOrder.id,
       order_id: savedOrder.id,
@@ -359,7 +442,13 @@ router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2
     console.error('[drct/order/create] unexpected error:', err.message);
     return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
-});
+}
+
+// POST /webhook/drct/order/create — sandbox
+router.post('/webhook/drct/order/create', orderLimiter, express.json({ limit: '2mb' }), (req, res) => orderCreateHandler(req, res, null));
+
+// POST /webhook/drct-v2/order/create — prod API
+router.post('/webhook/drct-v2/order/create', orderLimiter, express.json({ limit: '2mb' }), (req, res) => orderCreateHandler(req, res, 'prod'));
 
 // POST /webhook/drct/order/issue
 router.post('/webhook/drct/order/issue', express.json({ limit: '1mb' }), async (req, res) => {

@@ -10,6 +10,7 @@ const { resolveAuthContext } = require('../middleware/auth');
 const { ensureAdmin } = require('../middleware/requireRole');
 const { buildInvoicePdf } = require('../services/pdfService');
 const { sendAgencyWelcome, previewTemplate } = require('../services/emailService');
+const drctService = require('../services/drctService');
 
 const router = express.Router();
 
@@ -1069,7 +1070,7 @@ router.get('/tickets', async (req, res) => {
     if (agencyIds.length > 0) {
       const { data: agencies } = await supabase
         .from('agencies')
-        .select('id,name,domain')
+        .select('id,name,domain,sama_code')
         .in('id', agencyIds);
       (agencies || []).forEach((a) => {
         agenciesMap[a.id] = a;
@@ -1230,6 +1231,69 @@ router.delete('/agencies/:agencyId/email-templates/:eventType', async (req, res)
 
   if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: error.message } });
   return res.json({ deleted: true });
+});
+
+// POST /api/admin/orders/:id/cancel — cancel a refundable order via DRCT API
+router.post('/orders/:id/cancel', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  const nodeEnv = req.app.get('nodeEnv');
+  const { id } = req.params;
+
+  try {
+    const { data: order, error: orderErr } = await supabase
+      .from('orders')
+      .select('id,order_number,drct_order_id,status,metadata,agency_id')
+      .eq('id', id)
+      .single();
+
+    if (orderErr || !order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' } });
+    }
+
+    if (order.status === 'cancelled') {
+      return res.status(422).json({ error: { code: 'ALREADY_CANCELLED', message: 'Order is already cancelled.' } });
+    }
+
+    if (order.metadata?.cancelable !== true) {
+      return res.status(422).json({ error: { code: 'NOT_CANCELABLE', message: 'This fare is not refundable. Cancellation is only available for refundable fares.' } });
+    }
+
+    if (!order.drct_order_id) {
+      return res.status(422).json({ error: { code: 'NO_DRCT_ORDER', message: 'No DRCT order ID — cannot cancel via API.' } });
+    }
+
+    const envName = order.metadata?.drct_env || null;
+
+    try {
+      await drctService.cancelOrder(order.drct_order_id, envName);
+      console.log(`[admin/orders/cancel] DRCT order ${order.drct_order_id} cancelled by admin ${auth.profile.id}`);
+    } catch (err) {
+      console.error('[admin/orders/cancel] DRCT cancel failed:', err.message, JSON.stringify(err.data || {}));
+      return res.status(err.status || 502).json({ error: { code: 'DRCT_CANCEL_FAILED', message: err.message } });
+    }
+
+    const nowIso = new Date().toISOString();
+    const { data: updated, error: updateErr } = await supabase
+      .from('orders')
+      .update({ status: 'cancelled', cancelled_at: nowIso, updated_at: nowIso })
+      .eq('id', id)
+      .select('id,order_number,status,cancelled_at')
+      .single();
+
+    if (updateErr) {
+      console.error('CRITICAL: DRCT order cancelled but DB update failed. order.id=', id, updateErr.message);
+    }
+
+    return res.json({ order: updated || { id, status: 'cancelled', cancelled_at: nowIso } });
+  } catch (err) {
+    console.error('[admin/orders/cancel] unexpected error:', err.message);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: nodeEnv === 'development' ? err.message : 'Internal server error' }
+    });
+  }
 });
 
 module.exports = router;
