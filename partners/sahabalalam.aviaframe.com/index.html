@@ -11,7 +11,10 @@
 </head>
 <body>
   <header class="header">
-    <button class="lang-toggle" onclick="toggleLang()">عربي</button>
+    <div class="lang-switcher">
+      <button class="lang-opt" data-lang="en" onclick="applyLang('en')">EN</button>
+      <button class="lang-opt" data-lang="ar" onclick="applyLang('ar')">عر</button>
+    </div>
     <div class="container header-inner">
       <img class="logo" src="./assets/sahabalalam-logo.png" alt="Sahab Al Alam Logo" />
       <div class="brand-name" data-i18n="brandName">Sahab Al Alam Travel & Tourism</div>
@@ -155,12 +158,12 @@
         var key = el.dataset.i18n;
         if (I18N[lang] && I18N[lang][key]) el.textContent = I18N[lang][key];
       });
-      var btn = document.querySelector('.lang-toggle');
-      if (btn) btn.textContent = lang === 'ar' ? 'English' : 'عربي';
-    }
-
-    function toggleLang() {
-      applyLang(currentLang === 'en' ? 'ar' : 'en');
+      document.querySelectorAll('.lang-opt').forEach(function(btn) {
+        var isActive = btn.dataset.lang === lang;
+        btn.style.background = isActive ? 'rgba(255,255,255,0.3)' : 'transparent';
+        btn.style.color = isActive ? '#fff' : 'rgba(255,255,255,0.65)';
+        btn.style.fontWeight = isActive ? '800' : '600';
+      });
     }
 
     applyLang(currentLang);

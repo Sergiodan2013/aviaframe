@@ -1080,13 +1080,20 @@ function App() {
               <h1 className="text-3xl font-bold text-gray-900">Aviaframe Portal</h1>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
-                className="px-3 py-2 rounded-md text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono min-w-[44px]"
-                title="Switch language / تغيير اللغة"
-              >
-                {lang === 'en' ? 'عر' : 'EN'}
-              </button>
+              <div className="flex rounded-lg overflow-hidden border border-gray-200 text-sm font-semibold shadow-sm" title="Switch language / تغيير اللغة">
+                <button
+                  onClick={() => setLang('en')}
+                  className={`px-3 py-1.5 transition-colors ${lang === 'en' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  EN
+                </button>
+                <button
+                  onClick={() => setLang('ar')}
+                  className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${lang === 'ar' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  عر
+                </button>
+              </div>
               <button
                 onClick={() => setUseMockData(!useMockData)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
