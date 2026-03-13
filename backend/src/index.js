@@ -1,6 +1,16 @@
 // Load environment variables from .env file (local dev only; Railway injects vars directly)
 try { require('dotenv').config(); } catch (_) { /* not installed in production */ }
 
+// ── Sentry error monitoring (init before everything else) ──────────────────────
+const Sentry = require('@sentry/node');
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    tracesSampleRate: 0.1,
+  });
+}
+
 const express = require('express');
 const app = express();
 
@@ -44,8 +54,14 @@ const supportRouter = require('./routes/support');
 const publicRouter = require('./routes/public');
 const internalRouter = require('./routes/internal');
 
+// Trust Railway/Nginx proxy (needed for express-rate-limit behind load balancer)
+app.set('trust proxy', 1);
+
 // ── CORS must run BEFORE drctRouter and n8n proxy so OPTIONS preflights are handled ──
 app.use(buildCorsMiddleware(config.corsOrigins));
+
+// Sentry request handler (must be after CORS, before routes)
+if (process.env.SENTRY_DSN) app.use(Sentry.Handlers.requestHandler());
 
 // ── DRCT routes (before n8n proxy — intercept /webhook/drct/*) ─────────────────
 app.use('/', drctRouter);
@@ -153,6 +169,9 @@ app.use('/api/internal', internalRouter);
 app.all('/webhook/*', proxyToN8n);
 
 // ── Error handlers ──────────────────────────────────────────────────────────────
+// Sentry error handler must come before the generic error handler
+if (process.env.SENTRY_DSN) app.use(Sentry.Handlers.errorHandler());
+
 app.use((req, res) => {
   res.status(404).json({
     error: {
@@ -164,6 +183,7 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('Error:', err);
+  if (process.env.SENTRY_DSN) Sentry.captureException(err);
   res.status(err.status || 500).json({
     error: {
       code: err.code || 'INTERNAL_ERROR',
@@ -171,6 +191,18 @@ app.use((err, req, res, next) => {
     }
   });
 });
+
+// ── DB bootstrap: ensure analytics table exists ───────────────────────────────
+(async () => {
+  try {
+    const supabase = require('./lib/supabase');
+    const { error } = await supabase.from('booking_analytics').select('id').limit(1);
+    if (error?.code === '42P01') {
+      // Table does not exist — create it via RPC if available, otherwise log
+      console.log('[bootstrap] booking_analytics table missing — run migration 20260313_booking_analytics.sql in Supabase SQL editor');
+    }
+  } catch (_) {}
+})();
 
 // ── Server start ────────────────────────────────────────────────────────────────
 const server = app.listen(config.port, config.host, () => {

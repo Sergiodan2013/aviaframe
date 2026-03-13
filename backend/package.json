@@ -16,6 +16,7 @@
     "lint": "eslint src tests"
   },
   "dependencies": {
+    "@sentry/node": "^10.43.0",
     "@supabase/supabase-js": "^2.93.1",
     "axios": "^1.13.3",
     "dotenv": "^16.4.5",

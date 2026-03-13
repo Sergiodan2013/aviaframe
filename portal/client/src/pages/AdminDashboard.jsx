@@ -1030,8 +1030,22 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     try {
       setUpdatingOrderId(orderId);
       const nextStatus = normalizeStatus(newStatus);
-
       const nowIso = new Date().toISOString();
+
+      // When cancelling: call DRCT cancel endpoint (which cancels in DRCT + Supabase)
+      if (nextStatus === 'cancelled') {
+        const order = orders.find(o => o.id === orderId);
+        if (order?.drct_order_id) {
+          const { error: cancelErr } = await cancelAdminOrder(orderId);
+          if (cancelErr) throw new Error(cancelErr.message || 'Cancel failed');
+          const updatedAt = nowIso;
+          setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled', cancelled_at: updatedAt } : o));
+          setSelectedOrder(prev => prev?.id === orderId ? { ...prev, status: 'cancelled', cancelled_at: updatedAt } : prev);
+          setNotice({ type: 'success', text: 'Order cancelled successfully.' });
+          return;
+        }
+      }
+
       const { error } = await updateOrderStatusApi(orderId, nextStatus, {
         updated_at: nowIso,
         ...(nextStatus === 'confirmed' ? { confirmed_at: nowIso } : {}),
@@ -2341,15 +2355,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm disabled:opacity-60"
                         >
                           {ticketDocLoadingId === order.id ? 'Preparing PDF...' : 'Download ticket PDF'}
-                        </button>
-                      )}
-                      {order.metadata?.cancelable === true && normalizeStatus(order.status) !== 'cancelled' && (
-                        <button
-                          onClick={() => setCancelConfirmOrder(order)}
-                          disabled={cancellingOrderId === order.id}
-                          className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-4 rounded-lg transition-all text-sm disabled:opacity-60 border border-red-300"
-                        >
-                          {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel (Refundable)'}
                         </button>
                       )}
                       <select

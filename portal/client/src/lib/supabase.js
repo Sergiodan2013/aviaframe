@@ -360,8 +360,7 @@ export const getUserOrders = async (userId) => {
     'created_at',
     'updated_at',
     'confirmed_at',
-    'cancelled_at',
-    'metadata'
+    'cancelled_at'
   ].join(',');
 
   // Use base table directly to avoid view-related timeouts in UI.
@@ -417,8 +416,7 @@ export const getOrdersList = async ({ userId, agencyId, limit = 200 } = {}) => {
     'created_at',
     'updated_at',
     'confirmed_at',
-    'cancelled_at',
-    'metadata'
+    'cancelled_at'
   ].join(',');
 
   let query = supabase

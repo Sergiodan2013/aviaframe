@@ -35,7 +35,8 @@ const ORDERS_LIST_COLUMNS = [
   'created_at',
   'updated_at',
   'confirmed_at',
-  'cancelled_at'
+  'cancelled_at',
+  'metadata'
 ].join(',');
 
 async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNumber = null }) {

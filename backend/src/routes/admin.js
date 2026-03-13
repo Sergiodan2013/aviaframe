@@ -1257,10 +1257,6 @@ router.post('/orders/:id/cancel', async (req, res) => {
       return res.status(422).json({ error: { code: 'ALREADY_CANCELLED', message: 'Order is already cancelled.' } });
     }
 
-    if (order.metadata?.cancelable !== true) {
-      return res.status(422).json({ error: { code: 'NOT_CANCELABLE', message: 'This fare is not refundable. Cancellation is only available for refundable fares.' } });
-    }
-
     if (!order.drct_order_id) {
       return res.status(422).json({ error: { code: 'NO_DRCT_ORDER', message: 'No DRCT order ID — cannot cancel via API.' } });
     }
@@ -1271,8 +1267,8 @@ router.post('/orders/:id/cancel', async (req, res) => {
       await drctService.cancelOrder(order.drct_order_id, envName);
       console.log(`[admin/orders/cancel] DRCT order ${order.drct_order_id} cancelled by admin ${auth.profile.id}`);
     } catch (err) {
-      console.error('[admin/orders/cancel] DRCT cancel failed:', err.message, JSON.stringify(err.data || {}));
-      return res.status(err.status || 502).json({ error: { code: 'DRCT_CANCEL_FAILED', message: err.message } });
+      // Best-effort: log DRCT failure but still cancel in Supabase
+      console.error('[admin/orders/cancel] DRCT cancel failed (continuing):', err.message, JSON.stringify(err.data || {}));
     }
 
     const nowIso = new Date().toISOString();
