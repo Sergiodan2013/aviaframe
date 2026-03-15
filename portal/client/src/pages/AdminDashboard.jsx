@@ -440,12 +440,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
 
   const applyAgencyToSelfForm = (agencyData) => {
-    const commission = agencyData?.settings?.commission || {};
-    const bankDetails = agencyData?.settings?.bank_details || {};
+    const s = agencyData?.settings || {};
+    const bankDetails = s.bank_details || {};
+    // Read markup from new canonical format first, fall back to legacy
+    const markupType = s.markup_type || (s.commission?.model === 'fixed' ? 'fixed' : 'percent');
+    const markupValue = s.markup_value ?? agencyData?.commission_rate ?? 0;
+    const fixedAmount = markupType === 'fixed' ? markupValue : (s.commission?.fixed_amount ?? 0);
     setAgencySelfForm({
-      commission_rate: agencyData?.commission_rate ?? 0,
-      commission_model: commission.model || 'percent',
-      commission_fixed_amount: commission.fixed_amount ?? 0,
+      commission_rate: markupType === 'percent' ? markupValue : 0,
+      commission_model: markupType,
+      commission_fixed_amount: fixedAmount,
       currency: (commission.currency || 'SAR').toUpperCase(),
       bank_name: bankDetails.bank_name || '',
       bank_account: bankDetails.bank_account || '',
@@ -923,14 +927,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const handleSaveMyAgencySettings = async () => {
     try {
       setAgencySelfLoading(true);
+      const markupType = agencySelfForm.commission_model || 'percent';
+      const markupValue = markupType === 'percent'
+        ? Number(agencySelfForm.commission_rate || 0)
+        : Number(agencySelfForm.commission_fixed_amount || 0);
       const payload = {
-        commission_rate: agencySelfForm.commission_model === 'percent'
-          ? Number(agencySelfForm.commission_rate || 0)
-          : 0,
-        commission_model: agencySelfForm.commission_model || 'percent',
-        commission_fixed_amount: agencySelfForm.commission_model === 'fixed'
-          ? Number(agencySelfForm.commission_fixed_amount || 0)
-          : 0,
+        commission_rate: markupType === 'percent' ? markupValue : 0,
+        markup_type: markupType,
+        markup_value: markupValue,
+        commission_model: markupType,
+        commission_fixed_amount: markupType === 'fixed' ? markupValue : 0,
         currency: agencySelfForm.currency || 'SAR',
         bank_details: {
           bank_name: agencySelfForm.bank_name || null,

@@ -928,6 +928,11 @@ export const updateAdminAgency = async (agencyId, payload) => {
       currency: String(payload?.currency || 'SAR').toUpperCase()
     };
   }
+  // Save in canonical format for pricingService
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'markup_type')) {
+    nextSettings.markup_type = payload.markup_type;
+    nextSettings.markup_value = Number(payload.markup_value || 0);
+  }
 
   const updateRow = {
     updated_at: new Date().toISOString()

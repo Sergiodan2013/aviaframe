@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const supabase = require('../lib/supabase');
 const drctService = require('../services/drctService');
+const { applyPricingToOffers, calculatePricing } = require('../services/pricingService');
 
 const router = express.Router();
 
@@ -63,7 +64,19 @@ function generateOrderNumber() {
 // POST /webhook/drct/search
 router.post('/webhook/drct/search', searchLimiter, express.json({ limit: '2mb' }), async (req, res) => {
   try {
-    const result = await drctService.search(req.body || {});
+    const body = req.body || {};
+    const result = await drctService.search(body);
+
+    // Apply agency pricing if agency_id provided
+    if (body.agency_id && Array.isArray(result.offers)) {
+      const { data: agency } = await supabase
+        .from('agencies')
+        .select('id,commission_rate,settings')
+        .eq('id', body.agency_id)
+        .maybeSingle();
+      result.offers = applyPricingToOffers(result.offers, agency);
+    }
+
     return res.json(result);
   } catch (err) {
     console.error('[drct/search]', err.message);
@@ -303,6 +316,15 @@ async function orderCreateHandler(req, res, envName) {
     const pricedFare0 = (pricedOffer?.fares || [])[0] || {};
     const cancelable = offerCond.cancelable ?? pricedFare0?.cancellation?.cancelable ?? null;
 
+    // ─── Pricing breakdown ────────────────────────────────────────────────────
+    let agency = null;
+    if (normalized.agency_id) {
+      const { data } = await supabase
+        .from('agencies').select('id,commission_rate,settings').eq('id', normalized.agency_id).maybeSingle();
+      agency = data;
+    }
+    const pricing = calculatePricing(totalPrice, agency);
+
     const orderInsert = {
       drct_order_id: drctOrder.id,
       order_number: orderNumber,
@@ -334,6 +356,13 @@ async function orderCreateHandler(req, res, envName) {
         drct_env: envName || null,
         fare_basis_code: offerCond.fare_basis_code || pricedFare0?.fare_basis_code || null,
         price_class_name: offerCond.price_class_name || pricedFare0?.price_class_name || null,
+        pricing: {
+          drct_amount:     pricing.drct_amount,
+          agency_markup:   pricing.agency_markup,
+          acquiring_fee:   pricing.acquiring_fee,
+          displayed_price: pricing.displayed_price,
+          acquiring_rate:  pricing.acquiring_rate,
+        },
       },
     };
 
