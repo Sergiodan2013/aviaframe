@@ -440,7 +440,11 @@ router.patch('/agencies/:agencyId', async (req, res) => {
     is_active: isActive,
     language,
     bank_details: bankDetails,
-    widget_allowed_domains: widgetAllowedDomains
+    widget_allowed_domains: widgetAllowedDomains,
+    markup_type: markupType,
+    markup_value: markupValue,
+    commission_model: commissionModel,
+    commission_fixed_amount: commissionFixedAmount,
   } = req.body || {};
 
   try {
@@ -472,6 +476,17 @@ router.patch('/agencies/:agencyId', async (req, res) => {
       settings.contact_person = {
         ...(settings.contact_person || {}),
         full_name: contactPersonName || null
+      };
+    }
+    if (markupType !== undefined) {
+      settings.markup_type = markupType;
+      settings.markup_value = Number(markupValue || 0);
+    }
+    if (commissionModel !== undefined) {
+      settings.commission = {
+        ...(settings.commission || {}),
+        model: commissionModel,
+        fixed_amount: Number(commissionFixedAmount || 0),
       };
     }
 

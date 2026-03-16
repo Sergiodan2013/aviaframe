@@ -127,6 +127,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
   const [agencySelfLoading, setAgencySelfLoading] = useState(false);
+  const [agencySettingsEditing, setAgencySettingsEditing] = useState(false);
+  const [agencySettingsSnapshot, setAgencySettingsSnapshot] = useState(null);
   const [editingTemplate, setEditingTemplate] = useState(null); // {template, agencyId}
   const [templateAgencyId, setTemplateAgencyId] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -450,7 +452,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       commission_rate: markupType === 'percent' ? markupValue : 0,
       commission_model: markupType,
       commission_fixed_amount: fixedAmount,
-      currency: (commission.currency || 'SAR').toUpperCase(),
+      currency: (s.commission?.currency || 'SAR').toUpperCase(),
       bank_name: bankDetails.bank_name || '',
       bank_account: bankDetails.bank_account || '',
       iban: bankDetails.iban || '',
@@ -1416,149 +1418,216 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
         {/* Agency Admin Settings */}
         {(userProfile?.role === 'agent' || isAgencyAdminPreview) && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-blue-100">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Agency settings</h2>
-            <p className="text-sm text-gray-600 mb-3">
-              Set commission model: percentage or fixed amount per sold ticket.
-            </p>
-            {isAgencyAdminPreview && (
-              <div className="mb-3 text-sm text-gray-600">
-                Agency: <span className="font-semibold text-gray-900">{agencies.find((a) => a.id === (userProfile?.agency_id || agencyPreviewId))?.name || agencies[0]?.name || '—'}</span>
+          <div className="bg-white rounded-lg shadow-md p-5 mb-6 border border-blue-100">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Agency settings</h2>
+                {isAgencyAdminPreview && (
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {agencies.find((a) => a.id === (userProfile?.agency_id || agencyPreviewId))?.name || agencies[0]?.name || '—'}
+                  </p>
+                )}
               </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-              <select
-                value={agencySelfForm.commission_model}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_model: e.target.value }))}
-                className="border rounded px-2 py-1"
-              >
-                <option value="percent">Percent</option>
-                <option value="fixed">Fixed</option>
-              </select>
-              {agencySelfForm.commission_model === 'percent' ? (
-                <div className="flex items-center border rounded px-2 py-1">
-                  <input
-                    type="number"
-                    value={agencySelfForm.commission_rate}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_rate: e.target.value }))}
-                    placeholder="Commission"
-                    className="w-full outline-none"
-                  />
-                  <span className="text-gray-500 text-sm">%</span>
+              {!agencySettingsEditing && (
+                <button
+                  onClick={() => { setAgencySettingsSnapshot({ ...agencySelfForm }); setAgencySettingsEditing(true); }}
+                  className="flex items-center gap-1.5 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  ✏️ Edit
+                </button>
+              )}
+            </div>
+
+            {/* ── Pricing / Markup ── */}
+            <div className="mb-5">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Ticket markup</h3>
+              {agencySettingsEditing ? (
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-500">Type</label>
+                    <select
+                      value={agencySelfForm.commission_model}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_model: e.target.value }))}
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none"
+                    >
+                      <option value="percent">Percent (%)</option>
+                      <option value="fixed">Fixed amount</option>
+                    </select>
+                  </div>
+                  {agencySelfForm.commission_model === 'percent' ? (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">Markup %</label>
+                      <div className="flex items-center border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-blue-200">
+                        <input
+                          type="number" min="0" max="100" step="0.1"
+                          value={agencySelfForm.commission_rate}
+                          onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_rate: e.target.value }))}
+                          className="w-20 outline-none text-sm"
+                        />
+                        <span className="text-gray-400 text-sm ml-1">%</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">Amount per ticket</label>
+                      <div className="flex items-center border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-blue-200">
+                        <input
+                          type="number" min="0" step="1"
+                          value={agencySelfForm.commission_fixed_amount}
+                          onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_fixed_amount: e.target.value }))}
+                          className="w-24 outline-none text-sm"
+                        />
+                        <select
+                          value={agencySelfForm.currency}
+                          onChange={(e) => setAgencySelfForm((p) => ({ ...p, currency: e.target.value }))}
+                          className="ml-2 text-sm outline-none bg-transparent text-gray-500"
+                        >
+                          <option value="SAR">SAR</option>
+                          <option value="USD">USD</option>
+                          <option value="EUR">EUR</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <input
-                  type="number"
-                  value={agencySelfForm.commission_fixed_amount}
-                  onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_fixed_amount: e.target.value }))}
-                  placeholder="Fixed amount"
-                  className="border rounded px-2 py-1"
-                />
+                <div className="flex items-center gap-3 py-2">
+                  {agencySelfForm.commission_model === 'percent' ? (
+                    agencySelfForm.commission_rate > 0
+                      ? <><span className="text-2xl font-bold text-gray-900">{agencySelfForm.commission_rate}%</span><span className="text-sm text-gray-500">per ticket (percent)</span></>
+                      : <span className="text-sm text-gray-400">No markup set</span>
+                  ) : (
+                    agencySelfForm.commission_fixed_amount > 0
+                      ? <><span className="text-2xl font-bold text-gray-900">{agencySelfForm.commission_fixed_amount}</span><span className="text-sm text-gray-500">{agencySelfForm.currency} per ticket (fixed)</span></>
+                      : <span className="text-sm text-gray-400">No markup set</span>
+                  )}
+                </div>
               )}
-              <select
-                value={agencySelfForm.currency}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, currency: e.target.value.toUpperCase() }))}
-                className="border rounded px-2 py-1"
-              >
-                <option value="SAR">SAR</option>
-                <option value="EUR">EUR</option>
-                <option value="USD">USD</option>
-              </select>
-              <input
-                value={agencySelfForm.contact_person_name}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_person_name: e.target.value }))}
-                placeholder="Contact person full name"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.bank_name}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, bank_name: e.target.value }))}
-                placeholder="Bank name"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.bank_account}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, bank_account: e.target.value }))}
-                placeholder="Account number"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.iban}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))}
-                placeholder="IBAN (SA...)"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.swift_bic}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))}
-                placeholder="SWIFT/BIC"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.sama_code}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))}
-                placeholder="SAMA bank code"
-                className="border rounded px-2 py-1"
-              />
-              <div className="md:col-span-3 border rounded px-3 py-3 bg-white">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-700">Allowed widget domains</span>
-                  <button
-                    onClick={() => setShowAddDomain((v) => !v)}
-                    className="bg-indigo-600 text-white rounded px-3 py-1 text-xs"
-                  >
-                    Add domain
-                  </button>
+            </div>
+
+            {/* ── Contact ── */}
+            <div className="mb-5 border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Contact person</h3>
+              {agencySettingsEditing ? (
+                <input
+                  value={agencySelfForm.contact_person_name}
+                  onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_person_name: e.target.value }))}
+                  placeholder="Full name"
+                  className="border rounded-lg px-3 py-2 text-sm w-full max-w-sm focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              ) : (
+                <p className="text-sm text-gray-700">{agencySelfForm.contact_person_name || <span className="text-gray-400">Not set</span>}</p>
+              )}
+            </div>
+
+            {/* ── Bank details ── */}
+            <div className="mb-5 border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Bank details</h3>
+              {agencySettingsEditing ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    { key: 'bank_name',    label: 'Bank name',      upper: false },
+                    { key: 'bank_account', label: 'Account number', upper: false },
+                    { key: 'iban',         label: 'IBAN (SA...)',   upper: true  },
+                    { key: 'swift_bic',    label: 'SWIFT / BIC',    upper: true  },
+                    { key: 'sama_code',    label: 'SAMA bank code', upper: true  },
+                  ].map(({ key, label, upper }) => (
+                    <div key={key} className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">{label}</label>
+                      <input
+                        value={agencySelfForm[key]}
+                        onChange={(e) => setAgencySelfForm((p) => ({ ...p, [key]: upper ? e.target.value.toUpperCase() : e.target.value }))}
+                        placeholder={label}
+                        className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-6">
+                  {[
+                    { label: 'Bank',    value: agencySelfForm.bank_name },
+                    { label: 'Account', value: agencySelfForm.bank_account },
+                    { label: 'IBAN',    value: agencySelfForm.iban },
+                    { label: 'SWIFT',   value: agencySelfForm.swift_bic },
+                    { label: 'SAMA',    value: agencySelfForm.sama_code },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-400">{label}</p>
+                      <p className="text-sm text-gray-800 font-mono">{value || <span className="text-gray-300 font-sans">—</span>}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Widget domains ── */}
+            <div className="mb-5 border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Allowed widget domains</h3>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <button
+                  onClick={() => setShowAddDomain((v) => !v)}
+                  className="bg-indigo-600 text-white rounded-lg px-3 py-1 text-xs hover:bg-indigo-700 transition-colors"
+                >
+                  + Add domain
+                </button>
+                {domainsDirty && (
                   <button
                     onClick={handleSaveWidgetDomains}
-                    disabled={!domainsDirty || domainsSaving}
-                    className={`rounded px-3 py-1 text-xs ${(!domainsDirty || domainsSaving) ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white'}`}
+                    disabled={domainsSaving}
+                    className="bg-blue-600 text-white rounded-lg px-3 py-1 text-xs hover:bg-blue-700 transition-colors"
                   >
-                    {domainsSaving ? 'Saving...' : domainsDirty ? 'Save domains' : 'Saved'}
+                    {domainsSaving ? 'Saving...' : 'Save domains'}
                   </button>
-                </div>
-                {showAddDomain && (
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      value={domainDraft}
-                      onChange={(e) => setDomainDraft(e.target.value)}
-                      placeholder="example.com"
-                      className="border rounded px-2 py-1 flex-1"
-                    />
-                    <button
-                      onClick={handleAddWidgetDomain}
-                      className="bg-indigo-600 text-white rounded px-3 py-1 text-sm"
-                    >
-                      Add
-                    </button>
-                  </div>
-                )}
-                {widgetDomains.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {widgetDomains.map((d) => (
-                      <div key={d} className="flex items-center gap-2 px-2 py-1 rounded bg-indigo-50 border border-indigo-200">
-                        <span className="text-xs font-mono text-indigo-900">{d}</span>
-                        <button
-                          onClick={() => handleRemoveWidgetDomain(d)}
-                          className="text-xs text-red-600 hover:text-red-800"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500">No domains yet. Add at least one agency website domain.</p>
                 )}
               </div>
-              <button
-                onClick={handleSaveMyAgencySettings}
-                className="bg-blue-600 text-white rounded px-3 py-1"
-                disabled={agencySelfLoading}
-              >
-                {agencySelfLoading ? 'Saving...' : 'Save settings'}
-              </button>
+              {showAddDomain && (
+                <div className="flex gap-2 mb-2">
+                  <input
+                    value={domainDraft}
+                    onChange={(e) => setDomainDraft(e.target.value)}
+                    placeholder="example.com"
+                    className="border rounded-lg px-3 py-2 text-sm flex-1 focus:ring-2 focus:ring-indigo-200 outline-none"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddWidgetDomain()}
+                  />
+                  <button onClick={handleAddWidgetDomain} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm hover:bg-indigo-700 transition-colors">Add</button>
+                </div>
+              )}
+              {widgetDomains.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {widgetDomains.map((d) => (
+                    <div key={d} className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200">
+                      <span className="text-xs font-mono text-indigo-900">{d}</span>
+                      <button onClick={() => handleRemoveWidgetDomain(d)} className="text-indigo-400 hover:text-red-600 transition-colors text-xs">✕</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">No domains yet. Add your agency website domain to enable the widget.</p>
+              )}
             </div>
+
+            {/* ── Edit mode actions ── */}
+            {agencySettingsEditing && (
+              <div className="flex gap-3 border-t pt-4">
+                <button
+                  onClick={async () => { await handleSaveMyAgencySettings(); setAgencySettingsEditing(false); }}
+                  disabled={agencySelfLoading}
+                  className="bg-blue-600 text-white rounded-lg px-5 py-2 text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {agencySelfLoading ? 'Saving...' : 'Save changes'}
+                </button>
+                <button
+                  onClick={() => { setAgencySelfForm(agencySettingsSnapshot); setAgencySettingsEditing(false); }}
+                  disabled={agencySelfLoading}
+                  className="border border-gray-300 rounded-lg px-5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
 
             <div className="mt-4 border border-indigo-100 rounded-lg p-3 bg-indigo-50/40">
               <h3 className="text-sm font-semibold text-indigo-900 mb-2">Widget setup</h3>
