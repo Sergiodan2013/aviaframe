@@ -74,6 +74,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     date_to: '',
     q: ''
   });
+  const [billingRunning, setBillingRunning] = useState(false);
+  const [billingRemindersRunning, setBillingRemindersRunning] = useState(false);
+  const [billingResult, setBillingResult] = useState(null);
+  const [billingEvents, setBillingEvents] = useState([]);
+  const [billingEventsLoading, setBillingEventsLoading] = useState(false);
   const [agencyEditId, setAgencyEditId] = useState(null);
   const [agencyEditForm, setAgencyEditForm] = useState({
     name: '',
@@ -1702,6 +1707,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               >
                 Email Templates
               </button>
+              <button
+                onClick={() => setActiveAdminSection('billing')}
+                className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'billing' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Billing
+              </button>
             </div>
           </div>
         )}
@@ -2235,6 +2246,141 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Billing Section */}
+        {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'billing' && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Billing</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    setBillingRemindersRunning(true);
+                    setBillingResult(null);
+                    try {
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const r = await fetch(`${backendUrl}/api/admin/billing/send-reminders`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${session?.access_token}` }
+                      });
+                      const json = await r.json();
+                      setBillingResult({ type: 'reminders', ...json });
+                    } catch (e) {
+                      setBillingResult({ type: 'reminders', error: e.message });
+                    } finally {
+                      setBillingRemindersRunning(false);
+                    }
+                  }}
+                  disabled={billingRemindersRunning}
+                  className="bg-gray-100 text-gray-700 rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  {billingRemindersRunning ? 'Sending...' : 'Send Reminders'}
+                </button>
+                <button
+                  onClick={async () => {
+                    setBillingRunning(true);
+                    setBillingResult(null);
+                    try {
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const r = await fetch(`${backendUrl}/api/admin/billing/run-monthly`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${session?.access_token}` }
+                      });
+                      const json = await r.json();
+                      setBillingResult({ type: 'run', ...json });
+                      // Refresh events
+                      setBillingEventsLoading(true);
+                      const r2 = await fetch(`${backendUrl}/api/admin/billing/events`, {
+                        headers: { Authorization: `Bearer ${session?.access_token}` }
+                      });
+                      const j2 = await r2.json();
+                      setBillingEvents(j2.events || []);
+                    } catch (e) {
+                      setBillingResult({ type: 'run', error: e.message });
+                    } finally {
+                      setBillingRunning(false);
+                      setBillingEventsLoading(false);
+                    }
+                  }}
+                  disabled={billingRunning}
+                  className="bg-blue-600 text-white rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  {billingRunning ? 'Running...' : 'Run Billing Now'}
+                </button>
+              </div>
+            </div>
+
+            {billingResult && (
+              <div className={`mb-4 p-3 rounded text-sm ${billingResult.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+                {billingResult.error
+                  ? `Error: ${billingResult.error}`
+                  : billingResult.type === 'run'
+                    ? `Done: ${billingResult.processed ?? 0} processed, ${billingResult.skipped ?? 0} skipped${billingResult.errors?.length ? `, ${billingResult.errors.length} errors` : ''}`
+                    : `Reminders: ${billingResult.sent ?? 0} sent${billingResult.errors?.length ? `, ${billingResult.errors.length} errors` : ''}`
+                }
+              </div>
+            )}
+
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm text-gray-500">Recent billing events</p>
+              <button
+                onClick={async () => {
+                  setBillingEventsLoading(true);
+                  try {
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const r = await fetch(`${backendUrl}/api/admin/billing/events?limit=50`, {
+                      headers: { Authorization: `Bearer ${session?.access_token}` }
+                    });
+                    const json = await r.json();
+                    setBillingEvents(json.events || []);
+                  } catch (e) { /* ignore */ }
+                  finally { setBillingEventsLoading(false); }
+                }}
+                className="text-xs text-blue-600 underline"
+              >
+                {billingEventsLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {billingEvents.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No billing events yet. Click Refresh to load.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left">
+                      <th className="px-3 py-2 font-medium text-gray-600">Agency</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Type</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Amount</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Status</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Period</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {billingEvents.map((ev) => (
+                      <tr key={ev.id} className="border-t border-gray-100">
+                        <td className="px-3 py-2 text-gray-700">{ev.agencies?.name || ev.agency_id?.slice(0, 8)}</td>
+                        <td className="px-3 py-2 text-gray-600 font-mono text-xs">{ev.type}</td>
+                        <td className="px-3 py-2 text-gray-700">{ev.amount ? `${ev.currency} ${Number(ev.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}</td>
+                        <td className="px-3 py-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ev.status === 'success' ? 'bg-green-100 text-green-700' : ev.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {ev.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-500 text-xs">{ev.billing_period_from ? `${ev.billing_period_from} — ${ev.billing_period_to}` : '—'}</td>
+                        <td className="px-3 py-2 text-gray-400 text-xs">{new Date(ev.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

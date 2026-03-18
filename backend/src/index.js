@@ -53,6 +53,7 @@ const documentsRouter = require('./routes/documents');
 const supportRouter = require('./routes/support');
 const publicRouter = require('./routes/public');
 const internalRouter = require('./routes/internal');
+const billingRouter = require('./routes/billing');
 
 // Trust Railway/Nginx proxy (needed for express-rate-limit behind load balancer)
 app.set('trust proxy', 1);
@@ -152,6 +153,7 @@ app.use('/api/widget', widgetRouter);
 app.use('/api', authRouter);
 app.use('/api', ordersRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/admin/billing', billingRouter);
 app.use('/api/agency', agencyRouter);
 // Notifications router handles 3 different base paths:
 // /api/notifications/events
