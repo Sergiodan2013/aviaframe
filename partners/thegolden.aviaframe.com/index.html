@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Golden Travel Tourism & Umrah Service | AviaFrame</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+</head>
+<body>
+  <header class="header">
+    <div class="lang-switcher">
+      <button class="lang-opt" data-lang="en" onclick="applyLang('en')">EN</button>
+      <button class="lang-opt" data-lang="ar" onclick="applyLang('ar')">عر</button>
+    </div>
+    <div class="container header-inner">
+      <img class="logo" src="./assets/thegolden-logo.svg" alt="The Golden Travel Tourism & Umrah Service" />
+      <div class="brand-name" data-i18n="brandName">The Golden Travel Tourism &amp; Umrah Service</div>
+      <div class="contact-mini">+966 50 270 8166 · kadirjeddah@yahoo.com</div>
+    </div>
+  </header>
+
+  <section class="widget-first">
+    <div class="container">
+      <div class="widget-main">
+        <h2 class="widget-title" data-i18n="widgetTitle">Find the Best Flight Deals Now</h2>
+        <p class="widget-subtitle" data-i18n="widgetSubtitle">Powered by AviaFrame search. Compare options and book with confidence.</p>
+
+        <div
+          id="aviaframe-widget"
+          data-aviaframe-widget
+          data-api-url="https://admin.aviaframe.com/api/n8n/webhook/drct/search"
+          data-booking-url="https://admin.aviaframe.com/api/n8n/webhook/drct/order/create"
+          data-brand-name="The Golden"
+          data-brand-color="#2d5fa6"
+          data-accent-color="#c8a020"
+          data-title="Search Flights"
+          data-primary-color="#2d5fa6"
+        ></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hero">
+    <div class="container hero-grid">
+      <article class="hero-card">
+        <span class="badge">thegolden.aviaframe.com</span>
+        <h1 data-i18n="heroTitle">Best Airfares, Umrah Packages, and Complete Travel Services</h1>
+        <p class="lead" data-i18n="heroLead">
+          The Golden Travel Tourism &amp; Umrah Service is your trusted travel partner
+          in Jeddah, Al Sharafiyah. Our team delivers comprehensive travel solutions
+          for individuals and families — from international flights and hotel reservations
+          to Umrah and Hajj packages.
+        </p>
+      </article>
+
+      <aside class="hero-card">
+        <h3 class="side-title" data-i18n="sideTitle">Our Services</h3>
+        <ul class="clean-list">
+          <li data-i18n="s1">Domestic &amp; international flight bookings</li>
+          <li data-i18n="s2">Umrah &amp; Hajj packages</li>
+          <li data-i18n="s3">Hotel reservations worldwide</li>
+          <li data-i18n="s4">Visa application support</li>
+          <li data-i18n="s5">Medical travel insurance</li>
+          <li data-i18n="s6">Tour packages &amp; holidays</li>
+          <li data-i18n="s7">Airport transfers</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <main class="main">
+    <div class="container main-grid">
+      <article class="info-card">
+        <h2 data-i18n="contactTitle">Contact</h2>
+        <div class="phones">
+          <div class="phone">📞 +966 50 270 8166</div>
+          <a class="phone phone-email" href="mailto:kadirjeddah@yahoo.com">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            kadirjeddah@yahoo.com
+          </a>
+          <div class="phone">📍 King Fahad Street, Al Sharafiyah, Jeddah</div>
+          <div class="phone" style="font-size:0.85em;color:#aaa;">P.O Box 23218 Jeddah 2163</div>
+        </div>
+      </article>
+
+      <article class="info-card">
+        <h2 data-i18n="managerTitle">Branch Manager</h2>
+        <div class="manager-card">
+          <div class="manager-name">Mohammad Kadir Khan</div>
+          <div class="manager-role" data-i18n="managerRole">Branch Manager</div>
+          <div class="manager-contact">
+            <a href="tel:+966502708166">+966 50 270 8166</a>
+          </div>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <strong data-i18n="brandName">The Golden Travel Tourism &amp; Umrah Service</strong><br />
+        Jeddah, Saudi Arabia
+      </div>
+      <div>
+        +966 50 270 8166
+      </div>
+      <div class="subdomain-note">Host: thegolden.aviaframe.com</div>
+    </div>
+  </footer>
+
+  <script src="./assets/aviaframe-widget.js"></script>
+  <script>
+    var I18N = {
+      en: {
+        brandName: 'The Golden Travel Tourism & Umrah Service',
+        widgetTitle: 'Find the Best Flight Deals Now',
+        widgetSubtitle: 'Powered by AviaFrame search. Compare options and book with confidence.',
+        heroTitle: 'Best Airfares, Umrah Packages, and Complete Travel Services',
+        heroLead: 'The Golden Travel Tourism & Umrah Service is your trusted travel partner in Jeddah, Al Sharafiyah. Our team delivers comprehensive travel solutions for individuals and families — from international flights and hotel reservations to Umrah and Hajj packages.',
+        sideTitle: 'Our Services',
+        s1: 'Domestic & international flight bookings',
+        s2: 'Umrah & Hajj packages',
+        s3: 'Hotel reservations worldwide',
+        s4: 'Visa application support',
+        s5: 'Medical travel insurance',
+        s6: 'Tour packages & holidays',
+        s7: 'Airport transfers',
+        contactTitle: 'Contact',
+        managerTitle: 'Branch Manager',
+        managerRole: 'Branch Manager',
+      },
+      ar: {
+        brandName: 'الذهبي للسفر والسياحة وخدمات العمرة',
+        widgetTitle: 'ابحث عن أفضل صفقات الطيران الآن',
+        widgetSubtitle: 'مدعوم من بحث أفيافريم. قارن الخيارات واحجز بثقة.',
+        heroTitle: 'أفضل أسعار الطيران، باقات العمرة، وخدمات السفر الشاملة',
+        heroLead: 'الذهبي للسفر والسياحة وخدمات العمرة هو شريككم الموثوق في جدة، حي الشرفية. فريقنا يقدم حلول سفر شاملة للأفراد والعائلات — من الرحلات الدولية والفنادق إلى باقات العمرة والحج.',
+        sideTitle: 'خدماتنا',
+        s1: 'حجز رحلات محلية ودولية',
+        s2: 'باقات العمرة والحج',
+        s3: 'حجز فنادق حول العالم',
+        s4: 'دعم طلبات التأشيرة',
+        s5: 'تأمين السفر الطبي',
+        s6: 'باقات السياحة والعطلات',
+        s7: 'خدمات نقل المطار',
+        contactTitle: 'التواصل',
+        managerTitle: 'مدير الفرع',
+        managerRole: 'مدير الفرع',
+      }
+    };
+
+    var currentLang = localStorage.getItem('aviaframe_lang') || 'en';
+
+    function applyLang(lang) {
+      currentLang = lang;
+      localStorage.setItem('aviaframe_lang', lang);
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var key = el.dataset.i18n;
+        if (I18N[lang] && I18N[lang][key]) el.textContent = I18N[lang][key];
+      });
+      document.querySelectorAll('.lang-opt').forEach(function(btn) {
+        var isActive = btn.dataset.lang === lang;
+        btn.style.background = isActive ? 'rgba(255,255,255,0.3)' : 'transparent';
+        btn.style.color = isActive ? '#fff' : 'rgba(255,255,255,0.65)';
+        btn.style.fontWeight = isActive ? '800' : '600';
+      });
+    }
+
+    applyLang(currentLang);
+  </script>
+</body>
+</html>

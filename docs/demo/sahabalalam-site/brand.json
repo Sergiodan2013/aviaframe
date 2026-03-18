@@ -1,0 +1,29 @@
+{
+  "tenant_slug": "sahabalalam",
+  "host_preview": "sahabalalam.aviaframe.com",
+  "agency_name": "Sahab Al Alam Travel & Tourism",
+  "tagline": "Best flight deals and trusted travel support",
+  "phones": [
+    "+966 53 531 6584",
+    "+966 53 962 8781"
+  ],
+  "location": "Jizan, Saudi Arabia",
+  "hero_title": "Book Better. Travel Smarter.",
+  "hero_description": "We help travelers find the best airfare and complete travel arrangements with fast, friendly support.",
+  "services": [
+    "Flight ticket booking",
+    "Hotel reservation",
+    "Schengen visa application support (up to 5 years, subject to current rules)",
+    "Medical travel insurance",
+    "Application form completion",
+    "Fingerprint appointment scheduling at our office",
+    "ID and family card translation support for family visa applications"
+  ],
+  "about": "Sahab Al Alam Travel & Tourism provides end-to-end travel planning and visa support. Our team in Jizan helps clients prepare documents, coordinate appointments, and secure the most suitable travel options with confidence.",
+  "theme": {
+    "primary": "#0D6FD6",
+    "secondary": "#F28A1D",
+    "surface": "#F5FAFF",
+    "text": "#15324D"
+  }
+}

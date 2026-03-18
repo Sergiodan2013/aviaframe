@@ -1,0 +1,38 @@
+redirectsOrigin = "config"
+plugins = []
+headers = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "/Users/sergejdaniluk/projects/aviaframe/partners/almalektravel.aviaframe.com"
+publishOrigin = "default"
+base = "/Users/sergejdaniluk/projects/aviaframe/partners/almalektravel.aviaframe.com"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[redirects]]
+from = "http://almalektravel.aviaframe.com/*"
+to = "https://almalektravel.aviaframe.com/:splat"
+status = 301.0
+force = true
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]

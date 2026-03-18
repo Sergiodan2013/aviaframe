@@ -1,0 +1,181 @@
+:root {
+  --primary: #0d6fd6;
+  --secondary: #f28a1d;
+  --surface: #f5faff;
+  --text: #15324d;
+  --muted: #4b647d;
+  --line: #d8e6f5;
+  --max: 1180px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Avenir Next", "Segoe UI", Tahoma, Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(70rem 24rem at 8% -12%, rgba(13,111,214,.10), transparent 60%),
+    radial-gradient(65rem 24rem at 95% -8%, rgba(242,138,29,.12), transparent 58%),
+    #fff;
+}
+
+.container { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+.header {
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.98);
+}
+
+.header-inner {
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+  padding: 14px 0 16px;
+}
+
+.logo {
+  width: 142px;
+  height: 142px;
+  object-fit: contain;
+  border-radius: 24px;
+  background: #fff;
+  border: 1px solid #dce8f6;
+  padding: 8px;
+  box-shadow: 0 10px 24px rgba(21, 50, 77, .08);
+}
+
+.brand-name { font-size: 1.65rem; font-weight: 900; line-height: 1.12; }
+.brand-tag { color: var(--muted); font-size: 1.05rem; }
+.contact-mini {
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 1.08rem;
+  line-height: 1.5;
+}
+
+.widget-first {
+  padding: 26px 0 18px;
+}
+
+.widget-main {
+  background: #fff;
+  border: 2px dashed #97c2ee;
+  border-radius: 20px;
+  box-shadow: 0 16px 36px rgba(16, 70, 124, .10);
+  padding: 20px;
+}
+
+.widget-title {
+  text-align: center;
+  margin: 0 0 12px;
+  font-size: 1.35rem;
+}
+
+.widget-subtitle {
+  text-align: center;
+  margin: 0 0 18px;
+  color: var(--muted);
+}
+
+#flight-search-widget {
+  min-height: 430px;
+  width: 100%;
+}
+
+.hero {
+  padding: 10px 0 26px;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.05fr .95fr;
+  gap: 24px;
+}
+
+.hero-card, .info-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(16, 70, 124, .06);
+}
+
+.hero-card { padding: 26px; }
+
+.badge {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--primary), #5aa9f5);
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-weight: 700;
+  font-size: .82rem;
+  letter-spacing: .2px;
+}
+
+h1 {
+  margin: 14px 0 8px;
+  font-size: clamp(1.7rem, 2.4vw, 2.5rem);
+  line-height: 1.12;
+}
+
+.lead { margin: 0; color: var(--muted); font-size: 1.02rem; line-height: 1.65; }
+
+.side-title { margin: 0 0 12px; font-size: 1.14rem; }
+.clean-list { margin: 0; padding: 0; list-style: none; }
+.clean-list li {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: #2b4764;
+  line-height: 1.45;
+}
+.clean-list li::before {
+  content: "•";
+  color: var(--secondary);
+  font-weight: 900;
+}
+
+.main { padding: 0 0 44px; }
+.main-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.info-card { padding: 24px; }
+.info-card h2 { margin: 0 0 12px; font-size: 1.2rem; }
+.about { color: var(--muted); line-height: 1.72; margin: 0 0 16px; }
+.phones { display: flex; flex-direction: column; gap: 8px; }
+.phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.footer {
+  border-top: 1px solid var(--line);
+  background: #f8fcff;
+  padding: 20px 0 30px;
+  color: #45627f;
+}
+
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.subdomain-note { font-weight: 700; color: var(--primary); }
+
+@media (max-width: 980px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .logo { width: 112px; height: 112px; }
+  .brand-name { font-size: 1.38rem; }
+}

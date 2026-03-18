@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aviaframe - Поиск и бронирование авиабилетов</title>
+  <title>Aviaframe - Flight Search and Booking</title>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -52,7 +52,7 @@
           </svg>
           <div>
             <h1 class="text-2xl font-bold text-gray-900">Aviaframe</h1>
-            <p class="text-sm text-gray-600">Поиск и бронирование авиабилетов</p>
+            <p class="text-sm text-gray-600">Flight Search and Booking</p>
           </div>
         </div>
         <div id="agency-logo" class="text-sm text-gray-500">
@@ -63,12 +63,12 @@
 
     <!-- Search Form -->
     <div id="search-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">Найти рейс</h2>
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Find a Flight</h2>
 
       <form id="search-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Origin -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Откуда</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">From</label>
           <input
             type="text"
             id="origin"
@@ -81,7 +81,7 @@
 
         <!-- Destination -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Куда</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">To</label>
           <input
             type="text"
             id="destination"
@@ -94,7 +94,7 @@
 
         <!-- Depart Date -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Дата вылета</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Departure Date</label>
           <input
             type="date"
             id="depart_date"
@@ -105,7 +105,7 @@
 
         <!-- Return Date -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Дата возврата</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Return Date</label>
           <input
             type="date"
             id="return_date"
@@ -115,7 +115,7 @@
 
         <!-- Adults -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Взрослых</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Adults</label>
           <select
             id="adults"
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -129,15 +129,15 @@
 
         <!-- Cabin Class -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Класс</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Class</label>
           <select
             id="cabin_class"
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="economy" selected>Эконом</option>
-            <option value="premium_economy">Премиум эконом</option>
-            <option value="business">Бизнес</option>
-            <option value="first">Первый</option>
+            <option value="economy" selected>Economy</option>
+            <option value="premium_economy">Premium Economy</option>
+            <option value="business">Business</option>
+            <option value="first">First</option>
           </select>
         </div>
 
@@ -148,7 +148,7 @@
             id="search-btn"
             class="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold py-2 px-6 rounded-lg transition-all shadow-md hover:shadow-lg"
           >
-            Найти рейсы
+            Search Flights
           </button>
         </div>
       </form>
@@ -162,7 +162,7 @@
             <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
           </svg>
         </div>
-        <p class="text-gray-600 text-lg font-medium">Ищем лучшие рейсы...</p>
+        <p class="text-gray-600 text-lg font-medium">Searching for the best flights...</p>
       </div>
     </div>
 
@@ -173,7 +173,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         <div>
-          <h3 class="text-red-800 font-semibold">Ошибка</h3>
+          <h3 class="text-red-800 font-semibold">Error</h3>
           <p id="error-text" class="text-red-700 text-sm mt-1"></p>
         </div>
       </div>
@@ -182,7 +182,7 @@
     <!-- Results Container -->
     <div id="results-section" class="hidden">
       <div class="bg-white rounded-lg shadow-md p-4 mb-4">
-        <h2 class="text-xl font-semibold text-gray-800">Результаты поиска</h2>
+        <h2 class="text-xl font-semibold text-gray-800">Search Results</h2>
         <p id="results-count" class="text-gray-600 text-sm mt-1"></p>
       </div>
 
@@ -196,8 +196,8 @@
       <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
         <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
       </svg>
-      <h3 class="text-xl font-semibold text-gray-700 mb-2">Рейсов не найдено</h3>
-      <p class="text-gray-500">Попробуйте изменить параметры поиска</p>
+      <h3 class="text-xl font-semibold text-gray-700 mb-2">No flights found</h3>
+      <p class="text-gray-500">Try adjusting your search parameters</p>
     </div>
 
   </div>
@@ -297,7 +297,7 @@
       } catch (error) {
         console.error('Search error:', error);
         hideLoading();
-        showError(`Не удалось выполнить поиск: ${error.message}`);
+        showError(`Search failed: ${error.message}`);
       }
     });
 
@@ -307,7 +307,7 @@
       const flightsList = document.getElementById('flights-list');
       const resultsCount = document.getElementById('results-count');
 
-      resultsCount.textContent = `Найдено рейсов: ${offers.length}`;
+      resultsCount.textContent = `Flights found: ${offers.length}`;
       flightsList.innerHTML = '';
 
       offers.forEach((offer, index) => {
@@ -369,13 +369,13 @@
           <div class="flex flex-col items-end gap-3 lg:w-48">
             <div class="text-right">
               <div class="text-3xl font-bold text-blue-600">${Math.round(price)} ${currency}</div>
-              <div class="text-sm text-gray-500">за взрослого</div>
+              <div class="text-sm text-gray-500">per adult</div>
             </div>
             <button
               onclick="selectFlight(${index})"
               class="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 px-6 rounded-lg transition-all shadow-md hover:shadow-lg"
             >
-              Выбрать
+              Select
             </button>
           </div>
         </div>
@@ -399,7 +399,7 @@
       // 3. Or redirect to booking page with offer_id
 
       // For now, show alert with offer ID
-      alert(`Рейс выбран!\n\nOffer ID: ${selectedOffer.offer_id || selectedOffer.id}\n\nДалее откроется форма пассажира для завершения бронирования.`);
+      alert(`Flight selected!\n\nOffer ID: ${selectedOffer.offer_id || selectedOffer.id}\n\nThe passenger form will open to complete the booking.`);
 
       // If embedded in iframe, send message to parent
       if (window.parent !== window) {
@@ -419,7 +419,7 @@
       if (!dateString) return 'N/A';
       try {
         const date = new Date(dateString);
-        return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       } catch {
         return dateString;
       }
@@ -428,13 +428,13 @@
     function showLoading() {
       document.getElementById('loading-screen').classList.remove('hidden');
       document.getElementById('search-btn').disabled = true;
-      document.getElementById('search-btn').textContent = 'Поиск...';
+      document.getElementById('search-btn').textContent = 'Searching...';
     }
 
     function hideLoading() {
       document.getElementById('loading-screen').classList.add('hidden');
       document.getElementById('search-btn').disabled = false;
-      document.getElementById('search-btn').textContent = 'Найти рейсы';
+      document.getElementById('search-btn').textContent = 'Search Flights';
     }
 
     function showError(message) {

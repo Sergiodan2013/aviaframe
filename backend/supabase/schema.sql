@@ -89,8 +89,13 @@ CREATE TABLE IF NOT EXISTS public.orders (
   contact_phone TEXT NOT NULL,
 
   -- Additional data
-  payment_method TEXT, -- 'card', 'paypal', etc.
+  payment_method TEXT DEFAULT 'bank_transfer' CHECK (payment_method IN ('cash', 'bank_transfer', 'online')),
+  payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded')),
   payment_transaction_id TEXT,
+  claimed_at TIMESTAMPTZ,
+  claim_token TEXT,
+  claim_token_expires_at TIMESTAMPTZ,
+  order_meta JSONB DEFAULT '{}',
   raw_offer_data JSONB, -- Full offer data from search
   raw_drct_response JSONB, -- Full response from DRCT create_order
   notes TEXT, -- Admin notes
@@ -218,6 +223,26 @@ CREATE INDEX idx_orders_agency_id ON public.orders(agency_id);
 CREATE INDEX idx_orders_status ON public.orders(status);
 CREATE INDEX idx_orders_drct_order_id ON public.orders(drct_order_id);
 CREATE INDEX idx_orders_created_at ON public.orders(created_at DESC);
+CREATE INDEX idx_orders_claim_token ON public.orders(claim_token);
+
+-- =====================================================
+-- ORDER_MESSAGES TABLE
+-- Client ↔ agency threaded communication per order
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.order_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  agency_id UUID REFERENCES public.agencies(id) ON DELETE SET NULL,
+  sender_role TEXT NOT NULL CHECK (sender_role IN ('client', 'agent', 'system')),
+  sender_user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  body TEXT NOT NULL,
+  client_read_at TIMESTAMPTZ,
+  agent_read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_order_messages_order_id ON public.order_messages(order_id, created_at);
+CREATE INDEX idx_order_messages_agency_id ON public.order_messages(agency_id);
 
 -- Passengers
 CREATE INDEX idx_passengers_order_id ON public.passengers(order_id);

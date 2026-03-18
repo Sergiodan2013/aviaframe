@@ -1,0 +1,143 @@
+openapi: 3.0.3
+info:
+  title: Aviaframe MVP - Booking/Auth/Messages API
+  version: 2026-02-26
+servers:
+  - url: https://admin.aviaframe.com/api
+paths:
+  /widget/orders:
+    post:
+      summary: Create order from widget flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contacts, offer, pricing]
+              properties:
+                widget_token:
+                  type: string
+                contacts:
+                  type: object
+                  required: [email, phone]
+                  properties:
+                    email: { type: string, format: email }
+                    phone: { type: string }
+                offer:
+                  type: object
+                  required: [origin, destination]
+                  properties:
+                    origin: { type: string }
+                    destination: { type: string }
+                    departure_time: { type: string, nullable: true }
+                    arrival_time: { type: string, nullable: true }
+                pricing:
+                  type: object
+                  required: [total_price]
+                  properties:
+                    total_price: { type: number }
+                    currency: { type: string, example: USD }
+                payment_method:
+                  type: string
+                  enum: [cash, bank_transfer, online]
+      responses:
+        '201':
+          description: Created
+  /auth/claim-order:
+    post:
+      summary: Link anonymous order to authenticated user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claim_token]
+              properties:
+                claim_token:
+                  type: string
+      responses:
+        '200':
+          description: Claimed
+        '404':
+          description: Claim token not found
+        '410':
+          description: Claim token expired
+  /orders:
+    get:
+      summary: List orders in caller scope
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /orders/{orderId}/messages:
+    get:
+      summary: Get order message thread
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Send message in order thread
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+      responses:
+        '201':
+          description: Created
+  /orders/{orderId}/messages/read:
+    post:
+      summary: Mark thread or selected messages as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: OK
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+

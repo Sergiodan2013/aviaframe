@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skyways Travel & Tourism Agency | AviaFrame</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+</head>
+<body>
+  <header class="header">
+    <div class="lang-switcher">
+      <button class="lang-opt" data-lang="en" onclick="applyLang('en')">EN</button>
+      <button class="lang-opt" data-lang="ar" onclick="applyLang('ar')">عر</button>
+    </div>
+    <div class="container header-inner">
+      <img class="logo" src="./assets/skyways-logo.svg" alt="Skyways Travel & Tourism Agency" />
+      <div class="brand-arabic">وكالة الطرق الجوية للسفر والسياحة</div>
+      <div class="brand-name" data-i18n="brandName">Skyways Travel &amp; Tourism Agency</div>
+      <div class="contact-mini">info@skywaysksa.com · www.skywaysksa.com</div>
+    </div>
+  </header>
+
+  <section class="widget-first">
+    <div class="container">
+      <div class="widget-main">
+        <h2 class="widget-title" data-i18n="widgetTitle">Find the Best Flight Deals Now</h2>
+        <p class="widget-subtitle" data-i18n="widgetSubtitle">Powered by AviaFrame search. Compare options and book with confidence.</p>
+
+        <div
+          id="aviaframe-widget"
+          data-aviaframe-widget
+          data-api-url="https://admin.aviaframe.com/api/n8n/webhook/drct/search"
+          data-booking-url="https://admin.aviaframe.com/api/n8n/webhook/drct/order/create"
+          data-brand-name="Skyways"
+          data-brand-color="#1a6db5"
+          data-accent-color="#f06b2b"
+          data-title="Search Flights"
+          data-primary-color="#1a6db5"
+        ></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hero">
+    <div class="container hero-grid">
+      <article class="hero-card">
+        <span class="badge">skyways.aviaframe.com</span>
+        <h1 data-i18n="heroTitle">Best Airfares, Visa Support, and Complete Travel Services</h1>
+        <p class="lead" data-i18n="heroLead">
+          Skyways Travel &amp; Tourism Agency is your trusted travel partner in Jeddah.
+          Located in Azizia District, our experienced team provides comprehensive travel
+          solutions — from international flight bookings to complete tour packages and visa assistance.
+        </p>
+      </article>
+
+      <aside class="hero-card">
+        <h3 class="side-title" data-i18n="sideTitle">Our Services</h3>
+        <ul class="clean-list">
+          <li data-i18n="s1">Domestic &amp; international flight bookings</li>
+          <li data-i18n="s2">Hotel reservations worldwide</li>
+          <li data-i18n="s3">Visa application support</li>
+          <li data-i18n="s4">Medical travel insurance</li>
+          <li data-i18n="s5">Umrah &amp; Hajj packages</li>
+          <li data-i18n="s6">Tour packages &amp; holidays</li>
+          <li data-i18n="s7">Airport transfers</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <main class="main">
+    <div class="container main-grid">
+      <article class="info-card">
+        <h2 data-i18n="contactTitle">Contact</h2>
+        <div class="phones">
+          <a class="phone phone-email" href="mailto:info@skywaysksa.com">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            info@skywaysksa.com
+          </a>
+          <a class="phone phone-web" href="https://www.skywaysksa.com" target="_blank">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            www.skywaysksa.com
+          </a>
+          <div class="phone">📍 Azizia District, Jeddah, Saudi Arabia</div>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <strong data-i18n="brandName">Skyways Travel &amp; Tourism Agency</strong><br />
+        وكالة الطرق الجوية للسفر والسياحة<br />
+        Jeddah, Saudi Arabia
+      </div>
+      <div>
+        info@skywaysksa.com
+      </div>
+      <div class="subdomain-note">Host: skyways.aviaframe.com</div>
+    </div>
+  </footer>
+
+  <script src="./assets/aviaframe-widget.js"></script>
+  <script>
+    var I18N = {
+      en: {
+        brandName: 'Skyways Travel & Tourism Agency',
+        widgetTitle: 'Find the Best Flight Deals Now',
+        widgetSubtitle: 'Powered by AviaFrame search. Compare options and book with confidence.',
+        heroTitle: 'Best Airfares, Visa Support, and Complete Travel Services',
+        heroLead: 'Skyways Travel & Tourism Agency is your trusted travel partner in Jeddah. Located in Azizia District, our experienced team provides comprehensive travel solutions — from international flight bookings to complete tour packages and visa assistance.',
+        sideTitle: 'Our Services',
+        s1: 'Domestic & international flight bookings',
+        s2: 'Hotel reservations worldwide',
+        s3: 'Visa application support',
+        s4: 'Medical travel insurance',
+        s5: 'Umrah & Hajj packages',
+        s6: 'Tour packages & holidays',
+        s7: 'Airport transfers',
+        contactTitle: 'Contact',
+      },
+      ar: {
+        brandName: 'وكالة الطرق الجوية للسفر والسياحة',
+        widgetTitle: 'ابحث عن أفضل صفقات الطيران الآن',
+        widgetSubtitle: 'مدعوم من بحث أفيافريم. قارن الخيارات واحجز بثقة.',
+        heroTitle: 'أفضل أسعار الطيران، دعم التأشيرة، وخدمات السفر الشاملة',
+        heroLead: 'وكالة الطرق الجوية للسفر والسياحة هي شريككم الموثوق في جدة، حي العزيزية. فريقنا ذو الخبرة يقدم حلول سفر شاملة — من حجز الرحلات الدولية إلى باقات السياحة الكاملة ومساعدة التأشيرة.',
+        sideTitle: 'خدماتنا',
+        s1: 'حجز رحلات محلية ودولية',
+        s2: 'حجز فنادق حول العالم',
+        s3: 'دعم طلبات التأشيرة',
+        s4: 'تأمين السفر الطبي',
+        s5: 'باقات العمرة والحج',
+        s6: 'باقات السياحة والعطلات',
+        s7: 'خدمات نقل المطار',
+        contactTitle: 'التواصل',
+      }
+    };
+
+    var currentLang = localStorage.getItem('aviaframe_lang') || 'en';
+
+    function applyLang(lang) {
+      currentLang = lang;
+      localStorage.setItem('aviaframe_lang', lang);
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var key = el.dataset.i18n;
+        if (I18N[lang] && I18N[lang][key]) el.textContent = I18N[lang][key];
+      });
+      document.querySelectorAll('.lang-opt').forEach(function(btn) {
+        var isActive = btn.dataset.lang === lang;
+        btn.style.background = isActive ? 'rgba(255,255,255,0.3)' : 'transparent';
+        btn.style.color = isActive ? '#fff' : 'rgba(255,255,255,0.65)';
+        btn.style.fontWeight = isActive ? '800' : '600';
+      });
+    }
+
+    applyLang(currentLang);
+  </script>
+</body>
+</html>

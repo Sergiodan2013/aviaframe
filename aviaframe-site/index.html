@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AviaFrame | White-Label Flight Booking for Travel Agencies</title>
+    <meta name="description" content="Give your travel agency a fully branded online booking experience in under a day. SAR 300/month. No setup fees. No per-booking charges." />
+    <meta property="og:title" content="AviaFrame — White-Label Flight Booking for Agencies" />
+    <meta property="og:description" content="Your clients book flights under your brand. Live in a day. SAR 300/month." />
+    <meta property="og:image" content="/images/og-cover.svg" />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/style.css" />
+    <script>
+      if (window.location.hostname === 'app.aviaframe.com' && window.location.pathname === '/') {
+        window.location.replace('/app-preview.html');
+      }
+    </script>
+  </head>
+  <body>
+
+    <!-- NAV -->
+    <nav class="site-nav">
+      <div class="site-nav-inner">
+        <a class="brand" href="/">
+          <img class="brand-logo" src="/images/aviaframe-logo.svg" alt="AviaFrame" />
+        </a>
+        <div class="nav-links">
+          <a class="nav-link" href="/widget-demo.html">Widget Demo</a>
+          <a class="nav-link" href="#pricing">Pricing</a>
+          <a class="nav-link" href="/docs/">Docs</a>
+          <a class="nav-link btn-nav-cta" href="#contact">Contact Sales</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero-section" id="hero">
+      <div class="content-wrap hero-grid">
+        <div class="hero-text">
+          <span class="eyebrow animate">White-label flight booking · Travel agencies</span>
+          <h1 class="animate" style="animation-delay:.06s">Your clients book flights under your brand. Live in a day.</h1>
+          <p class="lead animate" style="animation-delay:.12s">
+            AviaFrame is a ready-made booking platform — embeddable widget, order management portal, automated notifications. Under your brand, without months of development.
+          </p>
+          <div class="hero-chips animate" style="animation-delay:.16s">
+            <span class="chip">Branded widget</span>
+            <span class="chip">Free subdomain setup</span>
+            <span class="chip">Order management</span>
+            <span class="chip">Live in &lt;24h</span>
+          </div>
+          <div class="hero-actions animate" style="animation-delay:.18s">
+            <a class="btn-primary" href="#contact">Get Started — SAR 300/mo</a>
+            <a class="btn-ghost" href="/widget-demo.html">See Live Demo</a>
+          </div>
+          <div class="hero-stats animate" style="animation-delay:.22s">
+            <div class="stat-item"><strong>SAR 300</strong><span>flat monthly fee</span></div>
+            <div class="stat-sep"></div>
+            <div class="stat-item"><strong>Free</strong><span>setup &amp; onboarding</span></div>
+            <div class="stat-sep"></div>
+            <div class="stat-item"><strong>&lt;24h</strong><span>from sign-up to live</span></div>
+          </div>
+        </div>
+        <div class="hero-widget animate" style="animation-delay:.24s">
+          <a href="/widget-demo.html" class="widget-preview" aria-label="Try the live widget demo">
+            <div class="wp-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>
+              Flight Search
+            </div>
+            <div class="wp-form">
+              <div class="wp-row">
+                <div class="wp-field"><div class="wp-label">From</div><div class="wp-input">Riyadh (RUH)</div></div>
+                <div class="wp-swap">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+                </div>
+                <div class="wp-field"><div class="wp-label">To</div><div class="wp-input">Dubai (DXB)</div></div>
+              </div>
+              <div class="wp-row">
+                <div class="wp-field"><div class="wp-label">Departure</div><div class="wp-input">Apr 15, 2026</div></div>
+                <div class="wp-field"><div class="wp-label">Return</div><div class="wp-input">Apr 22, 2026</div></div>
+                <div class="wp-field" style="max-width:90px"><div class="wp-label">Pax</div><div class="wp-input">1 Adult</div></div>
+              </div>
+              <button class="wp-btn" tabindex="-1">Search Flights</button>
+            </div>
+            <div class="wp-result">
+              <div><div class="wp-airline-name">flynas</div><div class="wp-flight-no">XY 101</div></div>
+              <div class="wp-route">
+                <div class="wp-rt"><strong>07:00</strong><small>RUH</small></div>
+                <div class="wp-mid">──── ✈ ────<br/><span>Non-stop · 1h 55m</span></div>
+                <div class="wp-rt" style="text-align:right"><strong>09:55</strong><small>DXB</small></div>
+              </div>
+              <div class="wp-price"><div class="wp-amount">490 <span>SAR</span></div><div class="wp-sel">Select</div></div>
+            </div>
+            <div class="wp-result wp-result-dim">
+              <div><div class="wp-airline-name">Saudia</div><div class="wp-flight-no">SV 813</div></div>
+              <div class="wp-route">
+                <div class="wp-rt"><strong>10:30</strong><small>RUH</small></div>
+                <div class="wp-mid">──── ✈ ────<br/><span>Non-stop · 2h 05m</span></div>
+                <div class="wp-rt" style="text-align:right"><strong>12:35</strong><small>DXB</small></div>
+              </div>
+              <div class="wp-price"><div class="wp-amount">620 <span>SAR</span></div><div class="wp-sel">Select</div></div>
+            </div>
+            <div class="wp-overlay"><span>Try live demo →</span></div>
+          </a>
+        </div>
+      </div>
+      <div class="airlines-strip">
+        <div class="content-wrap airlines-inner">
+          <span class="airlines-label">Flights from</span>
+          <span class="airline-tag">flynas</span>
+          <span class="airline-tag">Saudia</span>
+          <span class="airline-tag">flydubai</span>
+          <span class="airline-tag">Emirates</span>
+          <span class="airline-tag">Air Arabia</span>
+          <span class="airline-tag">Qatar Airways</span>
+          <span class="airline-tag">Turkish Airlines</span>
+          <span class="airline-tag">Etihad</span>
+          <span class="airlines-more">+50 more</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="section-light" id="how">
+      <div class="content-wrap">
+        <div class="section-header">
+          <h2>Up and running in 3 steps</h2>
+          <p>We handle the technical setup. You handle the bookings.</p>
+        </div>
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-num">01</div>
+            <h3>Register your agency</h3>
+            <p>Create your agency account in the AviaFrame portal. Get your management dashboard and API key — ready in minutes.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-num">02</div>
+            <h3>Choose your setup</h3>
+            <p>Get a ready-made booking site at <em>agency.aviaframe.com</em> — or embed the widget on your existing website with 2 lines of code. Both are free to set up.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-num">03</div>
+            <h3>Start taking bookings</h3>
+            <p>Your clients search, book, and pay online 24/7. Orders appear in your portal instantly. E-tickets are delivered automatically.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRICING -->
+    <section class="section-dark" id="pricing">
+      <div class="content-wrap">
+        <div class="section-header-light">
+          <span class="eyebrow-light">Pricing</span>
+          <h2 class="h-light">One plan. Everything included.</h2>
+          <p class="p-light">No setup fees. No per-booking charges. No surprises. Cancel any time.</p>
+        </div>
+        <div class="pricing-grid">
+
+          <!-- Card -->
+          <div class="pricing-card">
+            <div class="plan-label">Agency Platform</div>
+            <div class="plan-price">SAR 300<span>/month</span></div>
+            <div class="plan-desc">Everything your agency needs to sell flights online</div>
+            <ul class="plan-features">
+              <li>Real-time flight search (50+ airports)</li>
+              <li>Branded site on your subdomain — free</li>
+              <li>Embeddable widget for your existing site</li>
+              <li>Order management &amp; ticketing portal</li>
+              <li>Automated e-ticket PDF delivery</li>
+              <li>Email notifications to clients</li>
+              <li>Agency markup configuration</li>
+              <li>Multi-passenger bookings</li>
+              <li>24/7 client self-service booking</li>
+            </ul>
+            <div class="plan-badges">
+              <span>Free setup</span>
+              <span>Free onboarding</span>
+              <span>Cancel any time</span>
+            </div>
+            <a class="btn-pricing-cta" href="#contact">Get Started Today</a>
+          </div>
+
+          <!-- Options -->
+          <div class="pricing-options">
+            <div class="option-item">
+              <div class="option-icon-wrap">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </div>
+              <div>
+                <h3>Ready-made booking site</h3>
+                <p>Get <strong>agency.aviaframe.com</strong> — a fully branded flight booking website, live within 24 hours. Your clients can search and book online around the clock. Zero development, zero delays.</p>
+                <div class="option-tags"><span>Free setup</span><span>Live in &lt;24 hours</span><span>Your logo &amp; colors</span></div>
+              </div>
+            </div>
+            <div class="option-item">
+              <div class="option-icon-wrap">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </div>
+              <div>
+                <h3>Embed on your existing site</h3>
+                <p>Already have a website? Add <strong>2 lines of HTML</strong> and your existing site instantly gets full-featured flight booking. Works on WordPress, plain HTML, React, Vue — anything.</p>
+                <div class="option-tags"><span>Free setup</span><span>Live in 30 minutes</span><span>Any website platform</span></div>
+              </div>
+            </div>
+            <div class="option-item option-item-accent">
+              <div class="option-icon-wrap">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div>
+                <h3>Both options in one subscription</h3>
+                <p>One SAR 300/month plan includes both the subdomain site <em>and</em> the embeddable widget. Use whichever fits your workflow — or both at once.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="section-light" id="features">
+      <div class="content-wrap">
+        <div class="section-header">
+          <h2>Everything your agency needs</h2>
+          <p>A complete platform — built for travel agencies of every size.</p>
+        </div>
+        <div class="features-grid">
+
+          <div class="feature-card">
+            <div class="feature-icon-wrap">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/>
+              </svg>
+            </div>
+            <h3>Booking Widget</h3>
+            <p>Fully brandable flight search widget. Set your logo, colors, and language. Works on any website platform in minutes.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon-wrap">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+              </svg>
+            </div>
+            <h3>Management Portal</h3>
+            <p>View and manage every booking, send payment instructions, issue tickets, upload travel documents — from a clean web dashboard.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon-wrap">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+            </div>
+            <h3>Automated Notifications</h3>
+            <p>Clients receive confirmation emails, booking updates, and e-ticket PDFs automatically. Configure once, runs forever.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon-wrap">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
+            <h3>Agency Markup</h3>
+            <p>Set a fixed SAR amount or a percentage margin on every ticket. You control what your clients pay. Your fee is yours — paid monthly by invoice.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon-wrap">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <h3>Isolated &amp; Secure</h3>
+            <p>Each agency is completely isolated — your clients, orders, and data are never mixed with anyone else. Role-based access for your team.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon-wrap">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="2.5"/>
+              </svg>
+            </div>
+            <h3>Mobile-Ready</h3>
+            <p>The widget and booking flow are fully responsive. Clients search and book on phone, tablet, or desktop — no app required.</p>
+          </div>
+
+        </div>
+
+        <div class="features-cta">
+          <p>Ready to launch your agency online?</p>
+          <a class="btn-primary" href="#contact">Contact Sales →</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTACT -->
+    <section class="section-light section-contact" id="contact">
+      <div class="content-wrap">
+        <div class="contact-grid">
+          <div class="contact-info">
+            <span class="eyebrow">Get started</span>
+            <h2>Let's set up your agency</h2>
+            <p class="contact-lead">Tell us about your agency and we'll get back to you within one business day. Setup is free and takes under 24 hours.</p>
+            <div class="contact-channels">
+              <a class="contact-channel" href="mailto:sales@aviaframe.com">
+                <span class="cc-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                </span>
+                sales@aviaframe.com
+              </a>
+              <a class="contact-channel" href="https://wa.me/966505632561">
+                <span class="cc-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                WhatsApp +966 50 563 2561
+              </a>
+              <div class="contact-channel">
+                <span class="cc-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </span>
+                Response within 1 business day
+              </div>
+            </div>
+            <div class="contact-promises">
+              <div class="promise">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Free setup &amp; onboarding
+              </div>
+              <div class="promise">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                No technical skills required
+              </div>
+              <div class="promise">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Live in under 24 hours
+              </div>
+              <div class="promise">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Cancel any time
+              </div>
+            </div>
+          </div>
+
+          <div class="contact-form-card">
+            <form class="contact-form" name="contact-sales" method="POST" data-netlify="true" netlify>
+              <input type="hidden" name="form-name" value="contact-sales" />
+              <div class="form-row-2">
+                <div class="fg">
+                  <label for="f-company">Agency / Company Name *</label>
+                  <input id="f-company" name="company" type="text" placeholder="Al Salam Travel Agency" required />
+                </div>
+                <div class="fg">
+                  <label for="f-name">Your Name *</label>
+                  <input id="f-name" name="name" type="text" placeholder="Mohammed Al-Rashid" required />
+                </div>
+              </div>
+              <div class="form-row-2">
+                <div class="fg">
+                  <label for="f-email">Email Address *</label>
+                  <input id="f-email" name="email" type="email" placeholder="you@agency.com" required />
+                </div>
+                <div class="fg">
+                  <label for="f-phone">Phone / WhatsApp *</label>
+                  <input id="f-phone" name="phone" type="tel" placeholder="+966 5X XXX XXXX" required />
+                </div>
+              </div>
+              <div class="fg">
+                <label for="f-website">Agency Website (if you have one)</label>
+                <input id="f-website" name="website" type="url" placeholder="https://youragency.com" />
+              </div>
+              <div class="form-row-2">
+                <div class="fg">
+                  <label for="f-volume">Monthly bookings</label>
+                  <select id="f-volume" name="volume">
+                    <option value="">Select range…</option>
+                    <option>Less than 50/month</option>
+                    <option>50 – 200/month</option>
+                    <option>200 – 500/month</option>
+                    <option>500+/month</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label for="f-setup">Preferred setup</label>
+                  <select id="f-setup" name="setup">
+                    <option value="">Select…</option>
+                    <option>Ready-made site on subdomain</option>
+                    <option>Embed widget on my site</option>
+                    <option>Both options</option>
+                    <option>Not sure yet</option>
+                  </select>
+                </div>
+              </div>
+              <div class="fg">
+                <label for="f-message">Questions or comments</label>
+                <textarea id="f-message" name="message" rows="3" placeholder="Tell us about your agency, or ask anything…"></textarea>
+              </div>
+              <button class="btn-form" type="submit">Send Request →</button>
+              <p class="form-note">We reply within 1 business day. Your info is never shared with third parties.</p>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="site-footer">
+      <div class="footer-wrap">
+        <div class="footer-brand">
+          <img src="/images/aviaframe-logo.svg" alt="AviaFrame" style="height:28px;opacity:.85;filter:brightness(10)" />
+          <span>White-label flight booking for travel agencies.</span>
+          <span class="footer-legal-name">© 2026 Consolidator Aviatech Limited (شركة توحيد أفياتيك المحدودة)</span>
+        </div>
+        <div class="footer-cols">
+          <div class="footer-col">
+            <div class="footer-col-title">Platform</div>
+            <a href="/widget-demo.html">Widget Demo</a>
+            <a href="#pricing">Pricing</a>
+            <a href="/docs/">Documentation</a>
+            <a href="/app-preview.html">Portal Preview</a>
+          </div>
+          <div class="footer-col">
+            <div class="footer-col-title">Contact</div>
+            <a href="#contact">Contact Sales</a>
+            <a href="mailto:sales@aviaframe.com">sales@aviaframe.com</a>
+            <a href="mailto:support@aviaframe.com">support@aviaframe.com</a>
+            <a href="https://wa.me/966505632561">WhatsApp +966 50 563 2561</a>
+          </div>
+          <div class="footer-col">
+            <div class="footer-col-title">Legal</div>
+            <a href="/legal/terms-and-conditions.html">Terms &amp; Conditions</a>
+            <a href="/legal/refund-and-cancellation-policy.html">Refund Policy</a>
+            <a href="/legal/privacy-policy.html">Privacy Policy</a>
+            <a href="/legal/contact-information.html">Contact Information</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+  </body>
+</html>

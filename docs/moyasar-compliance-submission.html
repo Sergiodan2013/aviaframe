@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Moyasar PSP Onboarding — Consolidator Aviatech Limited</title>
+  <style>
+    @page {
+      margin: 25mm 20mm 25mm 20mm;
+      size: A4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.6;
+      color: #1a1a1a;
+      background: #fff;
+    }
+
+    /* Header */
+    .header {
+      border-bottom: 2px solid #1a1a1a;
+      padding-bottom: 14px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .header-brand { font-size: 15pt; font-weight: 700; letter-spacing: -0.3px; }
+    .header-brand span { color: #2563eb; }
+    .header-meta { font-size: 8.5pt; color: #555; text-align: right; line-height: 1.5; }
+
+    /* Intro block */
+    .intro {
+      margin-bottom: 28px;
+    }
+    .intro p { margin-bottom: 8px; }
+
+    /* Section */
+    .section { margin-bottom: 26px; }
+    .section-title {
+      font-size: 10pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #2563eb;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 4px;
+      margin-bottom: 12px;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+    }
+    th {
+      background: #f3f4f6;
+      font-weight: 600;
+      text-align: left;
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+    }
+    td {
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    /* URL list */
+    .url-list { list-style: none; }
+    .url-list li {
+      padding: 4px 0;
+      font-size: 9.5pt;
+      display: flex;
+      gap: 8px;
+    }
+    .url-list li::before { content: "→"; color: #2563eb; flex-shrink: 0; }
+    .url-list a { color: #1a1a1a; text-decoration: none; }
+
+    /* Flow steps */
+    .flow { counter-reset: step; }
+    .flow-step {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 8px;
+      align-items: flex-start;
+    }
+    .flow-step::before {
+      counter-increment: step;
+      content: counter(step);
+      background: #2563eb;
+      color: #fff;
+      font-size: 8.5pt;
+      font-weight: 700;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .flow-step p { font-size: 9.5pt; }
+    .flow-step strong { font-weight: 600; }
+
+    /* Highlight */
+    .highlight-box {
+      background: #eff6ff;
+      border-left: 3px solid #2563eb;
+      padding: 8px 12px;
+      font-size: 9.5pt;
+      margin-top: 12px;
+    }
+
+    /* Footer */
+    .doc-footer {
+      margin-top: 32px;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 8.5pt;
+      color: #6b7280;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Signature block */
+    .signature {
+      margin-top: 24px;
+      font-size: 9.5pt;
+    }
+    .signature p { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="header-brand">Avia<span>Frame</span></div>
+      <div style="font-size:8.5pt;color:#555;margin-top:2px;">Consolidator Aviatech Limited</div>
+    </div>
+    <div class="header-meta">
+      CR: 7040488483 &nbsp;|&nbsp; VAT: 312321814500003<br>
+      Riyadh, Kingdom of Saudi Arabia<br>
+      Date: March 17, 2026
+    </div>
+  </div>
+
+  <!-- Intro -->
+  <div class="intro">
+    <p><strong>To:</strong> Moyasar Onboarding Team</p>
+    <p><strong>Re:</strong> PSP Merchant Account Application — Website Compliance Documentation</p>
+    <br>
+    <p>In response to Moyasar's onboarding requirements for merchant account approval, we provide below the requested compliance documentation, including: publicly accessible legal pages covering products, pricing, refund policy, and contact information; a description of our business model and payment flow; and a demonstration of how acquiring fees are disclosed to end customers prior to payment confirmation.</p>
+  </div>
+
+  <!-- 1. Legal Pages -->
+  <div class="section">
+    <div class="section-title">1. Legal Pages — Publicly Accessible</div>
+    <p style="margin-bottom:10px;font-size:9.5pt;">All pages are live at <strong>aviaframe.com/legal/</strong> and return HTTP 200. No authentication is required.</p>
+    <ul class="url-list">
+      <li><a href="https://aviaframe.com/legal/">https://aviaframe.com/legal/</a> &nbsp;— Legal index</li>
+      <li><a href="https://aviaframe.com/legal/terms-and-conditions.html">https://aviaframe.com/legal/terms-and-conditions.html</a> &nbsp;— Terms &amp; Conditions</li>
+      <li><a href="https://aviaframe.com/legal/pricing.html">https://aviaframe.com/legal/pricing.html</a> &nbsp;— Pricing (products &amp; fees)</li>
+      <li><a href="https://aviaframe.com/legal/refund-and-cancellation-policy.html">https://aviaframe.com/legal/refund-and-cancellation-policy.html</a> &nbsp;— Refund &amp; Cancellation Policy</li>
+      <li><a href="https://aviaframe.com/legal/privacy-policy.html">https://aviaframe.com/legal/privacy-policy.html</a> &nbsp;— Privacy Policy</li>
+      <li><a href="https://aviaframe.com/legal/contact-information.html">https://aviaframe.com/legal/contact-information.html</a> &nbsp;— Contact Information</li>
+    </ul>
+  </div>
+
+  <!-- 2. Business Model -->
+  <div class="section">
+    <div class="section-title">2. Business Model &amp; Transaction Types</div>
+    <p style="margin-bottom:10px;font-size:9.5pt;">Consolidator Aviatech Limited operates a white-label flight booking SaaS platform. One Moyasar merchant account will process two distinct transaction types:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Transaction</th>
+          <th>Payer</th>
+          <th>Amount</th>
+          <th>Frequency</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Flight ticket purchase</td>
+          <td>End customer (passenger)</td>
+          <td>Variable SAR — airline fare + agency markup + acquiring fee</td>
+          <td>Per booking</td>
+        </tr>
+        <tr>
+          <td>Platform subscription</td>
+          <td>Travel agency</td>
+          <td>SAR 300 / month</td>
+          <td>Monthly recurring</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top:10px;font-size:9.5pt;">Travel agencies embed the AviaFrame widget on their branded domains. End customers pay Consolidator Aviatech Limited directly. Agency service fees are remitted via monthly invoice.</p>
+  </div>
+
+  <!-- 3. Acquiring Fee -->
+  <div class="section">
+    <div class="section-title">3. Acquiring Fee Disclosure</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Payment Method</th>
+          <th>Fee Charged to Customer</th>
+          <th>Disclosed At</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Mada</td>
+          <td>1% of transaction total</td>
+          <td>Checkout — before payment confirmation</td>
+        </tr>
+        <tr>
+          <td>Visa / Mastercard</td>
+          <td>2.75% of transaction total</td>
+          <td>Checkout — before payment confirmation</td>
+        </tr>
+        <tr>
+          <td>Bank Transfer / Cash</td>
+          <td>0%</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="highlight-box">
+      The flight search results display: fare + agency markup only. The acquiring fee is added and shown explicitly when the customer selects a payment method at checkout — prior to any payment confirmation.
+    </div>
+  </div>
+
+  <!-- 4. Booking Flow -->
+  <div class="section">
+    <div class="section-title">4. End-to-End Booking Flow</div>
+    <div class="flow">
+      <div class="flow-step"><p>Customer enters route, date, and passenger count in the search widget on the agency's website.</p></div>
+      <div class="flow-step"><p>Platform returns available flights. Price shown = <strong>airline fare + agency markup</strong> (no acquiring fee at this stage).</p></div>
+      <div class="flow-step"><p>Customer selects a flight and fills in passenger details (name, passport, contact).</p></div>
+      <div class="flow-step"><p><strong>Checkout:</strong> customer selects payment method. Price updates in real time to include the acquiring fee for the selected method. Customer sees final payable amount before confirming.</p></div>
+      <div class="flow-step"><p>Customer confirms payment. Booking is issued with the airline via DRCT GDS.</p></div>
+      <div class="flow-step"><p>E-ticket and itinerary PDF are sent to the customer's email automatically.</p></div>
+    </div>
+    <div class="highlight-box" style="margin-top:14px;">
+      Live booking demo: <strong>https://aviaframe.com/widget-demo.html</strong>
+    </div>
+  </div>
+
+  <!-- 5. Company Details -->
+  <div class="section">
+    <div class="section-title">5. Merchant Entity Details</div>
+    <table>
+      <tbody>
+        <tr><td style="width:42%;font-weight:600;">Legal Name (EN)</td><td>Consolidator Aviatech Limited</td></tr>
+        <tr><td style="font-weight:600;">Legal Name (AR)</td><td>شركة توحيد أفياتيك المحدودة</td></tr>
+        <tr><td style="font-weight:600;">CR Number</td><td>7040488483</td></tr>
+        <tr><td style="font-weight:600;">VAT Number</td><td>312321814500003</td></tr>
+        <tr><td style="font-weight:600;">Registered Address</td><td>7529 Salahuddin Al Ayyubi Branch, Al Zahra District, Riyadh 12811, KSA</td></tr>
+        <tr><td style="font-weight:600;">Support</td><td>support@aviaframe.com &nbsp;|&nbsp; +966 50 563 2561</td></tr>
+        <tr><td style="font-weight:600;">Billing</td><td>billing@aviaframe.com</td></tr>
+        <tr><td style="font-weight:600;">Complaints</td><td>complaints@aviaframe.com</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Signature -->
+  <div class="signature">
+    <p>Submitted by:</p>
+    <br>
+    <p><strong>Consolidator Aviatech Limited</strong></p>
+    <p>support@aviaframe.com &nbsp;|&nbsp; +966 50 563 2561</p>
+    <p>aviaframe.com</p>
+  </div>
+
+  <!-- Footer -->
+  <div class="doc-footer">
+    <span>Consolidator Aviatech Limited — CR 7040488483 — VAT 312321814500003</span>
+    <span>Moyasar PSP Onboarding Submission — March 2026</span>
+  </div>
+
+</body>
+</html>

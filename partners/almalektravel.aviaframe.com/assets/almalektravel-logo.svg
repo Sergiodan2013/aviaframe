@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 250">
+  <defs>
+    <!-- M: dark navy left → teal right -->
+    <linearGradient id="mGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1a3c8e"/>
+      <stop offset="48%" stop-color="#1e58b8"/>
+      <stop offset="100%" stop-color="#2ecbd8"/>
+    </linearGradient>
+    <!-- Ring: dark navy (upper-left) → teal (lower-right) -->
+    <linearGradient id="ringGrad" x1="55" y1="22" x2="222" y2="218" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a3c8e"/>
+      <stop offset="55%" stop-color="#2268c4"/>
+      <stop offset="100%" stop-color="#2ecbd8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- OUTER ring arc: from upper-right (near plane), clockwise around M, to upper-left -->
+  <path d="M 172,24 A 110,74 -20 1,1 68,52"
+        fill="none" stroke="url(#ringGrad)"
+        stroke-width="13" stroke-linecap="round"/>
+
+  <!-- INNER ring arc: slightly smaller, creates band/ribbon effect -->
+  <path d="M 160,40 A 95,63 -20 1,1 79,65"
+        fill="none" stroke="url(#ringGrad)"
+        stroke-width="6" stroke-linecap="round"/>
+
+  <!-- M letter: large bold, gradient, centered -->
+  <text x="140" y="200"
+        font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+        font-size="148" font-weight="900"
+        text-anchor="middle"
+        fill="url(#mGrad)">M</text>
+
+  <!-- Airplane: at top of ring gap, flying upper-right -->
+  <!-- Top-view airplane silhouette, rotated -35° -->
+  <g transform="translate(118,18) rotate(-32)">
+    <!-- Fuselage body -->
+    <ellipse cx="2" cy="0" rx="17" ry="3.5" fill="#1a4ab4"/>
+    <!-- Right wing -->
+    <path d="M 2,2 L -6,2 L -10,18 L -5,16 L -2,3 Z" fill="#1a4ab4"/>
+    <!-- Left wing -->
+    <path d="M 2,-2 L -6,-2 L -10,-18 L -5,-16 L -2,-3 Z" fill="#1a4ab4"/>
+    <!-- Nose point -->
+    <polygon points="19,0 14,-2 14,2" fill="#2060b8"/>
+    <!-- Right tail fin -->
+    <path d="M -14,2 L -19,9 L -15,3 Z" fill="#1a4ab4"/>
+    <!-- Left tail fin -->
+    <path d="M -14,-2 L -19,-9 L -15,-3 Z" fill="#1a4ab4"/>
+  </g>
+</svg>

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import AirportAutocomplete from './AirportAutocomplete';
+import { useTranslation } from '../i18n/index.jsx';
 
 export default function SearchForm({ onSearch, isLoading }) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     origin: '',
     destination: '',
@@ -48,12 +50,12 @@ export default function SearchForm({ onSearch, isLoading }) {
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6 space-y-4">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">Search Flights</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">{t('search.title')}</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Origin */}
         <AirportAutocomplete
-          label="From"
+          label={t('search.from')}
           value={formData.origin}
           onChange={(value) => handleAirportChange('origin', value)}
           placeholder="Paris, London, LHR..."
@@ -62,7 +64,7 @@ export default function SearchForm({ onSearch, isLoading }) {
 
         {/* Destination */}
         <AirportAutocomplete
-          label="To"
+          label={t('search.to')}
           value={formData.destination}
           onChange={(value) => handleAirportChange('destination', value)}
           placeholder="London, Paris, CDG..."
@@ -72,7 +74,7 @@ export default function SearchForm({ onSearch, isLoading }) {
         {/* Depart Date */}
         <div>
           <label htmlFor="depart_date" className="block text-sm font-medium text-gray-700 mb-1">
-            Departure Date
+            {t('search.depart')}
           </label>
           <input
             type="date"
@@ -89,7 +91,7 @@ export default function SearchForm({ onSearch, isLoading }) {
         {/* Return Date */}
         <div>
           <label htmlFor="return_date" className="block text-sm font-medium text-gray-700 mb-1">
-            Return Date (Optional)
+            {t('search.return')}
           </label>
           <input
             type="date"
@@ -105,7 +107,7 @@ export default function SearchForm({ onSearch, isLoading }) {
         {/* Adults */}
         <div>
           <label htmlFor="adults" className="block text-sm font-medium text-gray-700 mb-1">
-            Adults
+            {t('search.adults')}
           </label>
           <input
             type="number"
@@ -123,7 +125,7 @@ export default function SearchForm({ onSearch, isLoading }) {
         {/* Children */}
         <div>
           <label htmlFor="children" className="block text-sm font-medium text-gray-700 mb-1">
-            Children (2-11 years)
+            {t('search.children')}
           </label>
           <input
             type="number"
@@ -140,7 +142,7 @@ export default function SearchForm({ onSearch, isLoading }) {
         {/* Infants */}
         <div>
           <label htmlFor="infants" className="block text-sm font-medium text-gray-700 mb-1">
-            Infants (under 2 years)
+            {t('search.infants')}
           </label>
           <input
             type="number"
@@ -157,7 +159,7 @@ export default function SearchForm({ onSearch, isLoading }) {
         {/* Cabin Class */}
         <div>
           <label htmlFor="cabin_class" className="block text-sm font-medium text-gray-700 mb-1">
-            Cabin Class
+            {t('search.cabin')}
           </label>
           <select
             id="cabin_class"
@@ -166,10 +168,10 @@ export default function SearchForm({ onSearch, isLoading }) {
             onChange={handleChange}
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="economy">Economy</option>
-            <option value="premium_economy">Premium Economy</option>
-            <option value="business">Business</option>
-            <option value="first">First Class</option>
+            <option value="economy">{t('search.economy')}</option>
+            <option value="premium_economy">{t('search.premiumEconomy')}</option>
+            <option value="business">{t('search.business')}</option>
+            <option value="first">{t('search.first')}</option>
           </select>
         </div>
       </div>
@@ -183,12 +185,12 @@ export default function SearchForm({ onSearch, isLoading }) {
         {isLoading ? (
           <>
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-            Searching...
+            {t('search.searching')}
           </>
         ) : (
           <>
             <Search size={20} />
-            Search Flights
+            {t('search.button')}
           </>
         )}
       </button>

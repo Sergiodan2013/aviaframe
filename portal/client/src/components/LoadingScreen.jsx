@@ -1,4 +1,7 @@
+import { useTranslation } from '../i18n/index.jsx';
+
 export default function LoadingScreen() {
+  const { t } = useTranslation();
   return (
     <div className="bg-white rounded-lg shadow-md p-12 text-center">
       {/* Illustration */}
@@ -42,11 +45,12 @@ export default function LoadingScreen() {
 
       {/* Text */}
       <h3 className="text-2xl font-bold text-gray-800 mb-3">
-        Searching flights
+        {t('loading.title')}
       </h3>
-      <p className="text-gray-600 mb-6">
-        Comparing offers from multiple airlines...
+      <p className="text-gray-600 mb-1">
+        {t('loading.comparing')}
       </p>
+      <p className="text-gray-400 text-sm mb-6">{t('loading.hint')}</p>
 
       {/* Progress bar */}
       <div className="max-w-md mx-auto">

@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pricing | AviaFrame</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; color: #1f2937; background: #f8fafc; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 64px; background: #fff; min-height: 100vh; }
+    h1, h2, h3 { color: #0f172a; }
+    h1 { font-size: 30px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin-top: 40px; }
+    h3 { font-size: 16px; margin: 20px 0 6px; color: #334155; font-weight: 600; }
+    p, li { line-height: 1.7; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #64748b; margin-bottom: 24px; }
+    .nav { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+    .nav a { color: #2563eb; }
+    .nav .sep { color: #cbd5e1; }
+
+    /* Product cards */
+    .products { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0 32px; }
+    @media (max-width: 600px) { .products { grid-template-columns: 1fr; } }
+    .product-card { border: 2px solid #e2e8f0; border-radius: 14px; padding: 22px; }
+    .product-card.highlight { border-color: #2563eb; background: #f0f7ff; }
+    .product-badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 10px; border-radius: 20px; margin-bottom: 10px; }
+    .badge-saas { background: #ede9fe; color: #5b21b6; }
+    .badge-booking { background: #dcfce7; color: #15803d; }
+    .product-title { font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 6px; }
+    .product-price { font-size: 32px; font-weight: 800; color: #2563eb; margin: 10px 0 4px; line-height: 1; }
+    .product-price span { font-size: 15px; font-weight: 500; color: #64748b; }
+    .product-desc { font-size: 14px; color: #475569; margin: 0 0 14px; line-height: 1.6; }
+    .product-features { list-style: none; padding: 0; margin: 0; }
+    .product-features li { font-size: 14px; color: #334155; padding: 4px 0; display: flex; align-items: flex-start; gap: 8px; }
+    .product-features li::before { content: "✓"; color: #16a34a; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+    /* Fee breakdown */
+    table { width: 100%; border-collapse: collapse; margin: 14px 0; }
+    th { background: #f1f5f9; color: #334155; text-align: left; padding: 10px 14px; font-size: 14px; }
+    td { padding: 10px 14px; border-top: 1px solid #e2e8f0; font-size: 15px; vertical-align: top; }
+
+    /* Example */
+    .example-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin: 14px 0; }
+    .example-title { font-size: 13px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+    .example-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 15px; }
+    .example-row .lbl { color: #64748b; }
+    .example-row .amt { color: #0f172a; }
+    .example-row.total { font-weight: 700; border-top: 1px solid #cbd5e1; margin-top: 8px; padding-top: 12px; font-size: 17px; }
+    .example-row.total .amt { color: #2563eb; }
+    .example-methods { margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 14px; }
+    .method-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; font-size: 14px; }
+    .method-label { color: #334155; display: flex; align-items: center; gap: 8px; }
+    .method-fee { color: #64748b; font-size: 13px; }
+    .method-total { font-weight: 700; color: #0f172a; }
+    .method-best { background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+
+    .info { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 14px; }
+    .divider { border: none; border-top: 2px solid #e2e8f0; margin: 40px 0; }
+    footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #94a3b8; }
+    footer a { color: #64748b; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <nav class="nav">
+      <a href="/legal/">Legal Home</a>
+      <span class="sep">·</span>
+      <a href="/legal/terms-and-conditions.html">Terms</a>
+      <span class="sep">·</span>
+      <strong>Pricing</strong>
+      <span class="sep">·</span>
+      <a href="/legal/refund-and-cancellation-policy.html">Refund Policy</a>
+      <span class="sep">·</span>
+      <a href="/legal/privacy-policy.html">Privacy</a>
+      <span class="sep">·</span>
+      <a href="/legal/contact-information.html">Contact</a>
+    </nav>
+
+    <h1>Pricing</h1>
+    <p class="meta">Effective date: 2026-03-16 &nbsp;·&nbsp; All amounts in Saudi Riyal (SAR) &nbsp;·&nbsp; All prices include VAT where applicable</p>
+
+    <h2>Our Products</h2>
+    <p>AviaFrame, operated by Consolidator Aviatech Limited, provides two distinct services processed through a single Moyasar-licensed payment account:</p>
+
+    <div class="products">
+      <div class="product-card highlight">
+        <div class="product-badge badge-saas">For Travel Agencies</div>
+        <div class="product-title">Widget Platform Subscription</div>
+        <div class="product-price">SAR 300 <span>/ month</span></div>
+        <p class="product-desc">White-label online booking widget and agency subdomain — fully branded for your travel business.</p>
+        <ul class="product-features">
+          <li>Branded booking widget (embed on any site)</li>
+          <li>Agency subdomain (agency.aviaframe.com)</li>
+          <li>Real-time flight search and fare display</li>
+          <li>Booking management portal</li>
+          <li>Customer notifications and e-ticket delivery</li>
+          <li>Agency markup configuration</li>
+          <li>Monthly billing, cancel any time</li>
+        </ul>
+      </div>
+      <div class="product-card">
+        <div class="product-badge badge-booking">For Passengers</div>
+        <div class="product-title">Flight Booking Service</div>
+        <div class="product-price" style="font-size:22px;margin-top:14px">Fare + fees</div>
+        <p class="product-desc">End customers book and pay for airline tickets through AviaFrame-powered agency booking pages. Prices vary by route, airline, and date.</p>
+        <ul class="product-features">
+          <li>Real-time fare from connected airlines</li>
+          <li>All taxes and surcharges included</li>
+          <li>Agency service fee (set by agency)</li>
+          <li>Payment processing fee by method</li>
+          <li>E-ticket delivered by email</li>
+          <li>Cancellation / refund per fare rules</li>
+        </ul>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <h2>Flight Ticket Pricing Breakdown</h2>
+    <p>The total price shown to passengers before payment consists of:</p>
+
+    <table>
+      <tr>
+        <th>Component</th>
+        <th>Description</th>
+        <th>Amount</th>
+      </tr>
+      <tr>
+        <td><strong>Airline fare</strong></td>
+        <td>Base ticket price plus all airline-imposed taxes and surcharges. Set by the airline. Subject to availability until booking is confirmed.</td>
+        <td>Variable — shown in search results</td>
+      </tr>
+      <tr>
+        <td><strong>Agency service fee</strong></td>
+        <td>Optional fee configured by the travel agency operating this booking channel. May be a fixed SAR amount or a percentage. Some agencies charge zero.</td>
+        <td>0 – varies per agency</td>
+      </tr>
+      <tr>
+        <td><strong>Payment processing fee</strong></td>
+        <td>Covers card payment processing. Shown transparently at checkout based on selected payment method.</td>
+        <td>Depends on payment method (see below)</td>
+      </tr>
+    </table>
+
+    <h3>Payment Processing Fees by Method</h3>
+    <table>
+      <tr>
+        <th>Payment Method</th>
+        <th>Processing Fee</th>
+        <th>Example on SAR 1,000 ticket</th>
+      </tr>
+      <tr>
+        <td>Bank Transfer / Cash at Agency</td>
+        <td>No fee</td>
+        <td>SAR 0</td>
+      </tr>
+      <tr>
+        <td>Mada (debit card)</td>
+        <td>1%</td>
+        <td>SAR 10.00</td>
+      </tr>
+      <tr>
+        <td>Visa / Mastercard (credit or debit)</td>
+        <td>2.75%</td>
+        <td>SAR 27.50</td>
+      </tr>
+    </table>
+
+    <div class="info">Processing fee is calculated on the subtotal (airline fare + agency service fee) and shown on the payment screen before you confirm.</div>
+
+    <h3>Pricing Example</h3>
+    <div class="example-box">
+      <div class="example-title">Example: Route RUH → DXB, 1 adult, agency service fee SAR 33</div>
+      <div class="example-row"><span class="lbl">Airline fare</span><span class="amt">SAR 1,000</span></div>
+      <div class="example-row"><span class="lbl">Agency service fee</span><span class="amt">SAR 33</span></div>
+      <div class="example-row total"><span class="lbl">Subtotal</span><span class="amt">SAR 1,033</span></div>
+
+      <div class="example-methods">
+        <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:8px">Total payable depending on payment method:</div>
+        <div class="method-row">
+          <span class="method-label">🏦 Bank Transfer / Cash <span class="method-best">Best price</span></span>
+          <span><span class="method-fee">+SAR 0</span> &nbsp; <span class="method-total">SAR 1,033</span></span>
+        </div>
+        <div class="method-row">
+          <span class="method-label">💳 Mada</span>
+          <span><span class="method-fee">+SAR 10.33 (1%)</span> &nbsp; <span class="method-total">SAR 1,043.33</span></span>
+        </div>
+        <div class="method-row">
+          <span class="method-label">💳 Visa / Mastercard</span>
+          <span><span class="method-fee">+SAR 28.41 (2.75%)</span> &nbsp; <span class="method-total">SAR 1,061.41</span></span>
+        </div>
+      </div>
+    </div>
+
+    <h2>Currency and VAT</h2>
+    <p>All prices are displayed and charged in <strong>Saudi Riyal (SAR)</strong>. VAT (15%) is applied where required by Saudi tax law (ZATCA) and is included in the displayed price.</p>
+
+    <h2>Price Validity</h2>
+    <ul>
+      <li>Airline fares are retrieved in real time and may change before final confirmation due to seat availability or provider updates.</li>
+      <li>The price is locked at the payment confirmation step — no additional charges are added after you pay.</li>
+    </ul>
+
+    <h2>Platform Subscription Billing (for Agencies)</h2>
+    <p>The SAR 300/month platform subscription is billed monthly to the registered travel agency. The first charge is due at the start of the active subscription period. Subscription can be cancelled with 30 days written notice to <a href="mailto:billing@aviaframe.com">billing@aviaframe.com</a>.</p>
+
+    <h2>Changes and Refunds</h2>
+    <p>Ticket changes, cancellations, and refunds are subject to the airline's fare rules. See our <a href="/legal/refund-and-cancellation-policy.html">Refund and Cancellation Policy</a> for full details.</p>
+
+    <footer>
+      <p>Consolidator Aviatech Limited · CR 7040488483 · VAT 312321814500003 · <a href="/legal/">Legal pages</a> · <a href="/legal/contact-information.html">Contact us</a></p>
+    </footer>
+  </main>
+</body>
+</html>

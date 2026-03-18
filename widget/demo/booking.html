@@ -75,27 +75,56 @@
       const totalPrice = basePrice + baggagePrice;
       const currency = (selectedOffer.price || {}).currency || 'UAH';
 
+      const fallbackPassenger = {
+        type: 'ADT',
+        firstName: passenger.firstName,
+        lastName: passenger.lastName,
+        email: passenger.email,
+        phone: passenger.phone,
+        gender: passenger.gender || 'male',
+        dateOfBirth: passenger.dateOfBirth,
+        passportNumber: passenger.passportNumber,
+        passportExpiry: passenger.passportExpiry,
+        nationality
+      };
+      const requestedCounts = selectedOffer.passenger_counts || { adults: 1, children: 0, infants: 0 };
+      const passengersList = Array.isArray(passenger.passengers) && passenger.passengers.length > 0
+        ? passenger.passengers
+        : (() => {
+            const list = [];
+            for (let i = 0; i < Math.max(1, Number(requestedCounts.adults || 1)); i += 1) {
+              list.push({ ...fallbackPassenger, type: 'ADT' });
+            }
+            for (let i = 0; i < Math.max(0, Number(requestedCounts.children || 0)); i += 1) {
+              list.push({ ...fallbackPassenger, type: 'CHD' });
+            }
+            for (let i = 0; i < Math.max(0, Number(requestedCounts.infants || 0)); i += 1) {
+              list.push({ ...fallbackPassenger, type: 'INF' });
+            }
+            return list;
+          })();
+
       const payload = {
         offer_id: selectedOffer.offer_id,
-        passengers: [{
-          type: 'ADT',
-          first_name: passenger.firstName,
-          last_name: passenger.lastName,
-          date_of_birth: passenger.dateOfBirth,
-          gender: passenger.gender === 'male' ? 'M' : 'F',
+        passengers: passengersList.map((p) => ({
+          type: p.type || 'ADT',
+          first_name: p.firstName,
+          last_name: p.lastName,
+          date_of_birth: p.dateOfBirth,
+          gender: p.gender === 'male' ? 'M' : 'F',
           document: {
             type: 'passport',
-            number: passenger.passportNumber,
-            expiry_date: passenger.passportExpiry,
-            issuing_country: nationality
+            number: p.passportNumber,
+            expiry_date: p.passportExpiry,
+            issuing_country: p.nationality || nationality
           }
-        }],
+        })),
         contacts: {
-          email: passenger.email,
-          phone: passenger.phone
+          email: passenger.email || fallbackPassenger.email,
+          phone: passenger.phone || fallbackPassenger.phone
         },
         user_id: currentUser?.id || null,
-        user_email: currentUser?.email || passenger.email || null,
+        user_email: currentUser?.email || passenger.email || fallbackPassenger.email || null,
         offer: {
           origin: selectedOffer.origin,
           destination: selectedOffer.destination,
@@ -109,10 +138,9 @@
           currency
         },
         passenger_details: {
-          passport_number: passenger.passportNumber,
-          passport_expiry: passenger.passportExpiry,
           baggage_allowance: baggageValue,
-          nationality
+          nationality,
+          requested_counts: requestedCounts
         },
         pricing: {
           base_price: basePrice,
@@ -213,7 +241,7 @@
             <div>Route:</div><div class="val">${selectedOffer.origin || '---'} → ${selectedOffer.destination || '---'}</div>
             <div>Airline:</div><div class="val">${selectedOffer.airline_name || selectedOffer.airline_code || 'N/A'}</div>
             <div>Departure:</div><div class="val">${departure}</div>
-            <div>Passenger:</div><div class="val">${passenger.firstName} ${passenger.lastName}</div>
+            <div>Passenger(s):</div><div class="val">${passengersList.length}</div>
             <div class="due">Amount due:</div><div class="duev">${total} ${currency}</div>
           </div>
         </div>

@@ -1,8 +1,17 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
 
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+[lang="ar"] body,
+[lang="ar"] input,
+[lang="ar"] button,
+[lang="ar"] select,
+[lang="ar"] textarea {
+  font-family: 'Cairo', sans-serif;
 }
 
 /* Phone Input Styling */

@@ -1,18 +1,17 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAgencies, useSuperAdmins, useInvoices, useTickets, useEmailTemplates } from '../hooks/useQueries';
 import { Plane, Calendar, User, CreditCard, AlertCircle, CheckCircle, Clock, XCircle, ArrowLeft, Phone, Mail, Search, Filter, X, MapPin, Ticket } from 'lucide-react';
 import {
   supabase,
   getOrdersList,
   updateOrderStatus as updateOrderStatusApi,
   getAdminAgencies,
-  getAdminSuperAdmins,
   createAdminSuperAdmin,
   createAdminAgency,
   updateAdminAgency,
   deleteAdminAgency,
   getAdminOrdersSummary,
-  getAdminInvoices,
-  getAdminTickets,
   createAdminInvoice,
   updateAdminInvoice,
   generateAdminInvoicePdf,
@@ -21,9 +20,16 @@ import {
   getOrderTicketDocument,
   getProfile,
   getMyAgency,
-  updateMyAgency
+  updateMyAgency,
+  updateEmailTemplate,
+  previewEmailTemplate,
+  getAgencyEmailTemplate,
+  updateAgencyEmailTemplate,
+  deleteAgencyEmailTemplate,
+  cancelAdminOrder
 } from '../lib/supabase';
 import { drctApi } from '../lib/drctApi';
+import { getSafeN8nBaseUrl } from '../lib/runtimeConfig';
 
 export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_admin' }) {
   const [orders, setOrders] = useState([]);
@@ -36,17 +42,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [issuingOrderId, setIssuingOrderId] = useState(null);
   const [ticketDocLoadingId, setTicketDocLoadingId] = useState(null);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [cancelConfirmOrder, setCancelConfirmOrder] = useState(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  const [agencies, setAgencies] = useState([]);
   const [reportSummary, setReportSummary] = useState(null);
-  const [invoices, setInvoices] = useState([]);
-  const [tickets, setTickets] = useState([]);
-  const [superAdmins, setSuperAdmins] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
-  const [agenciesLoading, setAgenciesLoading] = useState(false);
-  const [invoicesLoading, setInvoicesLoading] = useState(false);
-  const [ticketsLoading, setTicketsLoading] = useState(false);
-  const [superAdminsLoading, setSuperAdminsLoading] = useState(false);
   const [creatingSuperAdmin, setCreatingSuperAdmin] = useState(false);
   const [activeAdminSection, setActiveAdminSection] = useState('agencies');
   const [showCreateAgencyForm, setShowCreateAgencyForm] = useState(false);
@@ -74,6 +74,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     date_to: '',
     q: ''
   });
+  const [billingRunning, setBillingRunning] = useState(false);
+  const [billingRemindersRunning, setBillingRemindersRunning] = useState(false);
+  const [billingResult, setBillingResult] = useState(null);
+  const [billingEvents, setBillingEvents] = useState([]);
+  const [billingEventsLoading, setBillingEventsLoading] = useState(false);
   const [agencyEditId, setAgencyEditId] = useState(null);
   const [agencyEditForm, setAgencyEditForm] = useState({
     name: '',
@@ -127,6 +132,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
   const [agencySelfLoading, setAgencySelfLoading] = useState(false);
+  const [agencySettingsEditing, setAgencySettingsEditing] = useState(false);
+  const [agencySettingsSnapshot, setAgencySettingsSnapshot] = useState(null);
+  const [editingTemplate, setEditingTemplate] = useState(null); // {template, agencyId}
+  const [templateAgencyId, setTemplateAgencyId] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState(null);
   const [widgetDomains, setWidgetDomains] = useState([]);
   const [domainDraft, setDomainDraft] = useState('');
   const [showAddDomain, setShowAddDomain] = useState(false);
@@ -135,6 +146,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const loadingRef = useRef(false);
   const isAgencyAdminPreview = viewMode === 'agency_admin';
   const isSuperAdminView = !isAgencyAdminPreview;
+
+  const queryClient = useQueryClient();
+  const isAdmin = ['admin', 'super_admin'].includes(userProfile?.role);
+  const { data: agencies = [], isLoading: agenciesLoading } = useAgencies(agencyFilters, isAdmin);
+  const { data: superAdmins = [], isLoading: superAdminsLoading } = useSuperAdmins(isAdmin && activeAdminSection === 'agencies');
+  const { data: invoices = [], isLoading: invoicesLoading } = useInvoices(invoiceFilters, isAdmin && activeAdminSection === 'invoices');
+  const { data: tickets = [], isLoading: ticketsLoading, refetch: refetchTickets } = useTickets(ticketFilters, isAdmin && activeAdminSection === 'tickets');
+  const loadTickets = () => refetchTickets();
+  const { data: emailTemplates = [], isLoading: emailTemplatesLoading } = useEmailTemplates(isAdmin && activeAdminSection === 'email-templates');
 
   const normalizeRole = (role) => {
     const normalized = String(role || 'user').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -206,23 +226,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   }, [isAgencyAdminPreview, userProfile?.role, userProfile?.agency_id, agencies, agencyPreviewId]);
 
-  useEffect(() => {
-    if (!['admin', 'super_admin'].includes(userProfile?.role)) return;
-    if (activeAdminSection === 'agencies') {
-      void loadAgencies();
-      if (['admin', 'super_admin'].includes(userProfile?.role)) {
-        void loadSuperAdmins();
-      }
-      return;
-    }
-    if (activeAdminSection === 'invoices') {
-      void loadInvoices();
-      return;
-    }
-    if (activeAdminSection === 'tickets') {
-      void loadTickets();
-    }
-  }, [activeAdminSection, userProfile?.role]);
+  // Section data is loaded automatically by TanStack Query hooks above (enabled by activeAdminSection)
 
   const withTimeout = async (label, promise, ms = 30000) => {
     let timeoutId;
@@ -432,31 +436,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const loadAdminData = async () => {
     try {
       setAdminLoading(true);
-      const [agenciesRes, summaryRes, invoicesRes, ticketsRes, superAdminsRes] = await Promise.allSettled([
-        getAdminAgencies(),
-        getAdminOrdersSummary(),
-        getAdminInvoices({ limit: 20 }),
-        getAdminTickets({ limit: 20 }),
-        ['admin', 'super_admin'].includes(userProfile?.role)
-          ? getAdminSuperAdmins()
-          : Promise.resolve({ data: [], error: null })
-      ]);
-
-      if (agenciesRes.status === 'fulfilled' && !agenciesRes.value?.error) {
-        setAgencies(Array.isArray(agenciesRes.value?.data) ? agenciesRes.value.data : []);
-      }
-      if (summaryRes.status === 'fulfilled' && !summaryRes.value?.error) {
-        setReportSummary(summaryRes.value?.data || null);
-      }
-      if (invoicesRes.status === 'fulfilled' && !invoicesRes.value?.error) {
-        setInvoices(Array.isArray(invoicesRes.value?.data) ? invoicesRes.value.data : []);
-      }
-      if (ticketsRes.status === 'fulfilled' && !ticketsRes.value?.error) {
-        setTickets(Array.isArray(ticketsRes.value?.data) ? ticketsRes.value.data : []);
-      }
-      if (superAdminsRes.status === 'fulfilled' && !superAdminsRes.value?.error) {
-        setSuperAdmins(Array.isArray(superAdminsRes.value?.data) ? superAdminsRes.value.data : []);
-      }
+      const summaryRes = await getAdminOrdersSummary();
+      if (!summaryRes?.error) setReportSummary(summaryRes?.data || null);
     } catch (err) {
       console.error('Admin tools load failed:', err);
     } finally {
@@ -464,27 +445,19 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
-  const loadSuperAdmins = async () => {
-    try {
-      setSuperAdminsLoading(true);
-      const { data, error } = await getAdminSuperAdmins();
-      if (error) throw new Error(error.message || 'Super admins load failed');
-      setSuperAdmins(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load super admins: ${err.message}` });
-    } finally {
-      setSuperAdminsLoading(false);
-    }
-  };
 
   const applyAgencyToSelfForm = (agencyData) => {
-    const commission = agencyData?.settings?.commission || {};
-    const bankDetails = agencyData?.settings?.bank_details || {};
+    const s = agencyData?.settings || {};
+    const bankDetails = s.bank_details || {};
+    // Read markup from new canonical format first, fall back to legacy
+    const markupType = s.markup_type || (s.commission?.model === 'fixed' ? 'fixed' : 'percent');
+    const markupValue = s.markup_value ?? agencyData?.commission_rate ?? 0;
+    const fixedAmount = markupType === 'fixed' ? markupValue : (s.commission?.fixed_amount ?? 0);
     setAgencySelfForm({
-      commission_rate: agencyData?.commission_rate ?? 0,
-      commission_model: commission.model || 'percent',
-      commission_fixed_amount: commission.fixed_amount ?? 0,
-      currency: (commission.currency || 'SAR').toUpperCase(),
+      commission_rate: markupType === 'percent' ? markupValue : 0,
+      commission_model: markupType,
+      commission_fixed_amount: fixedAmount,
+      currency: (s.commission?.currency || 'SAR').toUpperCase(),
       bank_name: bankDetails.bank_name || '',
       bank_account: bankDetails.bank_account || '',
       iban: bankDetails.iban || '',
@@ -527,7 +500,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           }
           throw new Error('No agencies found');
         }
-        setAgencies(list);
+        queryClient.setQueryData(['agencies', { q: undefined, is_active: undefined }], { data: list });
 
         const resolvedId = userProfile?.agency_id || agencyPreviewId || list[0]?.id || null;
         if (!resolvedId) {
@@ -563,7 +536,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     const fromAdmin = await getAdminAgencies({ limit: 200 });
     if (!fromAdmin?.error && Array.isArray(fromAdmin?.data) && fromAdmin.data.length > 0) {
       const list = fromAdmin.data;
-      setAgencies(list);
+      queryClient.setQueryData(['agencies', { q: undefined, is_active: undefined }], { data: list });
       const matched = list.find((a) => String(a?.contact_email || '').trim().toLowerCase() === preferredEmail) || list[0];
       resolvedId = matched?.id || null;
       if (resolvedId) {
@@ -586,63 +559,75 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     return null;
   };
 
-  const loadAgencies = async () => {
-    try {
-      setAgenciesLoading(true);
-      const params = {
-        q: agencyFilters.q || undefined,
-        is_active: agencyFilters.is_active === 'all' ? undefined : agencyFilters.is_active
+
+  const handleOpenEditTemplate = async (template) => {
+    if (templateAgencyId) {
+      const { data } = await getAgencyEmailTemplate(templateAgencyId, template.event_type);
+      const merged = {
+        ...template,
+        ...(data || {}),
+        blocks: { ...template.blocks, ...(data?.blocks || {}) },
+        subject: data?.subject || template.subject,
+        _agencyOverride: !!data
       };
-      const { data, error } = await getAdminAgencies(params);
-      if (error) throw new Error(error.message || 'Agencies load failed');
-      setAgencies(Array.isArray(data) ? data : []);
+      setEditingTemplate({ template: merged, agencyId: templateAgencyId });
+    } else {
+      setEditingTemplate({ template: { ...template }, agencyId: null });
+    }
+    setPreviewHtml(null);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!editingTemplate) return;
+    const { template, agencyId } = editingTemplate;
+    try {
+      setSavingTemplate(true);
+      const payload = { subject: template.subject, blocks: template.blocks };
+      if (agencyId) {
+        const { error } = await updateAgencyEmailTemplate(agencyId, template.event_type, payload);
+        if (error) throw new Error(error.message || 'Save failed');
+      } else {
+        const { error } = await updateEmailTemplate(template.event_type, payload);
+        if (error) throw new Error(error.message || 'Save failed');
+      }
+      setNotice({ type: 'success', text: 'Template saved' });
+      setEditingTemplate(null);
+      queryClient.invalidateQueries({ queryKey: ['emailTemplates'] });
     } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load agencies: ${err.message}` });
+      setNotice({ type: 'error', text: `Save failed: ${err.message}` });
     } finally {
-      setAgenciesLoading(false);
+      setSavingTemplate(false);
     }
   };
 
-  const loadInvoices = async () => {
+  const handlePreviewTemplate = async () => {
+    if (!editingTemplate) return;
+    const { template } = editingTemplate;
     try {
-      setInvoicesLoading(true);
-      const params = {
-        agency_id: invoiceFilters.agency_id || undefined,
-        currency: invoiceFilters.currency || undefined,
-        date_from: invoiceFilters.date_from || undefined,
-        date_to: invoiceFilters.date_to || undefined
-      };
-      const { data, error } = await getAdminInvoices(params);
-      if (error) throw new Error(error.message || 'Invoices load failed');
-      setInvoices(Array.isArray(data) ? data : []);
+      const { data, error } = await previewEmailTemplate(template.event_type, {
+        subject: template.subject,
+        blocks: template.blocks
+      });
+      if (error) throw new Error(error.message || 'Preview failed');
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(data.html || '<p>No preview</p>');
+        win.document.close();
+      }
     } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load invoices: ${err.message}` });
-    } finally {
-      setInvoicesLoading(false);
+      setNotice({ type: 'error', text: `Preview failed: ${err.message}` });
     }
   };
 
-  const loadTickets = async () => {
+  const handleDeleteAgencyOverride = async (eventType) => {
+    if (!templateAgencyId) return;
     try {
-      setTicketsLoading(true);
-      const params = {
-        agency_id: ticketFilters.agency_id || undefined,
-        order_status: ticketFilters.order_status || undefined,
-        status: ticketFilters.status || undefined,
-        email_status: ticketFilters.email_status || undefined,
-        date_from: ticketFilters.date_from || undefined,
-        date_to: ticketFilters.date_to || undefined,
-        q: ticketFilters.q || undefined
-      };
-      const { data, error } = await getAdminTickets(params);
-      if (error) throw new Error(error.message || 'Tickets load failed');
-      const rows = Array.isArray(data) ? data : [];
-      rows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-      setTickets(rows);
+      const { error } = await deleteAgencyEmailTemplate(templateAgencyId, eventType);
+      if (error) throw new Error(error.message || 'Delete failed');
+      setNotice({ type: 'success', text: 'Agency override removed' });
+      queryClient.invalidateQueries({ queryKey: ['emailTemplates'] });
     } catch (err) {
-      setNotice({ type: 'error', text: `Failed to load tickets: ${err.message}` });
-    } finally {
-      setTicketsLoading(false);
+      setNotice({ type: 'error', text: `Delete failed: ${err.message}` });
     }
   };
 
@@ -690,7 +675,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         widget_allowed_domains: ''
       }));
       setShowCreateAgencyForm(false);
-      await Promise.all([loadAdminData(), loadAgencies()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['agencies'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to create agency: ${err.message}` });
     }
@@ -719,7 +704,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           : `Super admin permissions updated: ${data?.email || email}`
       });
       setSuperAdminForm({ email: '', full_name: '', phone: '' });
-      await loadSuperAdmins();
+      queryClient.invalidateQueries({ queryKey: ['superAdmins'] });
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to create super admin: ${err.message}` });
     } finally {
@@ -769,7 +754,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (error) throw new Error(error.message || 'Agency update failed');
       setNotice({ type: 'success', text: 'Agency updated' });
       setAgencyEditId(null);
-      await Promise.all([loadAdminData(), loadAgencies()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['agencies'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to update agency: ${err.message}` });
     }
@@ -782,7 +767,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       });
       if (error) throw new Error(error.message || 'Agency status update failed');
       setNotice({ type: 'success', text: agency.is_active ? 'Agency suspended' : 'Agency activated' });
-      await Promise.all([loadAdminData(), loadAgencies()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['agencies'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to update agency status: ${err.message}` });
     }
@@ -793,7 +778,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       const { error } = await deleteAdminAgency(agency.id);
       if (error) throw new Error(error.message || 'Agency delete failed');
       setNotice({ type: 'success', text: `Agency deleted: ${agency.name}` });
-      await Promise.all([loadAdminData(), loadAgencies()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['agencies'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to delete agency: ${err.message}` });
     }
@@ -818,7 +803,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       if (error) throw new Error(error.message || 'Failed to create invoice');
       setNotice({ type: 'success', text: `Invoice created: ${data?.invoice_number || data?.id}` });
       setInvoiceForm((prev) => ({ ...prev, manual_total: '' }));
-      await Promise.all([loadAdminData(), loadInvoices()]);
+      await Promise.all([loadAdminData(), queryClient.invalidateQueries({ queryKey: ['invoices'] })]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to create invoice: ${err.message}` });
     }
@@ -839,7 +824,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       } else if (popup) {
         popup.close();
       }
-      await loadInvoices();
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
     } catch (err) {
       if (popup) popup.close();
       setNotice({ type: 'error', text: `Failed to generate PDF: ${err.message}` });
@@ -861,7 +846,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       } else if (popup) {
         popup.close();
       }
-      await loadInvoices();
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
     } catch (err) {
       if (popup) popup.close();
       setNotice({ type: 'error', text: `Failed to update invoice status: ${err.message}` });
@@ -905,17 +890,60 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
+  const exportTicketsToExcel = () => {
+    const headers = [
+      'Agency', 'Agency Code (SAMA / Domain)', 'Agency ID',
+      'Ticket №', 'PNR', 'Order №',
+      'Origin', 'Destination',
+      'Passenger Email', 'Price', 'Currency',
+      'Order Status', 'Issuance Status', 'Email Status',
+      'Issued At', 'Created At'
+    ];
+    const rows = tickets.map((t) => [
+      t.agency?.name || '',
+      t.agency?.sama_code || t.agency?.domain || '',
+      t.agency_id || '',
+      t.ticket_number || '',
+      t.pnr || '',
+      t.order?.order_number || t.order_id || '',
+      t.order?.origin || '',
+      t.order?.destination || '',
+      t.order?.contact_email || '',
+      t.order?.total_price ?? '',
+      t.order?.currency || '',
+      t.order?.status || '',
+      t.status || '',
+      t.email_status || '',
+      t.issued_at ? new Date(t.issued_at).toLocaleString() : '',
+      t.created_at ? new Date(t.created_at).toLocaleString() : ''
+    ]);
+    const csv = [headers, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tickets_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleSaveMyAgencySettings = async () => {
     try {
       setAgencySelfLoading(true);
+      const markupType = agencySelfForm.commission_model || 'percent';
+      const markupValue = markupType === 'percent'
+        ? Number(agencySelfForm.commission_rate || 0)
+        : Number(agencySelfForm.commission_fixed_amount || 0);
       const payload = {
-        commission_rate: agencySelfForm.commission_model === 'percent'
-          ? Number(agencySelfForm.commission_rate || 0)
-          : 0,
-        commission_model: agencySelfForm.commission_model || 'percent',
-        commission_fixed_amount: agencySelfForm.commission_model === 'fixed'
-          ? Number(agencySelfForm.commission_fixed_amount || 0)
-          : 0,
+        commission_rate: markupType === 'percent' ? markupValue : 0,
+        markup_type: markupType,
+        markup_value: markupValue,
+        commission_model: markupType,
+        commission_fixed_amount: markupType === 'fixed' ? markupValue : 0,
         currency: agencySelfForm.currency || 'SAR',
         bank_details: {
           bank_name: agencySelfForm.bank_name || null,
@@ -1015,8 +1043,22 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     try {
       setUpdatingOrderId(orderId);
       const nextStatus = normalizeStatus(newStatus);
-
       const nowIso = new Date().toISOString();
+
+      // When cancelling: call DRCT cancel endpoint (which cancels in DRCT + Supabase)
+      if (nextStatus === 'cancelled') {
+        const order = orders.find(o => o.id === orderId);
+        if (order?.drct_order_id) {
+          const { error: cancelErr } = await cancelAdminOrder(orderId);
+          if (cancelErr) throw new Error(cancelErr.message || 'Cancel failed');
+          const updatedAt = nowIso;
+          setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled', cancelled_at: updatedAt } : o));
+          setSelectedOrder(prev => prev?.id === orderId ? { ...prev, status: 'cancelled', cancelled_at: updatedAt } : prev);
+          setNotice({ type: 'success', text: 'Order cancelled successfully.' });
+          return;
+        }
+      }
+
       const { error } = await updateOrderStatusApi(orderId, nextStatus, {
         updated_at: nowIso,
         ...(nextStatus === 'confirmed' ? { confirmed_at: nowIso } : {}),
@@ -1060,6 +1102,30 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       });
     } finally {
       setUpdatingOrderId(null);
+    }
+  };
+
+  const handleCancelOrder = async (order) => {
+    try {
+      setCancellingOrderId(order.id);
+      const { data, error } = await cancelAdminOrder(order.id);
+      if (error) throw new Error(error.message || 'Cancel failed');
+      const nowIso = new Date().toISOString();
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id ? { ...o, status: 'cancelled', cancelled_at: nowIso } : o
+        )
+      );
+      setSelectedOrder((prev) =>
+        prev && prev.id === order.id ? { ...prev, status: 'cancelled', cancelled_at: nowIso } : prev
+      );
+      setNotice({ type: 'success', text: `Order ${order.order_number} cancelled successfully.` });
+    } catch (err) {
+      console.error('Cancel order error:', err);
+      setNotice({ type: 'error', text: `Failed to cancel: ${err.message}` });
+    } finally {
+      setCancellingOrderId(null);
+      setCancelConfirmOrder(null);
     }
   };
 
@@ -1199,7 +1265,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       return '<!-- Save agency settings first to get the widget key -->';
     }
     const widgetBase = typeof window !== 'undefined' ? window.location.origin : '';
-    const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
+    const rawN8nBase = getSafeN8nBaseUrl();
     const n8nBaseAbsolute = rawN8nBase.startsWith('http')
       ? rawN8nBase
       : `${widgetBase}${rawN8nBase.startsWith('/') ? '' : '/'}${rawN8nBase}`;
@@ -1224,7 +1290,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     if (!widgetBase) return '/widget-preview.html';
     const preview = new URL('/widget-preview.html', widgetBase);
     if (agencyKey) preview.searchParams.set('agency_key', agencyKey);
-    const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
+    const rawN8nBase = getSafeN8nBaseUrl();
     const n8nBaseAbsolute = rawN8nBase.startsWith('http')
       ? rawN8nBase
       : `${widgetBase}${rawN8nBase.startsWith('/') ? '' : '/'}${rawN8nBase}`;
@@ -1357,149 +1423,216 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
         {/* Agency Admin Settings */}
         {(userProfile?.role === 'agent' || isAgencyAdminPreview) && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-blue-100">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Agency settings</h2>
-            <p className="text-sm text-gray-600 mb-3">
-              Set commission model: percentage or fixed amount per sold ticket.
-            </p>
-            {isAgencyAdminPreview && (
-              <div className="mb-3 text-sm text-gray-600">
-                Agency: <span className="font-semibold text-gray-900">{agencies.find((a) => a.id === (userProfile?.agency_id || agencyPreviewId))?.name || agencies[0]?.name || '—'}</span>
+          <div className="bg-white rounded-lg shadow-md p-5 mb-6 border border-blue-100">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Agency settings</h2>
+                {isAgencyAdminPreview && (
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {agencies.find((a) => a.id === (userProfile?.agency_id || agencyPreviewId))?.name || agencies[0]?.name || '—'}
+                  </p>
+                )}
               </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-              <select
-                value={agencySelfForm.commission_model}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_model: e.target.value }))}
-                className="border rounded px-2 py-1"
-              >
-                <option value="percent">Percent</option>
-                <option value="fixed">Fixed</option>
-              </select>
-              {agencySelfForm.commission_model === 'percent' ? (
-                <div className="flex items-center border rounded px-2 py-1">
-                  <input
-                    type="number"
-                    value={agencySelfForm.commission_rate}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_rate: e.target.value }))}
-                    placeholder="Commission"
-                    className="w-full outline-none"
-                  />
-                  <span className="text-gray-500 text-sm">%</span>
+              {!agencySettingsEditing && (
+                <button
+                  onClick={() => { setAgencySettingsSnapshot({ ...agencySelfForm }); setAgencySettingsEditing(true); }}
+                  className="flex items-center gap-1.5 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  ✏️ Edit
+                </button>
+              )}
+            </div>
+
+            {/* ── Pricing / Markup ── */}
+            <div className="mb-5">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Ticket markup</h3>
+              {agencySettingsEditing ? (
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-500">Type</label>
+                    <select
+                      value={agencySelfForm.commission_model}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_model: e.target.value }))}
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none"
+                    >
+                      <option value="percent">Percent (%)</option>
+                      <option value="fixed">Fixed amount</option>
+                    </select>
+                  </div>
+                  {agencySelfForm.commission_model === 'percent' ? (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">Markup %</label>
+                      <div className="flex items-center border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-blue-200">
+                        <input
+                          type="number" min="0" max="100" step="0.1"
+                          value={agencySelfForm.commission_rate}
+                          onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_rate: e.target.value }))}
+                          className="w-20 outline-none text-sm"
+                        />
+                        <span className="text-gray-400 text-sm ml-1">%</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">Amount per ticket</label>
+                      <div className="flex items-center border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-blue-200">
+                        <input
+                          type="number" min="0" step="1"
+                          value={agencySelfForm.commission_fixed_amount}
+                          onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_fixed_amount: e.target.value }))}
+                          className="w-24 outline-none text-sm"
+                        />
+                        <select
+                          value={agencySelfForm.currency}
+                          onChange={(e) => setAgencySelfForm((p) => ({ ...p, currency: e.target.value }))}
+                          className="ml-2 text-sm outline-none bg-transparent text-gray-500"
+                        >
+                          <option value="SAR">SAR</option>
+                          <option value="USD">USD</option>
+                          <option value="EUR">EUR</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <input
-                  type="number"
-                  value={agencySelfForm.commission_fixed_amount}
-                  onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_fixed_amount: e.target.value }))}
-                  placeholder="Fixed amount"
-                  className="border rounded px-2 py-1"
-                />
+                <div className="flex items-center gap-3 py-2">
+                  {agencySelfForm.commission_model === 'percent' ? (
+                    agencySelfForm.commission_rate > 0
+                      ? <><span className="text-2xl font-bold text-gray-900">{agencySelfForm.commission_rate}%</span><span className="text-sm text-gray-500">per ticket (percent)</span></>
+                      : <span className="text-sm text-gray-400">No markup set</span>
+                  ) : (
+                    agencySelfForm.commission_fixed_amount > 0
+                      ? <><span className="text-2xl font-bold text-gray-900">{agencySelfForm.commission_fixed_amount}</span><span className="text-sm text-gray-500">{agencySelfForm.currency} per ticket (fixed)</span></>
+                      : <span className="text-sm text-gray-400">No markup set</span>
+                  )}
+                </div>
               )}
-              <select
-                value={agencySelfForm.currency}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, currency: e.target.value.toUpperCase() }))}
-                className="border rounded px-2 py-1"
-              >
-                <option value="SAR">SAR</option>
-                <option value="EUR">EUR</option>
-                <option value="USD">USD</option>
-              </select>
-              <input
-                value={agencySelfForm.contact_person_name}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_person_name: e.target.value }))}
-                placeholder="Contact person full name"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.bank_name}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, bank_name: e.target.value }))}
-                placeholder="Bank name"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.bank_account}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, bank_account: e.target.value }))}
-                placeholder="Account number"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.iban}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))}
-                placeholder="IBAN (SA...)"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.swift_bic}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))}
-                placeholder="SWIFT/BIC"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.sama_code}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))}
-                placeholder="SAMA bank code"
-                className="border rounded px-2 py-1"
-              />
-              <div className="md:col-span-3 border rounded px-3 py-3 bg-white">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-700">Allowed widget domains</span>
-                  <button
-                    onClick={() => setShowAddDomain((v) => !v)}
-                    className="bg-indigo-600 text-white rounded px-3 py-1 text-xs"
-                  >
-                    Add domain
-                  </button>
+            </div>
+
+            {/* ── Contact ── */}
+            <div className="mb-5 border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Contact person</h3>
+              {agencySettingsEditing ? (
+                <input
+                  value={agencySelfForm.contact_person_name}
+                  onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_person_name: e.target.value }))}
+                  placeholder="Full name"
+                  className="border rounded-lg px-3 py-2 text-sm w-full max-w-sm focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              ) : (
+                <p className="text-sm text-gray-700">{agencySelfForm.contact_person_name || <span className="text-gray-400">Not set</span>}</p>
+              )}
+            </div>
+
+            {/* ── Bank details ── */}
+            <div className="mb-5 border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Bank details</h3>
+              {agencySettingsEditing ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    { key: 'bank_name',    label: 'Bank name',      upper: false },
+                    { key: 'bank_account', label: 'Account number', upper: false },
+                    { key: 'iban',         label: 'IBAN (SA...)',   upper: true  },
+                    { key: 'swift_bic',    label: 'SWIFT / BIC',    upper: true  },
+                    { key: 'sama_code',    label: 'SAMA bank code', upper: true  },
+                  ].map(({ key, label, upper }) => (
+                    <div key={key} className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">{label}</label>
+                      <input
+                        value={agencySelfForm[key]}
+                        onChange={(e) => setAgencySelfForm((p) => ({ ...p, [key]: upper ? e.target.value.toUpperCase() : e.target.value }))}
+                        placeholder={label}
+                        className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-6">
+                  {[
+                    { label: 'Bank',    value: agencySelfForm.bank_name },
+                    { label: 'Account', value: agencySelfForm.bank_account },
+                    { label: 'IBAN',    value: agencySelfForm.iban },
+                    { label: 'SWIFT',   value: agencySelfForm.swift_bic },
+                    { label: 'SAMA',    value: agencySelfForm.sama_code },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-400">{label}</p>
+                      <p className="text-sm text-gray-800 font-mono">{value || <span className="text-gray-300 font-sans">—</span>}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Widget domains ── */}
+            <div className="mb-5 border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Allowed widget domains</h3>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <button
+                  onClick={() => setShowAddDomain((v) => !v)}
+                  className="bg-indigo-600 text-white rounded-lg px-3 py-1 text-xs hover:bg-indigo-700 transition-colors"
+                >
+                  + Add domain
+                </button>
+                {domainsDirty && (
                   <button
                     onClick={handleSaveWidgetDomains}
-                    disabled={!domainsDirty || domainsSaving}
-                    className={`rounded px-3 py-1 text-xs ${(!domainsDirty || domainsSaving) ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white'}`}
+                    disabled={domainsSaving}
+                    className="bg-blue-600 text-white rounded-lg px-3 py-1 text-xs hover:bg-blue-700 transition-colors"
                   >
-                    {domainsSaving ? 'Saving...' : domainsDirty ? 'Save domains' : 'Saved'}
+                    {domainsSaving ? 'Saving...' : 'Save domains'}
                   </button>
-                </div>
-                {showAddDomain && (
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      value={domainDraft}
-                      onChange={(e) => setDomainDraft(e.target.value)}
-                      placeholder="example.com"
-                      className="border rounded px-2 py-1 flex-1"
-                    />
-                    <button
-                      onClick={handleAddWidgetDomain}
-                      className="bg-indigo-600 text-white rounded px-3 py-1 text-sm"
-                    >
-                      Add
-                    </button>
-                  </div>
-                )}
-                {widgetDomains.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {widgetDomains.map((d) => (
-                      <div key={d} className="flex items-center gap-2 px-2 py-1 rounded bg-indigo-50 border border-indigo-200">
-                        <span className="text-xs font-mono text-indigo-900">{d}</span>
-                        <button
-                          onClick={() => handleRemoveWidgetDomain(d)}
-                          className="text-xs text-red-600 hover:text-red-800"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500">No domains yet. Add at least one agency website domain.</p>
                 )}
               </div>
-              <button
-                onClick={handleSaveMyAgencySettings}
-                className="bg-blue-600 text-white rounded px-3 py-1"
-                disabled={agencySelfLoading}
-              >
-                {agencySelfLoading ? 'Saving...' : 'Save settings'}
-              </button>
+              {showAddDomain && (
+                <div className="flex gap-2 mb-2">
+                  <input
+                    value={domainDraft}
+                    onChange={(e) => setDomainDraft(e.target.value)}
+                    placeholder="example.com"
+                    className="border rounded-lg px-3 py-2 text-sm flex-1 focus:ring-2 focus:ring-indigo-200 outline-none"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddWidgetDomain()}
+                  />
+                  <button onClick={handleAddWidgetDomain} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm hover:bg-indigo-700 transition-colors">Add</button>
+                </div>
+              )}
+              {widgetDomains.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {widgetDomains.map((d) => (
+                    <div key={d} className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200">
+                      <span className="text-xs font-mono text-indigo-900">{d}</span>
+                      <button onClick={() => handleRemoveWidgetDomain(d)} className="text-indigo-400 hover:text-red-600 transition-colors text-xs">✕</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">No domains yet. Add your agency website domain to enable the widget.</p>
+              )}
             </div>
+
+            {/* ── Edit mode actions ── */}
+            {agencySettingsEditing && (
+              <div className="flex gap-3 border-t pt-4">
+                <button
+                  onClick={async () => { await handleSaveMyAgencySettings(); setAgencySettingsEditing(false); }}
+                  disabled={agencySelfLoading}
+                  className="bg-blue-600 text-white rounded-lg px-5 py-2 text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {agencySelfLoading ? 'Saving...' : 'Save changes'}
+                </button>
+                <button
+                  onClick={() => { setAgencySelfForm(agencySettingsSnapshot); setAgencySettingsEditing(false); }}
+                  disabled={agencySelfLoading}
+                  className="border border-gray-300 rounded-lg px-5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
 
             <div className="mt-4 border border-indigo-100 rounded-lg p-3 bg-indigo-50/40">
               <h3 className="text-sm font-semibold text-indigo-900 mb-2">Widget setup</h3>
@@ -1568,6 +1701,18 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               >
                 Tickets
               </button>
+              <button
+                onClick={() => setActiveAdminSection('email-templates')}
+                className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'email-templates' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Email Templates
+              </button>
+              <button
+                onClick={() => setActiveAdminSection('billing')}
+                className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'billing' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Billing
+              </button>
             </div>
           </div>
         )}
@@ -1633,7 +1778,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-purple-100">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Super Admin</h2>
-              <button onClick={loadSuperAdmins} className="bg-gray-100 px-3 py-1 rounded text-sm">
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['superAdmins'] })} className="bg-gray-100 px-3 py-1 rounded text-sm">
                 {superAdminsLoading ? 'Loading...' : 'Refresh list'}
               </button>
             </div>
@@ -1687,7 +1832,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Agencies</h2>
-              <button onClick={loadAgencies} className="bg-gray-100 px-3 py-1 rounded text-sm">
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['agencies'] })} className="bg-gray-100 px-3 py-1 rounded text-sm">
                 {agenciesLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>
@@ -1707,7 +1852,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
-              <button onClick={loadAgencies} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['agencies'] })} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
             </div>
             <div className="space-y-2">
               {agencies.map((a) => (
@@ -1764,7 +1909,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Invoices</h2>
-              <button onClick={loadInvoices} className="bg-gray-100 px-3 py-1 rounded text-sm">
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })} className="bg-gray-100 px-3 py-1 rounded text-sm">
                 {invoicesLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>
@@ -1826,7 +1971,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <span className="text-xs text-gray-500">To</span>
                 <input type="date" value={invoiceFilters.date_to} onChange={(e) => setInvoiceFilters((p) => ({ ...p, date_to: e.target.value }))} className="w-full outline-none" />
               </div>
-              <button onClick={loadInvoices} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
             </div>
             <div className="space-y-2 text-sm">
               {invoices.map((inv) => (
@@ -1864,9 +2009,18 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Tickets</h2>
-              <button onClick={loadTickets} className="bg-gray-100 px-3 py-1 rounded text-sm">
-                {ticketsLoading ? 'Loading...' : 'Refresh'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportTicketsToExcel}
+                  disabled={tickets.length === 0}
+                  className="bg-green-600 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-40 hover:bg-green-700"
+                >
+                  Export CSV ({tickets.length})
+                </button>
+                <button onClick={loadTickets} className="bg-gray-100 px-3 py-1 rounded text-sm">
+                  {ticketsLoading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mb-3">
               <select value={ticketFilters.agency_id} onChange={(e) => setTicketFilters((p) => ({ ...p, agency_id: e.target.value }))} className="border rounded px-2 py-1">
@@ -1920,6 +2074,313 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               ))}
               {tickets.length === 0 && <p className="text-gray-500">No tickets</p>}
             </div>
+          </div>
+        )}
+
+        {/* Email Templates Section */}
+        {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'email-templates' && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Email Templates</h2>
+              <button onClick={() => queryClient.invalidateQueries({ queryKey: ['emailTemplates'] })} className="bg-gray-100 px-3 py-1 rounded text-sm">
+                {emailTemplatesLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {/* Mode selector */}
+            <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+              <span className="text-sm font-medium text-gray-700">Mode:</span>
+              <label className="flex items-center gap-1 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="templateMode"
+                  checked={templateAgencyId === ''}
+                  onChange={() => setTemplateAgencyId('')}
+                />
+                Global defaults
+              </label>
+              <label className="flex items-center gap-1 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="templateMode"
+                  checked={templateAgencyId !== ''}
+                  onChange={() => setTemplateAgencyId(agencies[0]?.id || '')}
+                />
+                Agency override:
+              </label>
+              <select
+                value={templateAgencyId}
+                onChange={(e) => setTemplateAgencyId(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                <option value="">— select agency —</option>
+                {agencies.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Template list */}
+            <div className="space-y-3">
+              {emailTemplatesLoading && <p className="text-gray-500 text-sm">Loading templates...</p>}
+              {!emailTemplatesLoading && emailTemplates.map((tpl) => (
+                <div key={tpl.event_type} className="border rounded-lg p-3 flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-gray-900">{tpl.event_type}</span>
+                      {tpl.is_active !== false && (
+                        <span className="text-xs bg-green-100 text-green-700 rounded px-1">Active</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 truncate mt-1">{tpl.subject}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {templateAgencyId && (
+                      <button
+                        onClick={() => handleDeleteAgencyOverride(tpl.event_type)}
+                        className="text-xs bg-red-50 text-red-600 border border-red-200 rounded px-2 py-1"
+                      >
+                        Reset override
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleOpenEditTemplate(tpl)}
+                      className="text-xs bg-blue-600 text-white rounded px-3 py-1"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!emailTemplatesLoading && emailTemplates.length === 0 && (
+                <p className="text-gray-500 text-sm">No templates found. Check that the SQL migration has been run.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Edit Template Modal */}
+        {editingTemplate && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-8 mb-8">
+              <div className="p-5 border-b flex items-center justify-between">
+                <h3 className="font-bold text-lg">
+                  Edit: {editingTemplate.template.event_type}
+                  {editingTemplate.agencyId && (
+                    <span className="ml-2 text-sm font-normal text-blue-600">
+                      (agency override: {agencies.find(a => a.id === editingTemplate.agencyId)?.name || editingTemplate.agencyId})
+                    </span>
+                  )}
+                </h3>
+                <button onClick={() => setEditingTemplate(null)} className="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <input
+                    value={editingTemplate.template.subject || ''}
+                    onChange={(e) => setEditingTemplate(prev => ({
+                      ...prev,
+                      template: { ...prev.template, subject: e.target.value }
+                    }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                    placeholder="Email subject"
+                  />
+                </div>
+
+                {(() => {
+                  const vars = editingTemplate.template.variables || {};
+                  const varList = Object.entries(vars);
+                  return varList.length > 0 ? (
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <p className="text-xs font-medium text-blue-700 mb-1">Available variables:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {varList.map(([key, desc]) => (
+                          <span key={key} title={desc} className="text-xs bg-white border border-blue-200 rounded px-1 font-mono cursor-help">
+                            {`{{${key}}}`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {['greeting', 'intro', 'payment_note', 'closing'].map((blockKey) => {
+                  const val = editingTemplate.template.blocks?.[blockKey];
+                  if (val === undefined && blockKey === 'payment_note' &&
+                      !['booking_created'].includes(editingTemplate.template.event_type)) return null;
+                  return (
+                    <div key={blockKey}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+                        {blockKey.replace(/_/g, ' ')}
+                      </label>
+                      <textarea
+                        value={val || ''}
+                        onChange={(e) => setEditingTemplate(prev => ({
+                          ...prev,
+                          template: {
+                            ...prev.template,
+                            blocks: { ...prev.template.blocks, [blockKey]: e.target.value }
+                          }
+                        }))}
+                        className="w-full border rounded-lg px-3 py-2 text-sm min-h-20 font-mono"
+                        placeholder={`${blockKey} text...`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="p-5 border-t flex gap-3 justify-end">
+                <button onClick={() => setEditingTemplate(null)} className="bg-gray-100 text-gray-700 rounded px-4 py-2 text-sm">
+                  Cancel
+                </button>
+                <button onClick={handlePreviewTemplate} className="bg-gray-700 text-white rounded px-4 py-2 text-sm">
+                  Preview
+                </button>
+                <button
+                  onClick={handleSaveTemplate}
+                  disabled={savingTemplate}
+                  className="bg-blue-600 text-white rounded px-4 py-2 text-sm disabled:opacity-50"
+                >
+                  {savingTemplate ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Billing Section */}
+        {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'billing' && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Billing</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    setBillingRemindersRunning(true);
+                    setBillingResult(null);
+                    try {
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const r = await fetch(`${backendUrl}/api/admin/billing/send-reminders`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${session?.access_token}` }
+                      });
+                      const json = await r.json();
+                      setBillingResult({ type: 'reminders', ...json });
+                    } catch (e) {
+                      setBillingResult({ type: 'reminders', error: e.message });
+                    } finally {
+                      setBillingRemindersRunning(false);
+                    }
+                  }}
+                  disabled={billingRemindersRunning}
+                  className="bg-gray-100 text-gray-700 rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  {billingRemindersRunning ? 'Sending...' : 'Send Reminders'}
+                </button>
+                <button
+                  onClick={async () => {
+                    setBillingRunning(true);
+                    setBillingResult(null);
+                    try {
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const r = await fetch(`${backendUrl}/api/admin/billing/run-monthly`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${session?.access_token}` }
+                      });
+                      const json = await r.json();
+                      setBillingResult({ type: 'run', ...json });
+                      // Refresh events
+                      setBillingEventsLoading(true);
+                      const r2 = await fetch(`${backendUrl}/api/admin/billing/events`, {
+                        headers: { Authorization: `Bearer ${session?.access_token}` }
+                      });
+                      const j2 = await r2.json();
+                      setBillingEvents(j2.events || []);
+                    } catch (e) {
+                      setBillingResult({ type: 'run', error: e.message });
+                    } finally {
+                      setBillingRunning(false);
+                      setBillingEventsLoading(false);
+                    }
+                  }}
+                  disabled={billingRunning}
+                  className="bg-blue-600 text-white rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  {billingRunning ? 'Running...' : 'Run Billing Now'}
+                </button>
+              </div>
+            </div>
+
+            {billingResult && (
+              <div className={`mb-4 p-3 rounded text-sm ${billingResult.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+                {billingResult.error
+                  ? `Error: ${billingResult.error}`
+                  : billingResult.type === 'run'
+                    ? `Done: ${billingResult.processed ?? 0} processed, ${billingResult.skipped ?? 0} skipped${billingResult.errors?.length ? `, ${billingResult.errors.length} errors` : ''}`
+                    : `Reminders: ${billingResult.sent ?? 0} sent${billingResult.errors?.length ? `, ${billingResult.errors.length} errors` : ''}`
+                }
+              </div>
+            )}
+
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm text-gray-500">Recent billing events</p>
+              <button
+                onClick={async () => {
+                  setBillingEventsLoading(true);
+                  try {
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const r = await fetch(`${backendUrl}/api/admin/billing/events?limit=50`, {
+                      headers: { Authorization: `Bearer ${session?.access_token}` }
+                    });
+                    const json = await r.json();
+                    setBillingEvents(json.events || []);
+                  } catch (e) { /* ignore */ }
+                  finally { setBillingEventsLoading(false); }
+                }}
+                className="text-xs text-blue-600 underline"
+              >
+                {billingEventsLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {billingEvents.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No billing events yet. Click Refresh to load.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left">
+                      <th className="px-3 py-2 font-medium text-gray-600">Agency</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Type</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Amount</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Status</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Period</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {billingEvents.map((ev) => (
+                      <tr key={ev.id} className="border-t border-gray-100">
+                        <td className="px-3 py-2 text-gray-700">{ev.agencies?.name || ev.agency_id?.slice(0, 8)}</td>
+                        <td className="px-3 py-2 text-gray-600 font-mono text-xs">{ev.type}</td>
+                        <td className="px-3 py-2 text-gray-700">{ev.amount ? `${ev.currency} ${Number(ev.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}</td>
+                        <td className="px-3 py-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ev.status === 'success' ? 'bg-green-100 text-green-700' : ev.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {ev.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-500 text-xs">{ev.billing_period_from ? `${ev.billing_period_from} — ${ev.billing_period_to}` : '—'}</td>
+                        <td className="px-3 py-2 text-gray-400 text-xs">{new Date(ev.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -2142,6 +2603,51 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
             })}
           </div>
         ))}
+
+        {/* Cancel Confirmation Modal */}
+        {cancelConfirmOrder && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setCancelConfirmOrder(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Cancel booking?</h2>
+              <p className="text-sm text-gray-600 mb-1">
+                Order: <span className="font-mono font-semibold">{cancelConfirmOrder.order_number}</span>
+              </p>
+              <p className="text-sm text-gray-600 mb-1">
+                {cancelConfirmOrder.origin} → {cancelConfirmOrder.destination} · {cancelConfirmOrder.airline_name}
+              </p>
+              <p className="text-sm text-gray-600 mb-4">
+                {cancelConfirmOrder.total_price} {cancelConfirmOrder.currency}
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 text-xs text-amber-800">
+                This will send a real cancellation request to DRCT. The ticket will be voided. This action cannot be undone.
+                {cancelConfirmOrder.metadata?.cancel_fee && (
+                  <span className="block mt-1 font-semibold">Note: a cancellation fee may apply.</span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCancelConfirmOrder(null)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-all text-sm"
+                >
+                  Keep booking
+                </button>
+                <button
+                  onClick={() => handleCancelOrder(cancelConfirmOrder)}
+                  disabled={cancellingOrderId === cancelConfirmOrder.id}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm disabled:opacity-60"
+                >
+                  {cancellingOrderId === cancelConfirmOrder.id ? 'Cancelling...' : 'Yes, cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Order Details Modal */}
         {selectedOrder && (

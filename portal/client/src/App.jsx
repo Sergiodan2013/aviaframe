@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useLocation, Routes, Route } from 'react-router-dom';
 import axios from 'axios';
 import SearchForm from './components/SearchForm';
 import FlightCard from './components/FlightCard';
@@ -12,9 +13,25 @@ import AdminDashboard from './pages/AdminDashboard';
 import { Plane, AlertCircle, TestTube2, User, LogOut, CheckCircle, BookOpen, Shield } from 'lucide-react';
 import { mockFlightData } from './mock/flightData';
 import { drctApi, formatDRCTError, calculateBaggagePrice } from './lib/drctApi';
-import { supabase, getProfile } from './lib/supabase';
+import { supabase, getProfile, claimOrder } from './lib/supabase';
+import { getSafeSearchUrl } from './lib/runtimeConfig';
+import ErrorBoundary from './components/ErrorBoundary';
+import { useTranslation } from './i18n/index.jsx';
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { lang, setLang, t } = useTranslation();
+
+  // Derive currentPage from URL (replaces useState)
+  const currentPage = (() => {
+    if (location.pathname === '/bookings') return 'bookings';
+    if (location.pathname.startsWith('/admin')) {
+      return new URLSearchParams(location.search).get('mode') === 'agency' ? 'adminAgency' : 'admin';
+    }
+    return 'search';
+  })();
+
   const [isLoading, setIsLoading] = useState(false);
   const [flights, setFlights] = useState([]);
   const [error, setError] = useState(null);
@@ -26,8 +43,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Page navigation state
-  const [currentPage, setCurrentPage] = useState('search'); // 'search', 'bookings', 'admin', 'adminAgency'
+  // bookingsRefreshKey forces MyBookings remount when navigating back to /bookings
   const [bookingsRefreshKey, setBookingsRefreshKey] = useState(0);
 
   // Booking flow state
@@ -125,6 +141,14 @@ function App() {
     };
 
     const bootstrap = async () => {
+      // Detect claim token in URL (?token=...) and save for post-auth processing
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlClaimToken = urlParams.get('token');
+      if (urlClaimToken) {
+        localStorage.setItem('pending_claim_token', urlClaimToken);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
       try {
         const storedUserRaw = localStorage.getItem('user');
         let storedUser = null;
@@ -141,10 +165,20 @@ function App() {
           const msg = String(error?.message || '').toLowerCase();
           if (storedUser?.id) {
             if (mounted) setUser({ ...storedUser, role: normalizeRole(storedUser.role) });
+            // If there's a pending claim token and user is already logged in, claim now
+            const pendingToken = localStorage.getItem('pending_claim_token');
+            if (pendingToken) {
+              localStorage.removeItem('pending_claim_token');
+              claimOrder(pendingToken).then(() => {
+                if (mounted) navigate('/bookings');
+              });
+            }
             return;
           }
           localStorage.removeItem('user');
           if (mounted) setUser(null);
+          // Open auth modal so the user can sign in and claim their booking
+          if (urlClaimToken && mounted) setIsAuthModalOpen(true);
           return;
         }
 
@@ -153,6 +187,14 @@ function App() {
         const nextUser = await getSessionUserView(sessionUser, cached);
         localStorage.setItem('user', JSON.stringify(nextUser));
         if (mounted) setUser(nextUser);
+        // If there's a pending claim token and user just got a session, claim now
+        const pendingToken = localStorage.getItem('pending_claim_token');
+        if (pendingToken) {
+          localStorage.removeItem('pending_claim_token');
+          claimOrder(pendingToken).then(() => {
+            if (mounted) navigate('/bookings');
+          });
+        }
       } catch {
         const storedUserRaw = localStorage.getItem('user');
         if (storedUserRaw) {
@@ -196,6 +238,15 @@ function App() {
           localStorage.setItem('user', JSON.stringify(nextUser));
           setUser(nextUser);
           setIsAuthModalOpen(false);
+
+          // Process pending claim token (from booking email link)
+          const pendingToken = localStorage.getItem('pending_claim_token');
+          if (pendingToken) {
+            localStorage.removeItem('pending_claim_token');
+            claimOrder(pendingToken).then(() => {
+              navigate('/bookings');
+            });
+          }
         }
 
         if (event === 'SIGNED_OUT') {
@@ -464,6 +515,13 @@ function App() {
       // Calculate baggage price
       const baggagePrice = calculateBaggagePrice(data.baggage);
 
+      const requestedCounts = {
+        adults: Number(lastSearchData?.adults || 1),
+        children: Number(lastSearchData?.children || 0),
+        infants: Number(lastSearchData?.infants || 0)
+      };
+      const submittedPassengers = Array.isArray(data.passengers) ? data.passengers : [];
+
       // Prepare complete order payload for n8n webhook
       // n8n will handle: DRCT API call + Supabase writes (orders + passengers)
       const orderPayload = {
@@ -475,19 +533,19 @@ function App() {
         offer_id: selectedOffer.offer_id,
 
         // 2. passengers - массив с данными пассажиров (обязательно!)
-        passengers: [{
-          type: 'ADT', // Adult passenger type
-          first_name: data.firstName,
-          last_name: data.lastName,
-          date_of_birth: data.dateOfBirth,
-          gender: data.gender === 'male' ? 'M' : 'F', // DRCT expects M/F, not 'male'/'female'
+        passengers: submittedPassengers.map((p) => ({
+          type: p.type || 'ADT',
+          first_name: p.firstName,
+          last_name: p.lastName,
+          date_of_birth: p.dateOfBirth,
+          gender: p.gender === 'female' ? 'F' : 'M',
           document: {
             type: 'passport',
-            number: data.passportNumber,
-            expiry_date: data.passportExpiry,
-            issuing_country: data.nationality || 'SA'
+            number: p.passportNumber,
+            expiry_date: p.passportExpiry,
+            issuing_country: p.nationality || 'SA'
           }
-        }],
+        })),
 
         // 3. contacts - email и phone (обязательно!)
         contacts: {
@@ -520,9 +578,7 @@ function App() {
         // Additional passenger info (для таблицы passengers в Supabase)
         passenger_details: {
           baggage_allowance: data.baggage,
-          nationality: data.nationality,
-          passport_number: data.passportNumber,
-          passport_expiry: data.passportExpiry
+          requested_counts: requestedCounts
         },
 
         // Pricing breakdown (для расчета итоговой стоимости)
@@ -558,7 +614,8 @@ function App() {
         bookingReference: n8nResponse.booking_reference || n8nResponse.drct_order_id,
         status: 'pending_payment',
         offer: selectedOffer,
-        passenger: data,
+        passenger: submittedPassengers[0] || null,
+        passengers: submittedPassengers,
         totalPrice: (selectedOffer.price?.total || 0) + baggagePrice.amount,
         currency: selectedOffer.price?.currency || 'UAH'
       };
@@ -572,7 +629,7 @@ function App() {
         user_id: user?.id || null,
         contact_email: data.email,
         contact_phone: data.phone,
-        passenger_count: 1,
+        passenger_count: submittedPassengers.length || 1,
         origin: selectedOffer.origin,
         destination: selectedOffer.destination,
         departure_time: selectedOffer.departure_time,
@@ -639,7 +696,7 @@ function App() {
   // Handle new search
   const handleNewSearch = () => {
     setCurrentStep('search');
-    setCurrentPage('search');
+    navigate('/');
     setSelectedOffer(null);
     setPassengerData(null);
     setBooking(null);
@@ -655,7 +712,8 @@ function App() {
       setIsAuthModalOpen(true);
       return;
     }
-    setCurrentPage('bookings');
+    setBookingsRefreshKey(k => k + 1);
+    navigate('/bookings');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -670,7 +728,7 @@ function App() {
       setError('You do not have access to the admin panel');
       return;
     }
-    setCurrentPage('admin');
+    navigate('/admin');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -683,13 +741,13 @@ function App() {
       setError('You do not have access to agency admin mode');
       return;
     }
-    setCurrentPage('adminAgency');
+    navigate('/admin?mode=agency');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Navigate back to home/search
   const handleBackToHome = () => {
-    setCurrentPage('search');
+    navigate('/');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -740,8 +798,7 @@ function App() {
 
     try {
       // Prefer explicit search URL; otherwise derive from configured n8n base URL.
-      const n8nBaseUrl = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
-      const searchUrl = import.meta.env.VITE_N8N_SEARCH_URL || `${n8nBaseUrl}/drct/search`;
+      const searchUrl = getSafeSearchUrl();
 
       console.log('=== Flight Search Started ===');
       console.log('Search payload:', JSON.stringify(searchData, null, 2));
@@ -1023,6 +1080,20 @@ function App() {
               <h1 className="text-3xl font-bold text-gray-900">Aviaframe Portal</h1>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex rounded-lg overflow-hidden border border-gray-200 text-sm font-semibold shadow-sm" title="Switch language / تغيير اللغة">
+                <button
+                  onClick={() => setLang('en')}
+                  className={`px-3 py-1.5 transition-colors ${lang === 'en' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  EN
+                </button>
+                <button
+                  onClick={() => setLang('ar')}
+                  className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${lang === 'ar' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  عر
+                </button>
+              </div>
               <button
                 onClick={() => setUseMockData(!useMockData)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -1032,7 +1103,7 @@ function App() {
                 }`}
               >
                 <TestTube2 size={18} />
-                {useMockData ? 'Test Mode ON' : 'Test Mode OFF'}
+                {useMockData ? t('nav.testOn') : t('nav.testOff')}
               </button>
 
               {/* Navigation buttons */}
@@ -1047,7 +1118,7 @@ function App() {
                     }`}
                   >
                     <BookOpen size={18} />
-                    My bookings
+                    {t('nav.myBookings')}
                   </button>
                   {isStaffRole(user.role) && (
                     <button
@@ -1059,7 +1130,7 @@ function App() {
                       }`}
                     >
                       <Shield size={18} />
-                      {user.role === 'agent' ? 'Agency' : 'Admin'}
+                      {user.role === 'agent' ? t('nav.agency') : t('nav.admin')}
                     </button>
                   )}
                   {isAdminRole(user.role) && (
@@ -1090,7 +1161,7 @@ function App() {
                     className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-medium text-gray-700 transition-colors"
                   >
                     <LogOut size={18} />
-                    Logout
+                    {t('nav.logout')}
                   </button>
                 </div>
               ) : (
@@ -1099,7 +1170,7 @@ function App() {
                   className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-md text-sm font-medium transition-colors"
                 >
                   <User size={18} />
-                  Sign In
+                  {t('nav.login')}
                 </button>
               )}
             </div>
@@ -1109,24 +1180,24 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page: My Bookings */}
-        {currentPage === 'bookings' && (
-          <MyBookings key={bookingsRefreshKey} user={user} onBackToHome={handleBackToHome} />
-        )}
-
-        {/* Page: Admin Dashboard */}
-        {currentPage === 'admin' && (
-          <AdminDashboard user={user} onBackToHome={handleBackToHome} />
-        )}
-
-        {/* Page: Agency Admin View (under same super-admin creds) */}
-        {currentPage === 'adminAgency' && (
-          <AdminDashboard user={user} onBackToHome={handleBackToHome} viewMode="agency_admin" />
-        )}
-
-        {/* Page: Search/Booking Flow */}
-        {currentPage === 'search' && (
-          <>
+        <Routes>
+          <Route path="/bookings" element={
+            <ErrorBoundary>
+              <MyBookings key={bookingsRefreshKey} user={user} onBackToHome={handleBackToHome} />
+            </ErrorBoundary>
+          } />
+          <Route path="/admin" element={
+            <ErrorBoundary>
+              <AdminDashboard
+                user={user}
+                onBackToHome={handleBackToHome}
+                viewMode={new URLSearchParams(location.search).get('mode') === 'agency' ? 'agency_admin' : undefined}
+              />
+            </ErrorBoundary>
+          } />
+          <Route path="/*" element={
+            <ErrorBoundary>
+              <>
             {/* Step: Search */}
             {currentStep === 'search' && (
           <>
@@ -1182,20 +1253,20 @@ function App() {
               <>
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-2xl font-bold text-gray-800">
-                    Search Results
+                    {t('results.title')}
                   </h2>
                   <span className="text-gray-600">
-                    {filteredFlights.length} of {flights.length} flight{flights.length !== 1 ? 's' : ''}
+                    {filteredFlights.length} of {flights.length} {flights.length !== 1 ? t('results.flights') : t('results.flight')}
                   </span>
                 </div>
 
                 {/* Quick Filters */}
                 <div className="mb-5 grid grid-cols-1 md:grid-cols-4 gap-3">
                   {[
-                    { id: 'all', label: 'All' },
-                    { id: 'nonstop', label: 'Non-stop' },
-                    { id: 'one_stop', label: '1 stop' },
-                    { id: 'baggage', label: 'With baggage' },
+                    { id: 'all', label: t('results.filters.all') },
+                    { id: 'nonstop', label: t('results.filters.nonstop') },
+                    { id: 'one_stop', label: t('results.filters.oneStop') },
+                    { id: 'baggage', label: t('results.filters.withBaggage') },
                   ].map((item) => {
                     const stat = quickFilterStats[item.id];
                     const active = quickFilter === item.id;
@@ -1213,7 +1284,7 @@ function App() {
                           {item.label}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {stat?.count || 0} flights
+                          {stat?.count || 0} {t('results.flights')}
                           {Number.isFinite(stat?.minPrice) ? ` · from ${stat.minPrice} UAH` : ''}
                         </div>
                       </button>
@@ -1277,7 +1348,7 @@ function App() {
                       }}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md transition-colors"
                     >
-                      Clear Filters
+                      {t('results.clearFilters')}
                     </button>
                   </div>
                 )}
@@ -1286,11 +1357,30 @@ function App() {
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
                 <Plane size={64} className="mx-auto text-gray-300 mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No flights found
+                  {t('results.noFlights')}
                 </h3>
-                <p className="text-gray-500">
-                  Try adjusting your search criteria and try again.
+                <p className="text-gray-500 mb-6">
+                  {t('results.noFlightsHint')}
                 </p>
+                {lastSearchData?.depart_date && (
+                  <div className="flex gap-2 justify-center flex-wrap">
+                    {[-3, -2, -1, 1, 2, 3].map(offset => {
+                      const d = new Date(lastSearchData.depart_date);
+                      d.setDate(d.getDate() + offset);
+                      if (d < new Date()) return null;
+                      const label = d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+                      return (
+                        <button
+                          key={offset}
+                          onClick={() => handleRetryWithDate(d.toISOString().split('T')[0])}
+                          className="px-4 py-2 border border-blue-300 text-blue-600 rounded-lg text-sm hover:bg-blue-50 transition-colors"
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1301,10 +1391,10 @@ function App() {
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
                 <Plane size={64} className="mx-auto text-blue-600 mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  Ready to search
+                  {t('results.readyTitle')}
                 </h3>
                 <p className="text-gray-500">
-                  Fill in the search form above to find flights.
+                  {t('results.readyHint')}
                 </p>
               </div>
             )}
@@ -1313,13 +1403,33 @@ function App() {
 
         {/* Step: Passenger Form */}
         {currentStep === 'passenger' && selectedOffer && (
+          <>
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+                <div>
+                  <h3 className="text-red-800 font-semibold">{t('error.bookingError')}</h3>
+                  <p className="text-red-700 text-sm mt-1">{error}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setCurrentStep('results'); setError(null); }}
+                className="flex-shrink-0 text-sm text-blue-600 hover:underline whitespace-nowrap"
+              >
+                {t('error.tryAnother')}
+              </button>
+            </div>
+          )}
           <PassengerForm
             selectedOffer={selectedOffer}
             onSubmit={handlePassengerSubmit}
             onBack={handleBackToSearch}
             userEmail={user?.email}
+            passengerCounts={lastSearchData}
             isLoading={isLoading}
           />
+          </>
         )}
 
         {/* Step: Payment */}
@@ -1338,23 +1448,23 @@ function App() {
             <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 text-center">
               <div className="mb-6">
                 <CheckCircle size={64} className="mx-auto text-orange-500 mb-4" />
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Booking created!</h2>
-                <p className="text-gray-600">Flight is booked and awaiting payment.</p>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('success.title')}</h2>
+                <p className="text-gray-600">{t('success.subtitle')}</p>
               </div>
 
               {/* Booking Reference */}
               <div className="bg-orange-50 rounded-lg p-4 mb-4 border border-orange-200">
-                <div className="text-sm text-gray-600 mb-1">Booking number</div>
+                <div className="text-sm text-gray-600 mb-1">{t('success.bookingNumber')}</div>
                 <div className="text-2xl font-bold text-orange-600">{booking.bookingReference}</div>
               </div>
 
               {/* Status */}
               <div className="bg-yellow-50 rounded-lg p-4 mb-6 border border-yellow-200">
                 <div className="text-sm font-semibold text-yellow-800 mb-2">
-                  Status: Awaiting payment
+                  {t('success.status')}
                 </div>
                 <p className="text-xs text-yellow-700">
-                  Complete payment to finalize booking. Instructions were sent to your email.
+                  {t('success.instructions')}
                 </p>
               </div>
 
@@ -1363,23 +1473,23 @@ function App() {
                 <h3 className="font-semibold text-gray-800 mb-4">Flight details</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Route:</span>
+                    <span className="text-gray-600">{t('success.route')}:</span>
                     <span className="font-semibold">{booking.offer.origin} → {booking.offer.destination}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Airline:</span>
+                    <span className="text-gray-600">{t('success.airline')}:</span>
                     <span className="font-semibold">{booking.offer.airline_name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Departure:</span>
+                    <span className="text-gray-600">{t('success.departure')}:</span>
                     <span className="font-semibold">{booking.offer.departure_time}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Passenger:</span>
+                    <span className="text-gray-600">{t('success.passenger')}:</span>
                     <span className="font-semibold">{booking.passenger.firstName} {booking.passenger.lastName}</span>
                   </div>
                   <div className="flex justify-between border-t pt-2 mt-2">
-                    <span className="text-gray-600">Amount due:</span>
+                    <span className="text-gray-600">{t('success.amountDue')}:</span>
                     <span className="text-xl font-bold text-orange-600">
                       {booking.totalPrice.toFixed(0)} {booking.currency}
                     </span>
@@ -1390,28 +1500,30 @@ function App() {
               {/* Actions */}
               <div className="space-y-3">
                 <p className="text-sm text-gray-500 mb-4">
-                  Booking details and payment instructions were sent to <strong>{user?.email || booking.passenger.email}</strong>
+                  {t('success.sentTo')} <strong>{user?.email || booking.passenger.email}</strong>
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={handleGoToBookings}
                     className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-3 px-6 rounded-lg transition-all"
                   >
-                    My bookings
+                    {t('success.myBookings')}
                   </button>
                   <button
                     onClick={handleNewSearch}
                     className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold py-3 px-6 rounded-lg transition-all"
                   >
-                    New search
+                    {t('success.newSearch')}
                   </button>
                 </div>
               </div>
             </div>
           </div>
         )}
-          </>
-        )}
+              </>
+            </ErrorBoundary>
+          } />
+        </Routes>
       </main>
 
       {/* Auth Modal */}

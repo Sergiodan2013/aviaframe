@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "http://almalektravel.aviaframe.com/*"
+  to = "https://almalektravel.aviaframe.com/:splat"
+  status = 301
+  force = true

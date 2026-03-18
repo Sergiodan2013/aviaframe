@@ -1,0 +1,516 @@
+{
+  "name": "Social_media_post _automation_from_google_trends_and _perplexity copy",
+  "nodes": [
+    {
+      "parameters": {
+        "person": "35qR13OE-l",
+        "additionalFields": {}
+      },
+      "id": "3dd9606b-fb31-4247-aac3-c62a250b484f",
+      "name": "LinkedIn1",
+      "type": "n8n-nodes-base.linkedIn",
+      "position": [
+        480,
+        288
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "gJJ8AsX20mCfE3xQ",
+          "name": "LinkedIn account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "[YOUR_GOOGLE_SHEETS_DOCUMENT_ID]",
+          "cachedResultUrl": "[YOUR_GOOGLE_SHEETS_URL]",
+          "cachedResultName": "LinkedIn Automation"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultUrl": "[YOUR_GOOGLE_SHEETS_URL]",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "value": {
+            "Topic": "={{ $('Choosing Topic').item.json.message.content }}",
+            "Status": "Posted",
+            "AI Output": "={{ $json['choices[0].message.content'] }}",
+            "Date Posted": "={{ $('Schedule Trigger').item.json.timestamp }}"
+          },
+          "schema": [
+            {
+              "id": "Topic",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Topic",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Status",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI Output",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "AI Output",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date Posted",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Date Posted",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Topic"
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "251bbd03-48ed-4d00-8624-65dca04a1857",
+      "name": "Google Sheets2",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        688,
+        288
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleApi": {
+          "id": "j2zC5kEPggPR7dmD",
+          "name": "n8nPost"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "choices[0].message.content",
+        "options": {}
+      },
+      "id": "6764643f-5517-4824-b2d9-95c6d4fa59b2",
+      "name": "Split Out",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        240,
+        288
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 15
+            },
+            {
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "id": "1cc53f8e-523b-49dd-a9a3-a096d05aa57d",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        -1456,
+        288
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "perplexityApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"sonar-pro\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Act as a skilled editor revising AI-generated text to sound authentically human. Follow these rules:\\n\\n1. Punctuation Adjustments\\n   - Replace em dashes, semicolons, or rephrase sentences where appropriate.\\n   - Avoid semicolons in casual contexts; use periods or conjunctions (e.g., 'and,' 'but').\\n   - Remove mid-sentence ellipses unless mimicking deliberate hesitation.\\n   - Limit parenthetical asides; integrate explanations into the main sentence.\\n   - Use colons sparingly.\\n\\n2. Language\\n   - Replace hedging phrases with direct statements.\\n   - Avoid stock transitions.\\n   - Vary repetitive terms.\\n   - Use contractions in informal contexts.\\n   - Replace overly formal words with simpler alternatives.\\n\\n3. Style\\n   - Prioritize concise, varied sentence lengths.\\n   - Allow minor imperfections.\\n   - Maintain the core message but adjust tone to match the audience.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"You are a researcher and expert copywriter in a business development team of an AI Automation Agency. Generate exactly one LinkedIn post that adheres to LinkedIn's API formatting guidelines and is easy for humans to read. Follow these rules:\\n\\nStructure:\\n1. Hook: Start with a bold opening line using Unicode characters (e.g., \\\"𝐁𝐎𝐋𝐃 𝐒𝐓𝐀𝐓𝐄𝐌𝐄𝐍𝐓\\\").\\n2. Body: Use short paragraphs (1-3 sentences) separated by \\\\n\\\\n.\\n3. Use bullet points (•) for key features or highlights.\\n4. End with a clear call-to-action (e.g., \\\"Comment below with your thoughts!\\\").\\n\\nFormatting Requirements:\\n- Remove all numeric citation brackets like [2], [3], [4] from the text.\\n- Instead of citation brackets, if needed, add a brief phrase like \\\"according to Google I/O 2025\\\" or \\\"as reported by DeepMind\\\" naturally within the sentence.\\n- No Markdown or rich text formatting.\\n- Use Unicode characters or emojis for emphasis (e.g., ★, 🚀).\\n- Include up to 3 relevant hashtags at the end (e.g., #AI #Automation).\\n- For URLs or references, use placeholders like [Link] instead of raw URLs.\\n- If mentioning users or companies, use official LinkedIn URN format (e.g., \\\"urn:li:organization:123456\\\").\\n\\nContent Rules:\\n- Max 1,200 characters.\\n- Avoid promotional language.\\n- Include one statistical claim or industry insight.\\n- Add one personal anecdote or professional observation.\\n\\nReturn the post as plain text without additional commentary.\\n\\nInput: \\\\{\\\\{ $json.message.content \\\\}\\\\}\"\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "fe090e75-2f30-43fb-86f6-47dd5b81babb",
+      "name": "Research Topic- Perplexity",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -208,
+        288
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "NSFYo7IQyv5pB1Wi",
+          "name": "Unnamed credential"
+        },
+        "httpHeaderAuth": {
+          "id": "YexPndSZnITKYDQ2",
+          "name": "Perplexity"
+        },
+        "perplexityApi": {
+          "id": "GTqsiqWkktI6xEjY",
+          "name": "Perplexity account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"most-trending\": {\n\n    \"#1\": { \n\n      \"query\":\"{{ $json.related_queries.rising[0].query }}\",\n      \"score\":\"{{ $json.related_queries.rising[0].extracted_value }}\"\n\n    },\n\n\n    \"#2\": { \n\n      \"query\":\"{{ $json.related_queries.rising[1].query }}\",\n      \"score\":\"{{ $json.related_queries.rising[1].extracted_value }}\"\n\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "2706cb64-4787-4ab4-b243-6ef2184a0440",
+      "name": "2 Most Trending",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        -1024,
+        288
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Получаем массив 'top' из результатов Google Trends\nconst topItems = $('Google Trends').first().json.related_queries.top;\n\n// 2. Проверяем, есть ли данные, чтобы избежать «падения» воркфлоу\nif (!topItems || !Array.isArray(topItems)) {\n  return [{ json: { result: \"No keywords found\" } }];\n}\n\n// 3. Фильтруем: оставляем только те запросы, где интерес (score) > 30\nconst filtered = topItems.filter(item => item.extracted_value > 30);\n\n// 4. Собираем их в одну строку через запятую для ИИ\nconst resultString = filtered.map(item => item.query).join(', ');\n\n// 5. Передаем результат дальше\nreturn [{ json: { result: resultString } }];"
+      },
+      "id": "06944c09-150c-40fc-a1a0-cb49c362a03d",
+      "name": "High search volume keywords",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -800,
+        288
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-3.5-turbo",
+          "cachedResultName": "GPT-3.5-TURBO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are part of a team that creates world class blog posts. Your job is to choose the topic for each blog post. \n\nThe blog posts are posted on the LinkedIn of behalf of a Business Analyst and Consultant of Sergii Danyliuk who is a skillful BA, Business Consultant and want to impressed potential customers and employers to get more views, impressions and likes about the themes like AI, Business analyses, Atlassian products, automations., ITIL and ITSM.The blog posts are mainly posted as part of an SEO campaign to get for Sergii Danyliuk Linkedin page to rank high for its products and services.\n\nIn this instance, you are given a list of 2 keywords which have been trending the most on Google news search over the past few days. \n\nYour job is to pick one which you think would make for the most relevant blog post with the best SEO outcomes for the client. \n\nThe keywords have two attributes: \n\n1. query: This attribute determines the search query that users have been searching for which is trending. \n\n2. value: This attribute determines what percentage increase the keyword has seen compared to previous periods (i.e. the increase in search volume). \n\nYou must choose one out of the taking into consideration both the relevance of the keyword for Sergii Danyliuk efforts and the comparative trendiness determined by the value attribute. \n\nOutput the keyword you decided to post a blog on and nothing else. Don't explain your reasoning. Just output the keyword. \n\nThis instance: \n\nKeyword 1:\n{{ $('2 Most Trending').item.json['most-trending']['#1'].toJsonString() }} \n\nKeyword2: \n{{ $('2 Most Trending').item.json['most-trending']['#2'].toJsonString() }} ",
+              "role": "=user"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b30a6f8-8a8a-4694-9188-57f4364552b7",
+      "name": "Choosing Topic",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [
+        -576,
+        288
+      ],
+      "typeVersion": 1.8,
+      "credentials": {
+        "openAiApi": {
+          "id": "7XnHWMoOPSzizj6t",
+          "name": "Post"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Find Trend\n\n",
+        "height": 240,
+        "width": 400
+      },
+      "id": "0ae3031a-7998-4db5-9c92-94d22639245c",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1280,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## High Volume Keywords\n\n",
+        "height": 240,
+        "width": 200
+      },
+      "id": "5895bae2-e72c-4974-9d4d-21d0f7736d9d",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -864,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Choosing Blog Topic\n\n\n",
+        "height": 240,
+        "width": 340
+      },
+      "id": "09325172-b275-47ca-a49e-9ab609d8b17d",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -624,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Research\n\n\n",
+        "height": 240,
+        "width": 600
+      },
+      "id": "938b5cdf-d242-4135-9f96-469f7f945a9e",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -240,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "agentic orchestration"
+            },
+            {
+              "name": "geo",
+              "value": "US"
+            },
+            {
+              "name": "hl",
+              "value": "en"
+            },
+            {
+              "name": "date",
+              "value": "={{ $now.minus({ months: 3 }).format('yyyy-MM-dd') + ' ' + $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "data_type",
+              "value": "RELATED_QUERIES"
+            },
+            {
+              "name": "engine",
+              "value": "google_trends"
+            },
+            {
+              "name": "api_key",
+              "value": "00757d1bfd1ccdbc60035ae5458dd5a18f9ed62ba4d088583d49d23a0218fee4"
+            },
+            {
+              "name": "no_cache",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f587ebc3-891b-40fd-a303-7036f669e43d",
+      "name": "Google Trends",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1248,
+        288
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "id": "b9e82e04-e830-4b36-ba62-ddabe71230a3",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        16,
+        288
+      ],
+      "webhookId": "[GENERATED_WEBHOOK_ID]",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "content": "## Multi Social Media Posting",
+        "height": 800
+      },
+      "id": "433d7de4-1cf7-41c6-9675-c078ea58dd39",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        400,
+        -80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Status update",
+        "height": 260
+      },
+      "id": "a9fe35ed-0f4c-4178-8424-abe0e9160624",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        672,
+        208
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn1": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Trends": {
+      "main": [
+        [
+          {
+            "node": "2 Most Trending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choosing Topic": {
+      "main": [
+        [
+          {
+            "node": "Research Topic- Perplexity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2 Most Trending": {
+      "main": [
+        [
+          {
+            "node": "High search volume keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Google Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Topic- Perplexity": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High search volume keywords": {
+      "main": [
+        [
+          {
+            "node": "Choosing Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f2ec2e75-2cbd-405d-8de0-f6435aaa590e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eff30fcecaf444a5ee536a4b5d7dc33c37063bd818ccd08436196feb9f747278"
+  },
+  "id": "9kAVC8Afvrt6Si1l",
+  "tags": []
+}
