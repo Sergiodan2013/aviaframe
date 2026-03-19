@@ -3107,6 +3107,127 @@ app.post('/public/search', async (req, res) => {
   }
 });
 
+
+// ── Moyasar Payments ─────────────────────────────────────────────────────────
+(function registerPaymentRoutes() {
+  const axios = require('axios');
+  const drctService = require('./services/drctService');
+  const MOYASAR_API = 'https://api.moyasar.com/v1';
+  const BACKEND_URL = process.env.BACKEND_URL || 'https://peaceful-amazement-production-629f.up.railway.app';
+  const APP_PORTAL_URL = process.env.APP_URL || 'https://admin.aviaframe.com';
+
+  function moyasarAuth() {
+    return { username: process.env.MOYASAR_SECRET_KEY || '', password: '' };
+  }
+
+  async function handlePaymentPaid(order, paymentId) {
+    await supabase.from('orders').update({
+      payment_status: 'paid',
+      status: 'confirmed',
+      confirmed_at: new Date().toISOString(),
+    }).eq('id', order.id);
+    console.log('[payments] order ' + order.order_number + ' paid (' + paymentId + ')');
+    if (order.drct_order_id) {
+      try {
+        await drctService.issueOrder(order.drct_order_id);
+        await supabase.from('orders').update({ status: 'ticketed' }).eq('id', order.id);
+        console.log('[payments] order ' + order.order_number + ' ticketed');
+      } catch (err) {
+        console.error('[payments] DRCT issue failed for ' + order.order_number + ':', err.message);
+      }
+    }
+  }
+
+  app.post('/api/payments/initiate', async (req, res) => {
+    const { order_id, card } = req.body || {};
+    if (!order_id) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'order_id is required' } });
+    if (!card || !card.name || !card.number || !card.month || !card.year || !card.cvc) {
+      return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'card.name, number, month, year, cvc are required' } });
+    }
+    if (!process.env.MOYASAR_SECRET_KEY) {
+      return res.status(500).json({ error: { code: 'CONFIG_ERROR', message: 'Payment gateway not configured' } });
+    }
+    const { data: order, error: orderErr } = await supabase
+      .from('orders').select('id,order_number,total_price,currency,drct_order_id,payment_status,metadata')
+      .eq('id', order_id).maybeSingle();
+    if (orderErr || !order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' } });
+    if (order.payment_status === 'paid') return res.status(400).json({ error: { code: 'ALREADY_PAID', message: 'Order is already paid' } });
+
+    const amount = Math.round((order.total_price || 0) * 100);
+    const currency = (order.currency || 'SAR').toUpperCase();
+
+    let moyasarPayment;
+    try {
+      const { data } = await axios.post(MOYASAR_API + '/payments', {
+        amount,
+        currency,
+        description: 'Flight booking ' + order.order_number,
+        callback_url: BACKEND_URL + '/api/payments/callback',
+        source: {
+          type: 'creditcard',
+          name: card.name,
+          number: String(card.number).replace(/\s/g, ''),
+          month: String(card.month).padStart(2, '0'),
+          year: String(card.year).length === 2 ? '20' + String(card.year) : String(card.year),
+          cvc: String(card.cvc),
+        },
+      }, { auth: moyasarAuth() });
+      moyasarPayment = data;
+    } catch (err) {
+      const msg = (err.response && err.response.data && err.response.data.message) || err.message;
+      console.error('[payments/initiate] Moyasar error:', msg);
+      return res.status(502).json({ error: { code: 'PAYMENT_GATEWAY_ERROR', message: msg } });
+    }
+
+    await supabase.from('orders').update({
+      metadata: Object.assign({}, order.metadata || {}, { moyasar_payment_id: moyasarPayment.id }),
+      payment_method: 'online',
+    }).eq('id', order_id);
+
+    if (moyasarPayment.status === 'paid') {
+      await handlePaymentPaid(order, moyasarPayment.id);
+      return res.json({ payment_id: moyasarPayment.id, status: 'paid' });
+    }
+
+    const transactionUrl = (moyasarPayment.source && moyasarPayment.source.transaction_url) || null;
+    console.log('[payments/initiate] order ' + order.order_number + ' moyasar=' + moyasarPayment.id + ' status=' + moyasarPayment.status);
+    return res.json({ payment_id: moyasarPayment.id, status: moyasarPayment.status, transaction_url: transactionUrl });
+  });
+
+  app.get('/api/payments/callback', async (req, res) => {
+    const paymentId = req.query.id;
+    if (!paymentId) return res.redirect(APP_PORTAL_URL + '?payment_result=failed');
+
+    let payment;
+    try {
+      const { data } = await axios.get(MOYASAR_API + '/payments/' + paymentId, { auth: moyasarAuth() });
+      payment = data;
+    } catch (err) {
+      console.error('[payments/callback] Moyasar verify error:', err.message);
+      return res.redirect(APP_PORTAL_URL + '?payment_result=failed');
+    }
+
+    const { data: orders } = await supabase.from('orders')
+      .select('id,order_number,drct_order_id,payment_status')
+      .filter('metadata->>moyasar_payment_id', 'eq', paymentId).limit(1);
+    const order = orders && orders[0];
+    if (!order) {
+      console.error('[payments/callback] order not found for payment', paymentId);
+      return res.redirect(APP_PORTAL_URL + '?payment_result=failed');
+    }
+
+    if (payment.status === 'paid') {
+      if (order.payment_status !== 'paid') await handlePaymentPaid(order, paymentId);
+      return res.redirect(APP_PORTAL_URL + '?payment_result=success&order_id=' + order.id);
+    }
+
+    await supabase.from('orders').update({ payment_status: 'failed' }).eq('id', order.id);
+    return res.redirect(APP_PORTAL_URL + '?payment_result=failed&order_id=' + order.id);
+  });
+
+  console.log('[payments] routes registered');
+})();
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
