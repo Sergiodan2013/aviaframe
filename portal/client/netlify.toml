@@ -1,8 +1,6 @@
 [build]
-  base = "portal/client"
   # After vite build, write-redirects.js generates dist/_redirects using BACKEND_URL env var.
   # Set BACKEND_URL in Netlify → Site configuration → Environment variables.
-  # Example: BACKEND_URL=https://your-ngrok-subdomain.ngrok-free.dev
   command = "npm ci && npm run build && node scripts/write-redirects.js"
   publish = "dist"
 
