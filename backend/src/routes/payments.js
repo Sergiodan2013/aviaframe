@@ -4,6 +4,7 @@ const express = require('express');
 const axios = require('axios');
 const supabase = require('../lib/supabase');
 const drctService = require('../services/drctService');
+const emailService = require('../services/emailService');
 
 const router = express.Router();
 
@@ -133,7 +134,7 @@ router.get('/api/payments/callback', async (req, res) => {
   // Find order by moyasar_payment_id stored in metadata
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_number, drct_order_id, payment_status')
+    .select('id, order_number, drct_order_id, payment_status, contact_email, origin, destination, departure_time, currency, total_price')
     .filter('metadata->>moyasar_payment_id', 'eq', paymentId)
     .limit(1);
 
@@ -184,6 +185,41 @@ async function handlePaymentPaid(order, paymentId) {
     } catch (err) {
       console.error(`[payments] DRCT issue failed for ${order.order_number}:`, err.message);
       // Don't throw — payment is done, ticket can be issued manually
+    }
+  }
+
+  // Send booking confirmation email
+  if (order.contact_email) {
+    try {
+      const amount = order.total_price != null
+        ? `${Number(order.total_price).toFixed(2)} ${order.currency || ''}`
+        : 'N/A';
+      const emailText = [
+        'Hello,',
+        '',
+        'Your payment has been received and your booking is confirmed.',
+        '',
+        `Order: ${order.order_number}`,
+        `Route: ${order.origin || 'N/A'} → ${order.destination || 'N/A'}`,
+        `Departure: ${order.departure_time || 'N/A'}`,
+        `Amount paid: ${amount}`,
+        '',
+        'Your e-ticket will be sent to this email once issued.',
+        'If you have any questions, please contact us.',
+        '',
+        'Aviaframe Portal'
+      ].join('\n');
+
+      await emailService.sendSupportEmail({
+        to: order.contact_email,
+        from: null,
+        subject: `Booking confirmed — ${order.order_number}`,
+        text: emailText,
+      });
+      console.log(`[payments] confirmation email sent to ${order.contact_email} for ${order.order_number}`);
+    } catch (err) {
+      console.error(`[payments] confirmation email failed for ${order.order_number}:`, err.message);
+      // Don't throw — email failure is non-critical
     }
   }
 }

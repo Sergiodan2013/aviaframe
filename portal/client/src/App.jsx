@@ -34,6 +34,7 @@ function App() {
   const [currentStep, setCurrentStep] = useState('search'); // 'search', 'passenger', 'payment', 'success'
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [passengerData, setPassengerData] = useState(null);
+  const [currentOrderId, setCurrentOrderId] = useState(null);
   const [booking, setBooking] = useState(null);
   const [lastSearchData, setLastSearchData] = useState(null);
   const [suggestedDates, setSuggestedDates] = useState([]);
@@ -101,6 +102,34 @@ function App() {
       // noop
     }
   };
+
+  // Handle Moyasar 3DS callback: ?payment_result=success|failed&order_id=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentResult = params.get('payment_result');
+    if (!paymentResult) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    if (paymentResult === 'success') {
+      const orderId = params.get('order_id');
+      // Restore full booking data saved before 3DS redirect
+      let restoredBooking = null;
+      try {
+        const saved = localStorage.getItem('moyasarPendingBooking');
+        if (saved) {
+          restoredBooking = JSON.parse(saved);
+          localStorage.removeItem('moyasarPendingBooking');
+        }
+      } catch (e) { /* ignore */ }
+      setBooking(
+        restoredBooking
+          ? { ...restoredBooking, status: 'paid' }
+          : { orderNumber: orderId, bookingReference: orderId, status: 'paid' }
+      );
+      setCurrentStep('success');
+    } else {
+      setError('Payment was not completed. Please try again.');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check for existing user session on mount
   useEffect(() => {
@@ -601,11 +630,15 @@ function App() {
 
       setBooking(bookingData);
 
+      // Save to localStorage so success screen can restore after 3DS redirect
+      localStorage.setItem('moyasarPendingBooking', JSON.stringify(bookingData));
+
       // Refresh bookings list when user visits it next time
       setBookingsRefreshKey(prev => prev + 1);
 
-      // Navigate directly to success screen (skip payment)
-      setCurrentStep('success');
+      // Navigate to payment screen
+      setCurrentOrderId(resolvedOrderId);
+      setCurrentStep('payment');
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
     } catch (err) {
@@ -1327,70 +1360,100 @@ function App() {
           <PaymentScreen
             selectedOffer={selectedOffer}
             passengerData={passengerData}
+            orderId={currentOrderId}
             onBack={() => setCurrentStep('passenger')}
             onPaymentSuccess={handlePaymentSuccess}
           />
         )}
 
-        {/* Step: Success (Hold Booking - Awaiting Payment) */}
+        {/* Step: Success */}
         {currentStep === 'success' && booking && (
           <div className="max-w-2xl mx-auto">
             <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 text-center">
               <div className="mb-6">
-                <CheckCircle size={64} className="mx-auto text-orange-500 mb-4" />
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Booking created!</h2>
-                <p className="text-gray-600">Flight is booked and awaiting payment.</p>
-              </div>
-
-              {/* Booking Reference */}
-              <div className="bg-orange-50 rounded-lg p-4 mb-4 border border-orange-200">
-                <div className="text-sm text-gray-600 mb-1">Booking number</div>
-                <div className="text-2xl font-bold text-orange-600">{booking.bookingReference}</div>
-              </div>
-
-              {/* Status */}
-              <div className="bg-yellow-50 rounded-lg p-4 mb-6 border border-yellow-200">
-                <div className="text-sm font-semibold text-yellow-800 mb-2">
-                  Status: Awaiting payment
-                </div>
-                <p className="text-xs text-yellow-700">
-                  Complete payment to finalize booking. Instructions were sent to your email.
+                <CheckCircle size={64} className="mx-auto text-green-500 mb-4" />
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                  {booking.status === 'paid' ? 'Payment confirmed!' : 'Booking created!'}
+                </h2>
+                <p className="text-gray-600">
+                  {booking.status === 'paid'
+                    ? 'Your flight is booked and ticket is being issued.'
+                    : 'Flight is booked and awaiting payment.'}
                 </p>
               </div>
 
-              {/* Flight Details */}
-              <div className="text-left mb-6 p-6 bg-gray-50 rounded-lg">
-                <h3 className="font-semibold text-gray-800 mb-4">Flight details</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Route:</span>
-                    <span className="font-semibold">{booking.offer.origin} → {booking.offer.destination}</span>
+              {/* Booking Reference */}
+              <div className="bg-green-50 rounded-lg p-4 mb-4 border border-green-200">
+                <div className="text-sm text-gray-600 mb-1">Booking number</div>
+                <div className="text-2xl font-bold text-green-600">{booking.bookingReference || booking.orderNumber}</div>
+              </div>
+
+              {/* Status */}
+              {booking.status === 'paid' ? (
+                <div className="bg-green-50 rounded-lg p-4 mb-6 border border-green-200">
+                  <div className="text-sm font-semibold text-green-800 mb-2">
+                    Status: Payment received ✓
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Airline:</span>
-                    <span className="font-semibold">{booking.offer.airline_name}</span>
+                  <p className="text-xs text-green-700">
+                    Ticket confirmation will be sent to your email shortly.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 rounded-lg p-4 mb-6 border border-yellow-200">
+                  <div className="text-sm font-semibold text-yellow-800 mb-2">
+                    Status: Awaiting payment
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Departure:</span>
-                    <span className="font-semibold">{booking.offer.departure_time}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Passenger:</span>
-                    <span className="font-semibold">{booking.passenger.firstName} {booking.passenger.lastName}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2 mt-2">
-                    <span className="text-gray-600">Amount due:</span>
-                    <span className="text-xl font-bold text-orange-600">
-                      {booking.totalPrice.toFixed(0)} {booking.currency}
-                    </span>
+                  <p className="text-xs text-yellow-700">
+                    Complete payment to finalize booking. Instructions were sent to your email.
+                  </p>
+                </div>
+              )}
+
+              {/* Flight Details — shown only when offer data is available */}
+              {booking.offer && (
+                <div className="text-left mb-6 p-6 bg-gray-50 rounded-lg">
+                  <h3 className="font-semibold text-gray-800 mb-4">Flight details</h3>
+                  <div className="space-y-2 text-sm">
+                    {(booking.offer.origin || booking.offer.destination) && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Route:</span>
+                        <span className="font-semibold">{booking.offer.origin} → {booking.offer.destination}</span>
+                      </div>
+                    )}
+                    {booking.offer.airline_name && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Airline:</span>
+                        <span className="font-semibold">{booking.offer.airline_name}</span>
+                      </div>
+                    )}
+                    {booking.offer.departure_time && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Departure:</span>
+                        <span className="font-semibold">{booking.offer.departure_time}</span>
+                      </div>
+                    )}
+                    {booking.passenger && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Passenger:</span>
+                        <span className="font-semibold">{booking.passenger.firstName} {booking.passenger.lastName}</span>
+                      </div>
+                    )}
+                    {booking.totalPrice != null && (
+                      <div className="flex justify-between border-t pt-2 mt-2">
+                        <span className="text-gray-600">{booking.status === 'paid' ? 'Amount paid:' : 'Amount due:'}</span>
+                        <span className="text-xl font-bold text-green-600">
+                          {Number(booking.totalPrice).toFixed(0)} {booking.currency}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Actions */}
               <div className="space-y-3">
                 <p className="text-sm text-gray-500 mb-4">
-                  Booking details and payment instructions were sent to <strong>{user?.email || booking.passenger.email}</strong>
+                  Booking details were sent to <strong>{user?.email || booking.passenger?.email}</strong>
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <button
