@@ -1,8 +1,7 @@
 import axios from 'axios';
 import { logDRCTRequest } from './supabase';
 
-// Local dev must hit n8n test webhooks unless explicitly overridden.
-const N8N_BASE_URL = import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test';
+const N8N_BASE_URL = import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook';
 console.log('[DRCTApi] N8N_BASE_URL =', N8N_BASE_URL);
 
 // ====================================================

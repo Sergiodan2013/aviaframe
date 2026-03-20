@@ -1169,6 +1169,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       const query = searchQuery.toLowerCase();
       return (
         order.order_number?.toLowerCase().includes(query) ||
+        order.drct_order_id?.toLowerCase().includes(query) ||
         order.contact_email?.toLowerCase().includes(query) ||
         order.contact_phone?.toLowerCase().includes(query) ||
         order.origin?.toLowerCase().includes(query) ||
@@ -2088,9 +2089,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                           <p className="text-xs text-gray-600">
                             Passengers: {order.passenger_count || 1}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1 font-mono">
+                          <p className="text-xs font-mono font-semibold text-blue-700 mt-1">
                             {order.order_number}
                           </p>
+                          {order.drct_order_id && (
+                            <p className="text-xs font-mono text-purple-600 mt-0.5" title="PNR / DRCT Order ID">
+                              PNR: {order.drct_order_id}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2238,10 +2244,25 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <p className="text-xs text-gray-500">System fields</p>
-                  <p className="text-xs text-gray-700 break-all">order_id: {selectedOrder.id}</p>
-                  <p className="text-xs text-gray-700 break-all">drct_order_id: {selectedOrder.drct_order_id || 'N/A'}</p>
-                  <p className="text-xs text-gray-700">pax: {selectedOrder.passenger_count || 1}</p>
+                  <p className="text-xs text-gray-500 mb-2">References</p>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Order #</span>
+                      <span className="text-xs font-mono font-semibold text-blue-700 select-all">{selectedOrder.order_number}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">PNR / DRCT</span>
+                      <span className="text-xs font-mono font-semibold text-purple-600 select-all">{selectedOrder.drct_order_id || '—'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Passengers</span>
+                      <span className="text-xs text-gray-700">{selectedOrder.passenger_count || 1}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">UUID</span>
+                      <span className="text-xs font-mono text-gray-400 break-all">{selectedOrder.id}</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <p className="text-xs text-gray-500">Price</p>

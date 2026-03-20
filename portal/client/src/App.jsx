@@ -52,36 +52,38 @@ function App() {
   const isStaffRole = (role) => ['admin', 'super_admin', 'agent'].includes(normalizeRole(role));
   const isAdminRole = (role) => ['admin', 'super_admin'].includes(normalizeRole(role));
 
-  const getSessionUserView = async (sessionUser, cachedUser = null) => {
-    let role = normalizeRole(cachedUser?.role || 'user');
-    let roleFetchedAt = Number(cachedUser?.roleFetchedAt || 0);
+  const buildUserView = (sessionUser, role, roleFetchedAt) => ({
+    id: sessionUser.id,
+    email: sessionUser.email,
+    name: (sessionUser.email || '').split('@')[0],
+    provider: sessionUser.app_metadata?.provider || 'email',
+    role,
+    roleFetchedAt: roleFetchedAt || Date.now()
+  });
+
+  // Returns user view immediately from cache; refreshes role in background if stale.
+  const getSessionUserView = (sessionUser, cachedUser = null) => {
+    const role = normalizeRole(cachedUser?.role || 'user');
+    const roleFetchedAt = Number(cachedUser?.roleFetchedAt || 0);
     const now = Date.now();
     const staleMs = 10 * 60 * 1000;
-    const needsRefresh = !role || role === 'user' || (now - roleFetchedAt > staleMs);
+    const needsRefresh = !cachedUser?.role || cachedUser.role === 'user' || (now - roleFetchedAt > staleMs);
 
     if (needsRefresh && sessionUser?.id && !profileRefreshInFlightRef.current[sessionUser.id]) {
       profileRefreshInFlightRef.current[sessionUser.id] = true;
-      try {
-        const { data: profile, error: profileError } = await getProfile(sessionUser.id);
-        if (profile?.role) {
-          role = normalizeRole(profile.role);
-          roleFetchedAt = Date.now();
-        } else if (profileError?.message) {
-          console.info('Profile role not refreshed:', profileError.message);
-        }
-      } finally {
-        profileRefreshInFlightRef.current[sessionUser.id] = false;
-      }
+      getProfile(sessionUser.id)
+        .then(({ data: profile }) => {
+          if (profile?.role) {
+            const freshUser = buildUserView(sessionUser, normalizeRole(profile.role), Date.now());
+            localStorage.setItem('user', JSON.stringify(freshUser));
+            setUser(freshUser);
+          }
+        })
+        .catch(() => {})
+        .finally(() => { profileRefreshInFlightRef.current[sessionUser.id] = false; });
     }
 
-    return {
-      id: sessionUser.id,
-      email: sessionUser.email,
-      name: (sessionUser.email || '').split('@')[0],
-      provider: sessionUser.app_metadata?.provider || 'email',
-      role,
-      roleFetchedAt: roleFetchedAt || Date.now()
-    };
+    return buildUserView(sessionUser, role, roleFetchedAt);
   };
 
   const readOrdersCache = () => {
@@ -179,7 +181,7 @@ function App() {
 
         const sessionUser = data.session.user;
         const cached = storedUser?.id === sessionUser.id ? storedUser : null;
-        const nextUser = await getSessionUserView(sessionUser, cached);
+        const nextUser = getSessionUserView(sessionUser, cached);
         localStorage.setItem('user', JSON.stringify(nextUser));
         if (mounted) setUser(nextUser);
       } catch {
@@ -206,7 +208,7 @@ function App() {
   // Listen for auth state changes (Magic Link callback)
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
 
         if (['SIGNED_IN', 'INITIAL_SESSION', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event) && session?.user) {
@@ -221,7 +223,8 @@ function App() {
             // noop
           }
 
-          const nextUser = await getSessionUserView(session.user, cached);
+          // Synchronous — returns cached role immediately; refreshes in background if stale.
+          const nextUser = getSessionUserView(session.user, cached);
           localStorage.setItem('user', JSON.stringify(nextUser));
           setUser(nextUser);
           setIsAuthModalOpen(false);
@@ -773,7 +776,7 @@ function App() {
 
     try {
       // Prefer explicit search URL; otherwise derive from configured n8n base URL.
-      const n8nBaseUrl = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
+      const n8nBaseUrl = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook').replace(/\/+$/, '');
       const searchUrl = import.meta.env.VITE_N8N_SEARCH_URL || `${n8nBaseUrl}/drct/search`;
 
       console.log('=== Flight Search Started ===');
@@ -1383,9 +1386,17 @@ function App() {
               </div>
 
               {/* Booking Reference */}
-              <div className="bg-green-50 rounded-lg p-4 mb-4 border border-green-200">
-                <div className="text-sm text-gray-600 mb-1">Booking number</div>
-                <div className="text-2xl font-bold text-green-600">{booking.bookingReference || booking.orderNumber}</div>
+              <div className="bg-green-50 rounded-lg p-4 mb-4 border border-green-200 space-y-2">
+                <div>
+                  <div className="text-xs text-gray-500 mb-0.5">Order number (for support)</div>
+                  <div className="text-xl font-bold text-green-600 font-mono">{booking.orderNumber || booking.bookingReference}</div>
+                </div>
+                {booking.bookingReference && booking.bookingReference !== booking.orderNumber && (
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">PNR / Booking reference</div>
+                    <div className="text-lg font-bold text-purple-600 font-mono">{booking.bookingReference}</div>
+                  </div>
+                )}
               </div>
 
               {/* Status */}

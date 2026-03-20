@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const express = require('express');
 const crypto = require('crypto');
+const axios = require('axios');
 const supabase = require('./lib/supabase');
 const { buildInvoicePdf, buildTicketPdf } = require('./services/pdfService');
 const { sendTicketEmail, sendSupportEmail } = require('./services/emailService');
@@ -3120,12 +3121,8 @@ app.post('/public/search', async (req, res) => {
     return { username: process.env.MOYASAR_SECRET_KEY || '', password: '' };
   }
 
-  async function handlePaymentPaid(order, paymentId) {
-    await supabase.from('orders').update({
-      payment_status: 'paid',
-      status: 'confirmed',
-      confirmed_at: new Date().toISOString(),
-    }).eq('id', order.id);
+  // Async post-payment work (DRCT ticket + email) — runs after response is sent
+  async function handlePaymentPaidAsync(order, paymentId) {
     console.log('[payments] order ' + order.order_number + ' paid (' + paymentId + ')');
     if (order.drct_order_id) {
       try {
@@ -3185,7 +3182,11 @@ app.post('/public/search', async (req, res) => {
     }).eq('id', order_id);
 
     if (moyasarPayment.status === 'paid') {
-      await handlePaymentPaid(order, moyasarPayment.id);
+      // Mark as paid synchronously, return response immediately
+      await supabase.from('orders').update({
+        payment_status: 'paid', status: 'confirmed', confirmed_at: new Date().toISOString()
+      }).eq('id', order_id);
+      setImmediate(() => handlePaymentPaidAsync(order, moyasarPayment.id));
       return res.json({ payment_id: moyasarPayment.id, status: 'paid' });
     }
 
@@ -3217,7 +3218,12 @@ app.post('/public/search', async (req, res) => {
     }
 
     if (payment.status === 'paid') {
-      if (order.payment_status !== 'paid') await handlePaymentPaid(order, paymentId);
+      if (order.payment_status !== 'paid') {
+        await supabase.from('orders').update({
+          payment_status: 'paid', status: 'confirmed', confirmed_at: new Date().toISOString()
+        }).eq('id', order.id);
+        setImmediate(() => handlePaymentPaidAsync(order, paymentId));
+      }
       return res.redirect(APP_PORTAL_URL + '?payment_result=success&order_id=' + order.id);
     }
 
@@ -3236,6 +3242,42 @@ app.use((req, res) => {
       message: `Route ${req.method} ${req.path} not found`
     }
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// n8n Webhook Proxy
+// Proxies /webhook/* requests to the configured n8n instance.
+// Required: N8N_WEBHOOK_URL env var (e.g. https://n8n.example.com/webhook)
+// ─────────────────────────────────────────────────────────────────────────────
+const N8N_BASE_URL = (process.env.N8N_WEBHOOK_URL || '').replace(/\/+$/, '');
+
+app.all('/webhook/*', express.json({ limit: '10mb' }), async (req, res) => {
+  if (!N8N_BASE_URL) {
+    return res.status(503).json({ error: { code: 'N8N_NOT_CONFIGURED', message: 'N8N_WEBHOOK_URL is not configured on the server' } });
+  }
+  const targetPath = req.path.replace(/^\/webhook/, '');
+  const targetUrl = `${N8N_BASE_URL}${targetPath}`;
+  try {
+    const response = await axios({
+      method: req.method,
+      url: targetUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        ...Object.fromEntries(
+          Object.entries(req.headers).filter(([k]) =>
+            ['idempotency-key', 'x-correlation-id', 'x-tenant-id'].includes(k.toLowerCase())
+          )
+        )
+      },
+      data: req.body,
+      timeout: 55000,
+      validateStatus: () => true
+    });
+    res.status(response.status).json(response.data);
+  } catch (err) {
+    console.error('[n8n-proxy] Error proxying to n8n:', err.message);
+    res.status(502).json({ error: { code: 'N8N_PROXY_ERROR', message: err.message } });
+  }
 });
 
 // Error handler

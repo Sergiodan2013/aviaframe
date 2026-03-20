@@ -29,7 +29,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   });
 }
 
-export const supabase = createClient(supabaseUrl || 'https://example.supabase.co', supabaseAnonKey || 'dummy-key');
+export const supabase = createClient(supabaseUrl || 'https://example.supabase.co', supabaseAnonKey || 'dummy-key', {
+  auth: {
+    detectSessionInUrl: true,
+    persistSession: true,
+    // Use localStorage directly to avoid Web Locks API contention
+    // between multiple open tabs (prevents LockManager timeout errors).
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  }
+});
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

@@ -95,7 +95,13 @@ router.post('/api/payments/initiate', express.json(), async (req, res) => {
 
   // Payment paid immediately (no 3DS required)
   if (moyasarPayment.status === 'paid') {
-    await handlePaymentPaid(order, moyasarPayment.id);
+    // Mark as paid synchronously so client gets instant response
+    await supabase
+      .from('orders')
+      .update({ payment_status: 'paid', status: 'confirmed', confirmed_at: new Date().toISOString() })
+      .eq('id', order_id);
+    // Fire-and-forget DRCT issuance + email (do not block the response)
+    setImmediate(() => handlePaymentPaidAsync(order, moyasarPayment.id));
     return res.json({ payment_id: moyasarPayment.id, status: 'paid' });
   }
 
@@ -146,7 +152,12 @@ router.get('/api/payments/callback', async (req, res) => {
 
   if (payment.status === 'paid') {
     if (order.payment_status !== 'paid') {
-      await handlePaymentPaid(order, paymentId);
+      // Mark as paid synchronously, then redirect immediately; DRCT + email run async
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'paid', status: 'confirmed', confirmed_at: new Date().toISOString() })
+        .eq('id', order.id);
+      setImmediate(() => handlePaymentPaidAsync(order, paymentId));
     }
     return res.redirect(`${APP_URL}?payment_result=success&order_id=${order.id}`);
   }
@@ -162,18 +173,9 @@ router.get('/api/payments/callback', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Internal: mark order as paid and issue DRCT ticket
+// Internal: issue DRCT ticket + send email (DB already marked paid before call)
 // ─────────────────────────────────────────────────────────────────────────────
-async function handlePaymentPaid(order, paymentId) {
-  await supabase
-    .from('orders')
-    .update({
-      payment_status: 'paid',
-      status: 'confirmed',
-      confirmed_at: new Date().toISOString(),
-    })
-    .eq('id', order.id);
-
+async function handlePaymentPaidAsync(order, paymentId) {
   console.log(`[payments] order ${order.order_number} marked as paid (${paymentId})`);
 
   // Issue DRCT ticket

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CreditCard, Lock, CheckCircle, Plane, User, Briefcase, ArrowLeft } from 'lucide-react';
 
-export default function PaymentScreen({ selectedOffer, passengerData, onBack, onPaymentSuccess }) {
+export default function PaymentScreen({ selectedOffer, passengerData, orderId, onBack, onPaymentSuccess }) {
   const [cardData, setCardData] = useState({
     cardNumber: '',
     cardHolder: '',
@@ -12,9 +12,6 @@ export default function PaymentScreen({ selectedOffer, passengerData, onBack, on
 
   const [errors, setErrors] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // Generate order number
-  const orderNumber = `AVF${Date.now().toString().slice(-8)}`;
 
   const handleChange = (field, value) => {
     let processedValue = value;
@@ -91,40 +88,51 @@ export default function PaymentScreen({ selectedOffer, passengerData, onBack, on
       return;
     }
 
+    if (!orderId) {
+      alert('Order ID is missing. Please go back and try again.');
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
-      // TODO: Implement actual payment processing
-      console.log('Processing payment...', {
-        orderNumber,
-        cardData,
-        passengerData,
-        offer: selectedOffer
+      const response = await fetch('/api/backend/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: orderId,
+          card: {
+            name: cardData.cardHolder,
+            number: cardData.cardNumber.replace(/\s/g, ''),
+            month: cardData.expiryMonth,
+            year: cardData.expiryYear,
+            cvc: cardData.cvv,
+          },
+        }),
       });
 
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await response.json();
 
-      // Save booking to localStorage
-      const booking = {
-        orderNumber,
-        offer: selectedOffer,
-        passenger: passengerData,
-        payment: {
-          cardLastFour: cardData.cardNumber.slice(-4),
-          timestamp: new Date().toISOString()
-        },
-        totalAmount: getTotalPrice(),
-        status: 'confirmed'
-      };
+      if (!response.ok) {
+        throw new Error(result?.error?.message || 'Payment failed');
+      }
 
-      localStorage.setItem('lastBooking', JSON.stringify(booking));
+      if (result.status === 'paid') {
+        // Direct payment without 3DS
+        onPaymentSuccess?.({ orderNumber: orderId, status: 'paid', payment_id: result.payment_id });
+        return;
+      }
 
-      // Success!
-      onPaymentSuccess?.(booking);
-    } catch (error) {
-      console.error('Payment failed:', error);
-      alert('Payment failed. Please try again.');
+      if (result.transaction_url) {
+        // Redirect to 3DS page
+        window.location.href = result.transaction_url;
+        return;
+      }
+
+      throw new Error('Unexpected payment response');
+    } catch (err) {
+      console.error('Payment failed:', err);
+      alert(err.message || 'Payment failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -157,7 +165,7 @@ export default function PaymentScreen({ selectedOffer, passengerData, onBack, on
             {/* Order Number */}
             <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
               <div className="text-xs text-gray-600 mb-1">Order Number</div>
-              <div className="text-lg font-bold text-blue-600">{orderNumber}</div>
+              <div className="text-lg font-bold text-blue-600">{orderId || '—'}</div>
             </div>
 
             {/* Flight Info */}
