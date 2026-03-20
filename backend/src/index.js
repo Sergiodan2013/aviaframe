@@ -3121,17 +3121,77 @@ app.post('/public/search', async (req, res) => {
     return { username: process.env.MOYASAR_SECRET_KEY || '', password: '' };
   }
 
-  // Async post-payment work (DRCT ticket + email) — runs after response is sent
+  // Async post-payment work (DRCT issue → PDF → email) — runs after response is sent
   async function handlePaymentPaidAsync(order, paymentId) {
-    console.log('[payments] order ' + order.order_number + ' paid (' + paymentId + ')');
+    console.log('[payments] handlePaymentPaidAsync start: order=' + order.order_number + ' payment=' + paymentId);
+
+    let pnr = order.drct_order_id || null;
+    let ticketNumber = null;
+
+    // Step 1: Issue tickets via DRCT
     if (order.drct_order_id) {
       try {
-        await drctService.issueOrder(order.drct_order_id);
+        const issuance = await drctService.issueOrder(order.drct_order_id, { orderId: order.id });
+        pnr = issuance.pnr || pnr;
+        ticketNumber = issuance.ticket_number || null;
         await supabase.from('orders').update({ status: 'ticketed' }).eq('id', order.id);
-        console.log('[payments] order ' + order.order_number + ' ticketed');
+        console.log('[payments] DRCT issued: order=' + order.order_number + ' pnr=' + pnr);
       } catch (err) {
         console.error('[payments] DRCT issue failed for ' + order.order_number + ':', err.message);
+        // Continue — still generate PDF/email with booking data we have
       }
+    }
+
+    // Step 2: Fetch full order for PDF generation
+    let fullOrder = null;
+    try {
+      const { data: fetched } = await supabase
+        .from('orders')
+        .select('id,order_number,user_id,agency_id,drct_order_id,origin,destination,departure_time,arrival_time,airline_code,airline_name,flight_number,total_price,currency,status,contact_email,contact_phone')
+        .eq('id', order.id)
+        .single();
+      fullOrder = fetched;
+    } catch (err) {
+      console.error('[payments] failed to fetch full order:', err.message);
+    }
+    if (!fullOrder) return;
+
+    // Step 3: Generate PDF and send email
+    try {
+      const { doc, issuance: savedIssuance } = await ensureTicketPdfForOrder({
+        order: fullOrder,
+        createdBy: 'payment_webhook',
+        pnr,
+        ticketNumber
+      });
+
+      if (fullOrder.contact_email && doc) {
+        const { data: blob } = await supabase.storage
+          .from(config.documentsBucket)
+          .download(doc.storage_path);
+
+        if (blob) {
+          const arrayBuffer = await blob.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const emailResult = await sendTicketEmail({
+            to: fullOrder.contact_email,
+            order: fullOrder,
+            attachment: {
+              fileName: `ticket-${fullOrder.order_number}.pdf`,
+              buffer
+            }
+          });
+
+          if (emailResult.sent && savedIssuance?.id) {
+            await supabase.from('ticket_issuances')
+              .update({ email_status: 'sent', email_sent_at: new Date().toISOString() })
+              .eq('id', savedIssuance.id);
+          }
+          console.log('[payments] ticket email sent to ' + fullOrder.contact_email + ' for ' + fullOrder.order_number);
+        }
+      }
+    } catch (err) {
+      console.error('[payments] PDF/email failed for ' + order.order_number + ':', err.message);
     }
   }
 
