@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#0F172A"/>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#grad)"/>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E3A5F"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+  <path d="M480 315 L560 255 L572 267 L536 291 L572 291 L632 231 L644 243 L608 315 L644 315 L628 351 L568 333 L540 369 L528 357 L564 315 L504 315 Z" fill="#2563EB" opacity="0.9"/>
+  <text x="680" y="295" font-family="Inter, sans-serif" font-size="64" font-weight="700" fill="white" letter-spacing="-2">Avia</text>
+  <text x="680" y="360" font-family="Inter, sans-serif" font-size="64" font-weight="400" fill="#60A5FA" letter-spacing="-2">Frame</text>
+  <text x="680" y="410" font-family="Inter, sans-serif" font-size="24" font-weight="400" fill="#94A3B8">White-Label Flight Booking for Agencies</text>
+</svg>

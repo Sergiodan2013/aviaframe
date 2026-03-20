@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 36" fill="none">
+  <!-- Plane icon -->
+  <path d="M8 18 L20 10 L22 12 L16 16 L22 16 L28 10 L30 12 L24 20 L28 20 L26 24 L20 22 L16 26 L14 24 L18 20 L12 20 Z" fill="#2563EB"/>
+  <!-- AviaFrame wordmark -->
+  <text x="36" y="25" font-family="Inter, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#1E293B" letter-spacing="-0.5">Avia</text>
+  <text x="76" y="25" font-family="Inter, -apple-system, sans-serif" font-size="18" font-weight="400" fill="#2563EB" letter-spacing="-0.5">Frame</text>
+</svg>
