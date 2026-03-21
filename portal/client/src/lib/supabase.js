@@ -33,9 +33,10 @@ export const supabase = createClient(supabaseUrl || 'https://example.supabase.co
   auth: {
     detectSessionInUrl: true,
     persistSession: true,
-    // Use localStorage directly to avoid Web Locks API contention
-    // between multiple open tabs (prevents LockManager timeout errors).
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    // Bypass Navigator LockManager entirely — eliminates 10s timeout on sign-in
+    // and "lock timed out" errors when multiple tabs are open.
+    lock: async (_name, _acquireTimeout, fn) => fn(),
   }
 });
 

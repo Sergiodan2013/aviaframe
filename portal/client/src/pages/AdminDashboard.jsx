@@ -109,7 +109,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     period_to: '',
     currency: 'EUR',
     manual_total: '',
-    statuses: 'confirmed,ticketed'
+    statuses: 'confirmed,issued'
   });
   const [agencySelfForm, setAgencySelfForm] = useState({
     commission_rate: 0,
@@ -170,7 +170,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     const s = String(status).toLowerCase();
     if (s === 'pending_payment' || s === 'awaiting_payment') return 'pending';
     if (s === 'paid') return 'confirmed';
-    if (s === 'issued' || s === 'ticket_issued') return 'ticketed';
+    if (s === 'ticketed' || s === 'ticket_issued') return 'issued';
     if (s === 'canceled') return 'cancelled';
     if (s === 'error' || s === 'failed') return 'pending';
     return s;
@@ -1081,7 +1081,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       const { error: updateError } = await supabase
         .from('orders')
         .update({
-          status: 'ticketed',
+          status: 'issued',
           updated_at: new Date().toISOString()
         })
         .eq('id', order.id);
@@ -1108,7 +1108,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           o.id === order.id
             ? {
                 ...o,
-                status: 'ticketed',
+                status: 'issued',
                 updated_at: new Date().toISOString(),
               }
             : o
@@ -1139,12 +1139,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         borderColor: 'border-blue-200',
         label: 'Confirmed'
       },
-      ticketed: {
+      issued: {
         icon: CheckCircle,
         color: 'text-green-600',
         bgColor: 'bg-green-50',
         borderColor: 'border-green-200',
-        label: 'Ticketed'
+        label: 'Issued'
       },
       cancelled: {
         icon: XCircle,
@@ -1184,7 +1184,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     total: orders.length,
     pending: orders.filter(o => normalizeStatus(o.status) === 'pending').length,
     confirmed: orders.filter(o => normalizeStatus(o.status) === 'confirmed').length,
-    ticketed: orders.filter(o => normalizeStatus(o.status) === 'ticketed').length,
+    issued: orders.filter(o => normalizeStatus(o.status) === 'issued'.length,
     cancelled: orders.filter(o => normalizeStatus(o.status) === 'cancelled').length,
   };
   const showOrdersArea = (
@@ -1339,11 +1339,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
             </button>
             <button
               type="button"
-              onClick={() => setStatusFilter('ticketed')}
-              className={`text-left rounded-lg shadow-md p-4 border ${statusFilter === 'ticketed' ? 'border-green-400 bg-green-100' : 'border-green-200 bg-green-50'}`}
+              onClick={() => setStatusFilter('issued')}
+              className={`text-left rounded-lg shadow-md p-4 border ${statusFilter === 'issued' ? 'border-green-400 bg-green-100' : 'border-green-200 bg-green-50'}`}
             >
-              <div className="text-2xl font-bold text-green-600">{stats.ticketed}</div>
-              <div className="text-sm text-green-700">Ticketed</div>
+              <div className="text-2xl font-bold text-green-600">{stats.issued}</div>
+              <div className="text-sm text-green-700">Issued</div>
             </button>
             <button
               type="button"
@@ -1618,7 +1618,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   <p>Total: <b>{reportSummary?.total_orders ?? 0}</b></p>
                   <p>Pending: <b>{reportSummary?.pending ?? 0}</b></p>
                   <p>Confirmed: <b>{reportSummary?.confirmed ?? 0}</b></p>
-                  <p>Ticketed: <b>{reportSummary?.ticketed ?? 0}</b></p>
+                  <p>Issued: <b>{reportSummary?.issued ?? 0}</b></p>
                   <p>Cancelled: <b>{reportSummary?.cancelled ?? 0}</b></p>
                   <p>Gross: <b>{reportSummary?.gross_total ?? 0}</b></p>
                 </div>
@@ -1878,7 +1878,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <option value="">Order: all statuses</option>
                 <option value="pending">Awaiting payment</option>
                 <option value="confirmed">Confirmed</option>
-                <option value="ticketed">Ticketed</option>
+                <option value="issued">Issued</option>
                 <option value="cancelled">Cancelled</option>
               </select>
               <select value={ticketFilters.status} onChange={(e) => setTicketFilters((p) => ({ ...p, status: e.target.value }))} className="border rounded px-2 py-1">
@@ -1951,7 +1951,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   <option value="all">All statuses</option>
                   <option value="pending">Awaiting payment</option>
                   <option value="confirmed">Confirmed</option>
-                  <option value="ticketed">Ticketed</option>
+                  <option value="issued">Issued</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
@@ -2114,7 +2114,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                       >
                         {issuingOrderId === order.id ? 'Issuing...' : 'Issue ticket'}
                       </button>
-                      {normalizeStatus(order.status) === 'ticketed' && (
+                      {normalizeStatus(order.status) === 'issued' && (
                         <button
                           onClick={() => handleDownloadOrderTicketPdf(order.id)}
                           disabled={ticketDocLoadingId === order.id}
@@ -2131,7 +2131,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                       >
                         <option value="pending">Awaiting payment</option>
                         <option value="confirmed">Confirmed</option>
-                        <option value="ticketed">Ticketed</option>
+                        <option value="issued">Issued</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
 

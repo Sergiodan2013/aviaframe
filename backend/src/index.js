@@ -3134,7 +3134,7 @@ app.post('/public/search', async (req, res) => {
         const issuance = await drctService.issueOrder(order.drct_order_id, { orderId: order.id });
         pnr = issuance.pnr || pnr;
         ticketNumber = issuance.ticket_number || null;
-        await supabase.from('orders').update({ status: 'ticketed' }).eq('id', order.id);
+        await supabase.from('orders').update({ status: 'issued' }).eq('id', order.id);
         console.log('[payments] DRCT issued: order=' + order.order_number + ' pnr=' + pnr);
       } catch (err) {
         console.error('[payments] DRCT issue failed for ' + order.order_number + ':', err.message);
