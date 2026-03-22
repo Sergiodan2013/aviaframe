@@ -49,8 +49,10 @@ img { max-width: 100%; display: block; }
   width: min(1320px, 92vw);
   margin: 0 auto;
 }
-.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .01em; }
-.brand-logo { height: 32px; width: auto; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .01em; text-decoration: none; }
+.brand-icon { height: 28px; width: 28px; flex-shrink: 0; }
+.brand-wordmark { font-family: 'Inter', system-ui, sans-serif; font-size: 18px; font-weight: 700; color: #1E293B; letter-spacing: -.3px; }
+.brand-frame { color: #2563EB; font-weight: 400; }
 .nav-links { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .nav-link {
   padding: 8px 14px;

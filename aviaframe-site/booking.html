@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Complete Booking — AviaFrame</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+  <style>
+    body { margin: 0; padding: 24px; background: #e9effb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #111827; }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    .nav { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+    .nav a { color: #2563eb; font-size: 14px; text-decoration: none; }
+    .nav a:hover { text-decoration: underline; }
+    .nav-sep { color: #9ca3af; }
+    .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; color: #1e293b; text-decoration: none; }
+    .brand svg { width: 24px; height: 24px; }
+    .brand-frame { color: #2563eb; font-weight: 400; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 28px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); }
+    .center { text-align: center; }
+    .ok { font-size: 62px; color: #22c55e; line-height: 1; }
+    .title { font-size: 36px; font-weight: 800; margin: 8px 0 8px; }
+    .subtitle { font-size: 18px; color: #4b5563; margin-bottom: 18px; }
+    .number { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 12px; padding: 16px; text-align: center; font-size: 22px; font-weight: 700; color: #1e40af; margin-bottom: 14px; }
+    .status { border: 1px solid #fde68a; background: #fffbeb; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .status h3 { margin: 0 0 8px; font-size: 18px; color: #92400e; text-align: center; }
+    .status p { margin: 0; font-size: 14px; color: #92400e; text-align: center; }
+    .details { border: 1px solid #e5e7eb; background: #f9fafb; border-radius: 12px; padding: 16px; }
+    .details h4 { margin: 0 0 12px; font-size: 16px; font-weight: 700; color: #1e293b; }
+    .grid { display: grid; grid-template-columns: 1fr auto; gap: 8px; font-size: 14px; color: #374151; }
+    .val { font-weight: 700; text-align: right; }
+    .due { border-top: 1px solid #d1d5db; margin-top: 8px; padding-top: 8px; font-size: 14px; color: #374151; }
+    .duev { border-top: 1px solid #d1d5db; margin-top: 8px; padding-top: 8px; font-size: 24px; font-weight: 800; color: #2563eb; text-align: right; }
+    .loading { font-size: 16px; color: #4b5563; text-align: center; padding: 40px; }
+    .spinner { display: inline-block; width: 32px; height: 32px; border: 3px solid #dbeafe; border-top-color: #2563eb; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { border: 1px solid #fecaca; background: #fff1f2; color: #b91c1c; border-radius: 12px; padding: 14px; font-size: 14px; white-space: pre-wrap; }
+    .btn { display: inline-block; background: #2563eb; color: #fff; font-weight: 700; font-size: 15px; padding: 12px 28px; border-radius: 999px; text-decoration: none; margin-top: 20px; }
+    .btn:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <a class="brand" href="/">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#2563EB"/>
+        </svg>
+        Avia<span class="brand-frame">Frame</span>
+      </a>
+      <span class="nav-sep">›</span>
+      <a href="/widget-demo.html">Flight Search</a>
+      <span class="nav-sep">›</span>
+      <span style="color:#374151">Booking Confirmation</span>
+    </div>
+
+    <div class="card" id="booking-root">
+      <div class="loading">
+        <div class="spinner"></div><br/>
+        Creating your booking...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BACKEND = 'https://peaceful-amazement-production-629f.up.railway.app';
+
+    (async function () {
+      const root = document.getElementById('booking-root');
+
+      const selectedOfferRaw = localStorage.getItem('selectedOffer');
+      const passengerRaw = localStorage.getItem('passengerData');
+
+      if (!selectedOfferRaw || !passengerRaw) {
+        root.innerHTML = '<div class="error">No booking data found. Please return to search and select a flight.</div><div class="center"><a class="btn" href="/widget-demo.html">← Back to Search</a></div>';
+        return;
+      }
+
+      let selectedOffer, passenger;
+      try {
+        selectedOffer = JSON.parse(selectedOfferRaw);
+        passenger = JSON.parse(passengerRaw);
+      } catch {
+        root.innerHTML = '<div class="error">Failed to read booking data.</div>';
+        return;
+      }
+
+      const baggagePrices = { none: 0, '20kg': 500, '30kg': 750 };
+      const baggageValue = passenger.baggage || 'none';
+      const baggagePrice = baggagePrices[baggageValue] || 0;
+      const nationality = passenger.nationality || 'SA';
+      const basePrice = (selectedOffer.price || {}).total || 0;
+      const totalPrice = basePrice + baggagePrice;
+      const currency = (selectedOffer.price || {}).currency || 'SAR';
+
+      const payload = {
+        offer_id: selectedOffer.offer_id,
+        passengers: [{
+          type: 'ADT',
+          first_name: passenger.firstName,
+          last_name: passenger.lastName,
+          date_of_birth: passenger.dateOfBirth,
+          gender: passenger.gender === 'male' ? 'M' : 'F',
+          document: {
+            type: 'passport',
+            number: passenger.passportNumber,
+            expiry_date: passenger.passportExpiry,
+            issuing_country: nationality
+          }
+        }],
+        contacts: { email: passenger.email, phone: passenger.phone },
+        user_id: null,
+        user_email: passenger.email || null,
+        offer: {
+          origin: selectedOffer.origin,
+          destination: selectedOffer.destination,
+          departure_time: selectedOffer.departure_time,
+          arrival_time: selectedOffer.arrival_time,
+          airline_code: selectedOffer.airline_code,
+          airline_name: selectedOffer.airline_name,
+          flight_number: selectedOffer.flight_number,
+          base_price: basePrice,
+          taxes: (selectedOffer.price || {}).taxes || 0,
+          currency
+        },
+        passenger_details: {
+          passport_number: passenger.passportNumber,
+          passport_expiry: passenger.passportExpiry,
+          baggage_allowance: baggageValue,
+          nationality
+        },
+        pricing: { base_price: basePrice, taxes: (selectedOffer.price || {}).taxes || 0, baggage_price: baggagePrice, total_price: totalPrice, currency },
+        raw_offer_data: selectedOffer
+      };
+
+      const idempotencyKey = `wgt_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      let responseData = null;
+      let lastError = null;
+
+      try {
+        const urls = [
+          `${BACKEND}/api/n8n/webhook/drct/order/create`,
+          `${BACKEND}/api/n8n/webhook-test/drct/order/create`
+        ];
+        for (const url of urls) {
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+            body: JSON.stringify(payload)
+          });
+          if (resp.ok) {
+            responseData = await resp.json().catch(() => ({}));
+            break;
+          }
+          lastError = `HTTP ${resp.status} on ${url}`;
+        }
+      } catch (e) {
+        lastError = String(e?.message || e);
+      }
+
+      if (!responseData) {
+        root.innerHTML = `<div class="error">Failed to create booking.\n${lastError || 'Unknown error'}</div><div class="center"><a class="btn" href="/widget-demo.html">← Back to Search</a></div>`;
+        return;
+      }
+
+      const resolved = Array.isArray(responseData)
+        ? (responseData[0] || {})
+        : (responseData?.data && typeof responseData.data === 'object' ? responseData.data : responseData);
+
+      const orderNumber =
+        resolved?.order_number || resolved?.booking_number ||
+        resolved?.booking_reference || resolved?.drct_order_id ||
+        resolved?.order_id || resolved?.id || '—';
+
+      if (orderNumber === '—' && (resolved?.error || resolved?.message)) {
+        root.innerHTML = `<div class="error">Booking failed:\n${resolved?.error || resolved?.message}</div>`;
+        return;
+      }
+
+      const total = Number(totalPrice).toLocaleString('en-US');
+      const departure = String(selectedOffer.departure_time || '').slice(0, 16).replace('T', ' ');
+
+      root.innerHTML = `
+        <div class="center ok">✓</div>
+        <div class="center title">Booking Confirmed!</div>
+        <div class="center subtitle">Your flight has been booked and is awaiting payment.</div>
+        <div class="number">Booking Reference: ${orderNumber}</div>
+        <div class="status">
+          <h3>Status: Awaiting Payment</h3>
+          <p>Confirmation and payment instructions sent to <strong>${passenger.email}</strong></p>
+        </div>
+        <div class="details">
+          <h4>Flight Details</h4>
+          <div class="grid">
+            <div>Route</div><div class="val">${selectedOffer.origin || '—'} → ${selectedOffer.destination || '—'}</div>
+            <div>Airline</div><div class="val">${selectedOffer.airline_name || selectedOffer.airline_code || 'N/A'}</div>
+            <div>Departure</div><div class="val">${departure}</div>
+            <div>Passenger</div><div class="val">${passenger.firstName} ${passenger.lastName}</div>
+            <div class="due">Total Due</div><div class="duev">${total} ${currency}</div>
+          </div>
+        </div>
+        <div class="center"><a class="btn" href="/widget-demo.html">← Search Another Flight</a></div>
+      `;
+    })();
+  </script>
+</body>
+</html>

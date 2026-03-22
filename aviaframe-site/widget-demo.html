@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Widget Demo — AviaFrame</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/style.css" />
+  <style>
+    .demo-header {
+      background: var(--dark);
+      padding: 0;
+    }
+    .demo-hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      padding: 60px 24px 40px;
+      text-align: center;
+      color: #fff;
+    }
+    .demo-hero h1 {
+      font-size: 40px;
+      font-weight: 800;
+      margin: 0 0 12px;
+      letter-spacing: -1px;
+    }
+    .demo-hero p {
+      font-size: 18px;
+      color: rgba(255,255,255,.65);
+      margin: 0 0 8px;
+    }
+    .demo-badge {
+      display: inline-block;
+      background: rgba(37,99,235,.3);
+      border: 1px solid rgba(37,99,235,.5);
+      color: #93c5fd;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 32px;
+      letter-spacing: .05em;
+    }
+    .demo-widget-wrap {
+      max-width: 860px;
+      margin: -20px auto 60px;
+      padding: 0 20px;
+    }
+    .demo-note {
+      max-width: 720px;
+      margin: 0 auto 40px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-size: 14px;
+      color: #475569;
+      line-height: 1.6;
+    }
+    .demo-note strong { color: #1e293b; }
+    .demo-note code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: rgba(255,255,255,.6);
+      font-size: 14px;
+      text-decoration: none;
+      margin-bottom: 24px;
+    }
+    .back-link:hover { color: #fff; }
+  </style>
+</head>
+<body>
+  <!-- NAV -->
+  <nav class="site-nav">
+    <div class="site-nav-inner">
+      <a class="brand" href="/">
+        <svg class="brand-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#2563EB"/>
+        </svg>
+        <span class="brand-wordmark">Avia<span class="brand-frame">Frame</span></span>
+      </a>
+      <div class="nav-links">
+        <a class="nav-link nav-link-active" href="/widget-demo.html">Widget Demo</a>
+        <a class="nav-link" href="#pricing">Pricing</a>
+        <a class="nav-link" href="mailto:hello@aviaframe.com">Contact</a>
+        <a class="nav-cta" href="mailto:hello@aviaframe.com?subject=I want to start">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <div class="demo-hero">
+    <div class="demo-badge">LIVE DEMO — SANDBOX MODE</div>
+    <h1>Search &amp; Book Flights</h1>
+    <p>This is the actual AviaFrame booking widget — same one your clients will use.</p>
+    <p>Use test card <strong style="color:#93c5fd">4111 1111 1111 1111</strong> · exp any · CVV any</p>
+  </div>
+
+  <!-- WIDGET -->
+  <div class="demo-widget-wrap">
+    <div
+      id="aviaframe-widget"
+      data-aviaframe-widget
+      data-api-url="https://peaceful-amazement-production-629f.up.railway.app/api/drct/search"
+      data-checkout-url="/booking.html"
+      data-brand-name="AviaFrame Demo"
+      data-title="Search Flights"
+    ></div>
+  </div>
+
+  <!-- NOTE -->
+  <div class="demo-note">
+    <strong>How it works:</strong> Search for a flight → select an offer → fill in passenger details → pay with Moyasar test card.
+    After successful payment, a PDF e-ticket is generated and sent to the email you enter.
+    The order appears in <a href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.
+    <br/><br/>
+    <strong>To embed on your website:</strong> <code>&lt;script src="https://aviaframe.com/aviaframe-widget.js"&gt;&lt;/script&gt;</code>
+  </div>
+
+  <script src="/aviaframe-widget.js"></script>
+</body>
+</html>
