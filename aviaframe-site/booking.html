@@ -58,6 +58,25 @@
     .step.active { background: #dbeafe; color: #1e40af; }
     .step.pending { background: #f1f5f9; color: #94a3b8; }
     .sep { color: #d1d5db; }
+    .method-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 16px 0; }
+    .method-card { border: 2px solid #e5e7eb; border-radius: 12px; padding: 16px; cursor: pointer; text-align: center; transition: all .15s; background: #fff; }
+    .method-card:hover { border-color: #93c5fd; background: #eff6ff; }
+    .method-card.selected { border-color: #2563eb; background: #eff6ff; }
+    .method-card .method-icon { font-size: 28px; margin-bottom: 6px; }
+    .method-card .method-name { font-size: 14px; font-weight: 700; color: #1e293b; }
+    .method-card .method-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .invoice-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; margin: 16px 0; }
+    .invoice-box h3 { margin: 0 0 10px; font-size: 15px; color: #1e293b; }
+    .invoice-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; border-bottom: 1px solid #e2e8f0; }
+    .invoice-row:last-child { border-bottom: none; }
+    .invoice-row .lbl { color: #64748b; }
+    .invoice-row .val { font-weight: 600; font-family: monospace; }
+    .cash-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 20px; margin: 16px 0; text-align: center; }
+    .cash-box .cash-icon { font-size: 40px; }
+    .cash-box h3 { margin: 8px 0 4px; color: #92400e; }
+    .cash-box p { margin: 0; font-size: 13px; color: #b45309; }
+    .btn-continue { width: 100%; background: #2563eb; color: #fff; border: none; border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background .15s; margin-top: 8px; }
+    .btn-continue:hover { background: #1d4ed8; }
   </style>
 </head>
 <body>
@@ -128,6 +147,9 @@
         </div>`;
     }
 
+    let _token = null, _offer = null, _pax = null, _sessionData = null;
+    let _totalPrice = 0, _basePrice = 0, _taxes = 0, _baggagePrice = 0, _currency = 'SAR';
+
     (async function () {
       // Read offer & passenger from localStorage
       const offerRaw = localStorage.getItem('selectedOffer');
@@ -136,20 +158,17 @@
         renderError('No booking data found. Please return to search and select a flight.');
         return;
       }
-
-      let offer, pax;
-      try { offer = JSON.parse(offerRaw); pax = JSON.parse(paxRaw); }
+      try { _offer = JSON.parse(offerRaw); _pax = JSON.parse(paxRaw); }
       catch { renderError('Failed to read booking data.'); return; }
 
       const baggagePrices = { none: 0, '20kg': 500, '30kg': 750 };
-      const baggagePrice = baggagePrices[pax.baggage] || 0;
-      const basePrice = (offer.price || {}).total || offer.total_price || 0;
-      const taxes = (offer.price || {}).taxes || 0;
-      const totalPrice = basePrice + baggagePrice;
-      const currency = (offer.price || {}).currency || 'SAR';
+      _baggagePrice = baggagePrices[_pax.baggage] || 0;
+      _basePrice = (_offer.price || {}).total || _offer.total_price || 0;
+      _taxes = (_offer.price || {}).taxes || 0;
+      _totalPrice = _basePrice + _baggagePrice;
+      _currency = (_offer.price || {}).currency || 'SAR';
 
-      // Step 1: Get widget session token
-      let token = null;
+      // Step 1: Get widget session (includes payment_methods)
       try {
         const sessResp = await fetch(`${BACKEND}/api/widget/session`, {
           method: 'POST',
@@ -161,60 +180,102 @@
           renderError(`Session error: ${errData?.error?.message || sessResp.status}`);
           return;
         }
-        const sessData = await sessResp.json();
-        token = sessData.widget_token;
+        _sessionData = await sessResp.json();
+        _token = _sessionData.widget_token;
       } catch (e) {
         renderError(`Cannot connect to booking server: ${e.message}`);
         return;
       }
 
-      // Step 2: Create order
+      const paymentMethods = _sessionData?.agency?.settings?.payment_methods || ['online'];
+
+      // Step 2: Show flight summary + payment method selector
+      const orig = (_offer.origin || '???').toUpperCase();
+      const dest = (_offer.destination || '???').toUpperCase();
+      const total = Number(_totalPrice).toLocaleString('en-US');
+      const methodsHtml = paymentMethods.length > 1
+        ? `<div class="section-label" style="margin-top:20px">How would you like to pay?</div>
+           <div class="method-selector" id="method-selector">
+             ${paymentMethods.map((m, i) => {
+               const icons = { online: '💳', cash: '💵', invoice: '📄' };
+               const names = { online: 'Online Payment', cash: 'Cash at Office', invoice: 'Bank Invoice' };
+               const descs = { online: 'Pay now by card', cash: 'Visit our office', invoice: 'Bank transfer' };
+               return `<div class="method-card${i===0?' selected':''}" data-method="${m}" onclick="selectMethod('${m}')">
+                 <div class="method-icon">${icons[m]||'💰'}</div>
+                 <div class="method-name">${names[m]||m}</div>
+                 <div class="method-desc">${descs[m]||''}</div>
+               </div>`;
+             }).join('')}
+           </div>`
+        : '';
+
+      root.innerHTML = `
+        <div class="card">
+          <div class="step-indicator">
+            <span class="step done">✓ Flight Selected</span>
+            <span class="sep">›</span>
+            <span class="step active">💳 Payment</span>
+          </div>
+          <h2>Complete Your Booking</h2>
+          <div class="flight-summary">
+            <div class="airport">
+              <div class="code">${orig}</div>
+              <div class="date">${fmt(_offer.departure_time)}</div>
+              <div class="time">${fmtTime(_offer.departure_time)}</div>
+            </div>
+            <div class="arrow">✈<span class="airline">${_offer.airline_name||_offer.airline_code||''} ${_offer.flight_number||''}</span></div>
+            <div class="airport" style="text-align:center">
+              <div class="code">${dest}</div>
+              <div class="date">${fmt(_offer.arrival_time)}</div>
+              <div class="time">${fmtTime(_offer.arrival_time)}</div>
+            </div>
+          </div>
+          <div class="total-row">
+            <span class="total-label">Total</span>
+            <span class="total-amount">${total} ${_currency}</span>
+          </div>
+          ${methodsHtml}
+          <button class="btn-continue" onclick="proceedWithMethod()">Continue →</button>
+        </div>`;
+    })();
+
+    let _selectedMethod = 'online';
+    function selectMethod(m) {
+      _selectedMethod = m;
+      document.querySelectorAll('.method-card').forEach(c => c.classList.toggle('selected', c.dataset.method === m));
+    }
+
+    async function proceedWithMethod() {
+      const continueBtn = document.querySelector('.btn-continue');
+      if (continueBtn) { continueBtn.disabled = true; continueBtn.textContent = 'Creating booking...'; }
+
+      // Create order with selected payment_method
       let orderId = null, orderNumber = null;
       try {
         const orderResp = await fetch(`${BACKEND}/api/widget/orders`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${_token}`,
             'Idempotency-Key': `wgt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
           },
           body: JSON.stringify({
-            contacts: { email: pax.email, phone: pax.phone },
+            payment_method: _selectedMethod,
+            contacts: { email: _pax.email, phone: _pax.phone },
             offer: {
-              origin: offer.origin,
-              destination: offer.destination,
-              departure_time: offer.departure_time,
-              arrival_time: offer.arrival_time,
-              airline_code: offer.airline_code,
-              airline_name: offer.airline_name,
-              flight_number: offer.flight_number,
-              base_price: basePrice,
-              taxes,
-              currency,
-              offer_id: offer.offer_id
+              origin: _offer.origin, destination: _offer.destination,
+              departure_time: _offer.departure_time, arrival_time: _offer.arrival_time,
+              airline_code: _offer.airline_code, airline_name: _offer.airline_name,
+              flight_number: _offer.flight_number, base_price: _basePrice,
+              taxes: _taxes, currency: _currency, offer_id: _offer.offer_id
             },
             passengers: [{
-              type: 'ADT',
-              first_name: pax.firstName,
-              last_name: pax.lastName,
-              date_of_birth: pax.dateOfBirth,
-              gender: pax.gender === 'male' ? 'M' : 'F',
-              document: {
-                type: 'passport',
-                number: pax.passportNumber,
-                expiry_date: pax.passportExpiry,
-                issuing_country: pax.nationality || 'SA'
-              }
+              type: 'ADT', first_name: _pax.firstName, last_name: _pax.lastName,
+              date_of_birth: _pax.dateOfBirth, gender: _pax.gender === 'male' ? 'M' : 'F',
+              document: { type: 'passport', number: _pax.passportNumber, expiry_date: _pax.passportExpiry, issuing_country: _pax.nationality || 'SA' }
             }],
-            pricing: {
-              base_price: basePrice,
-              taxes,
-              baggage_price: baggagePrice,
-              total_price: totalPrice,
-              currency
-            },
-            metadata: { origin_host: 'aviaframe.com', source: 'widget_demo' },
-            raw_offer_data: offer
+            pricing: { base_price: _basePrice, taxes: _taxes, baggage_price: _baggagePrice, total_price: _totalPrice, currency: _currency },
+            metadata: { origin_host: 'aviaframe.com', source: 'widget_demo' }
           })
         });
         if (!orderResp.ok) {
@@ -230,89 +291,92 @@
         return;
       }
 
-      // Step 3: Show payment form
-      const orig = (offer.origin || '???').toUpperCase();
-      const dest = (offer.destination || '???').toUpperCase();
-      const total = Number(totalPrice).toLocaleString('en-US');
+      const total = Number(_totalPrice).toLocaleString('en-US');
 
+      if (_selectedMethod === 'cash') {
+        renderCashSuccess(orderNumber, _pax.email);
+        localStorage.removeItem('selectedOffer'); localStorage.removeItem('passengerData');
+        return;
+      }
+
+      if (_selectedMethod === 'invoice') {
+        const bank = _sessionData?.agency?.settings?.bank_details || {};
+        renderInvoiceSuccess(orderNumber, _pax.email, bank, total, _currency);
+        localStorage.removeItem('selectedOffer'); localStorage.removeItem('passengerData');
+        return;
+      }
+
+      // Online payment — show card form
       root.innerHTML = `
         <div class="card">
           <div class="step-indicator">
-            <span class="step done">✓ Flight Selected</span>
-            <span class="sep">›</span>
             <span class="step done">✓ Booking Created</span>
             <span class="sep">›</span>
-            <span class="step active">💳 Payment</span>
+            <span class="step active">💳 Card Payment</span>
           </div>
-          <h2>Complete Payment</h2>
-          <div class="flight-summary">
-            <div class="airport">
-              <div class="code">${orig}</div>
-              <div class="date">${fmt(offer.departure_time)}</div>
-              <div class="time">${fmtTime(offer.departure_time)}</div>
-            </div>
-            <div class="arrow">
-              ✈
-              <span class="airline">${offer.airline_name || offer.airline_code || ''} ${offer.flight_number || ''}</span>
-            </div>
-            <div class="airport" style="text-align:center">
-              <div class="code">${dest}</div>
-              <div class="date">${fmt(offer.arrival_time)}</div>
-              <div class="time">${fmtTime(offer.arrival_time)}</div>
-            </div>
-          </div>
-
+          <h2>Pay ${total} ${_currency}</h2>
           <div class="test-card-hint">
-            <strong>🧪 TEST MODE — Use test card details:</strong>
-            Card: <strong>4111 1111 1111 1111</strong> &nbsp;·&nbsp; Expiry: <strong>12/26</strong> &nbsp;·&nbsp; CVV: <strong>123</strong> &nbsp;·&nbsp; Name: any
+            <strong>🧪 TEST MODE — Use test card:</strong>
+            <strong>4111 1111 1111 1111</strong> · Exp: <strong>12/26</strong> · CVV: <strong>123</strong>
           </div>
-
           <div id="pay-error"></div>
-
-          <div class="section-label">Card Details</div>
-          <div class="form-row single">
-            <div>
-              <label>Cardholder Name</label>
-              <input id="card-name" type="text" placeholder="Name on card" value="Test User" />
-            </div>
-          </div>
-          <div class="form-row single">
-            <div>
-              <label>Card Number</label>
-              <input id="card-number" class="card-input" type="text" placeholder="4111 1111 1111 1111" maxlength="19" value="4111 1111 1111 1111" />
-            </div>
-          </div>
+          <div class="form-row single"><div><label>Cardholder Name</label><input id="card-name" type="text" placeholder="Name on card" value="Test User" /></div></div>
+          <div class="form-row single"><div><label>Card Number</label><input id="card-number" class="card-input" type="text" placeholder="4111 1111 1111 1111" maxlength="19" value="4111 1111 1111 1111" /></div></div>
           <div class="form-row triple">
-            <div>
-              <label>Month</label>
-              <input id="card-month" type="text" placeholder="12" maxlength="2" value="12" />
-            </div>
-            <div>
-              <label>Year</label>
-              <input id="card-year" type="text" placeholder="26" maxlength="4" value="26" />
-            </div>
-            <div>
-              <label>CVV</label>
-              <input id="card-cvc" type="text" placeholder="123" maxlength="4" value="123" />
-            </div>
+            <div><label>Month</label><input id="card-month" type="text" placeholder="12" maxlength="2" value="12" /></div>
+            <div><label>Year</label><input id="card-year" type="text" placeholder="26" maxlength="4" value="26" /></div>
+            <div><label>CVV</label><input id="card-cvc" type="text" placeholder="123" maxlength="4" value="123" /></div>
           </div>
-
-          <div class="total-row">
-            <span class="total-label">Total to pay</span>
-            <span class="total-amount">${total} ${currency}</span>
-          </div>
-
-          <button class="btn-pay" id="pay-btn" onclick="submitPayment('${orderId}', '${pax.email}')">
-            Pay ${total} ${currency}
-          </button>
+          <div class="total-row"><span class="total-label">Total to pay</span><span class="total-amount">${total} ${_currency}</span></div>
+          <button class="btn-pay" id="pay-btn" onclick="submitPayment('${orderId}', '${_pax.email}')">Pay ${total} ${_currency}</button>
         </div>`;
-
-      // Format card number with spaces
       document.getElementById('card-number').addEventListener('input', function() {
         let v = this.value.replace(/\D/g, '').slice(0, 16);
         this.value = v.replace(/(.{4})/g, '$1 ').trim();
       });
-    })();
+    }
+
+    function renderCashSuccess(orderNumber, email) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="success-box">
+            <div class="cash-box">
+              <div class="cash-icon">💵</div>
+              <h3>Booking Created — Pay at Office</h3>
+              <p>Please visit our office to complete payment</p>
+            </div>
+            <div class="order-ref">Booking Reference: ${orderNumber}</div>
+            <div class="ticket-note">📧 Your booking confirmation has been sent to <strong>${email}</strong>.<br>The ticket will be issued after cash payment at our office.</div>
+            <a class="btn-back" href="/widget-demo.html">← Search Another Flight</a>
+          </div>
+        </div>`;
+    }
+
+    function renderInvoiceSuccess(orderNumber, email, bank, total, currency) {
+      const rows = [
+        bank.bank_name ? ['Bank', bank.bank_name] : null,
+        bank.iban ? ['IBAN', bank.iban] : null,
+        bank.swift_bic ? ['SWIFT/BIC', bank.swift_bic] : null,
+        bank.bank_account ? ['Account', bank.bank_account] : null,
+        ['Reference', orderNumber],
+        ['Amount', `${total} ${currency}`]
+      ].filter(Boolean);
+      root.innerHTML = `
+        <div class="card">
+          <div class="success-box">
+            <div class="success-icon">📄</div>
+            <div class="success-title">Invoice Created</div>
+            <div class="success-sub">Please transfer the payment to:</div>
+            <div class="invoice-box">
+              <h3>Bank Transfer Details</h3>
+              ${rows.map(([l,v]) => `<div class="invoice-row"><span class="lbl">${l}</span><span class="val">${v}</span></div>`).join('')}
+            </div>
+            <div class="order-ref">Order: ${orderNumber}</div>
+            <div class="ticket-note">📧 Invoice instructions sent to <strong>${email}</strong>.<br>Ticket will be issued after payment confirmation.</div>
+            <a class="btn-back" href="/widget-demo.html">← Search Another Flight</a>
+          </div>
+        </div>`;
+    }
 
     async function submitPayment(orderId, email) {
       const btn = document.getElementById('pay-btn');
@@ -350,7 +414,6 @@
         }
 
         if (data.status === 'paid') {
-          // Clear localStorage
           localStorage.removeItem('selectedOffer');
           localStorage.removeItem('passengerData');
           renderSuccess(data.order_number || orderId, email);

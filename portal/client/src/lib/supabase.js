@@ -1117,6 +1117,14 @@ export const finalizeTicketDocument = async (orderId, payload = {}) => {
   };
 };
 
+export const markOrderPaid = async (orderId) => {
+  const { data, error } = await backendApiRequest(`/orders/${orderId}/mark-paid`, {
+    method: 'POST',
+    body: {}
+  });
+  return { data: data || null, error };
+};
+
 export const getOrderTicketDocument = async (orderId) => {
   const { data, error } = await backendApiRequest(`/orders/${orderId}/ticket-document`, {
     method: 'GET'

@@ -24,6 +24,8 @@ const ORDERS_LIST_COLUMNS = [
   'total_price',
   'currency',
   'status',
+  'payment_status',
+  'payment_method',
   'contact_email',
   'contact_phone',
   'created_at',
@@ -31,6 +33,8 @@ const ORDERS_LIST_COLUMNS = [
   'confirmed_at',
   'cancelled_at'
 ].join(',');
+
+const VALID_PAYMENT_METHODS = ['online', 'cash', 'invoice'];
 
 // Configuration from environment variables
 const config = {
@@ -850,7 +854,8 @@ app.post('/api/widget/session', async (req, res) => {
         settings: {
           language: agency?.settings?.language || 'en',
           commission: agency?.settings?.commission || null,
-          bank_details: agency?.settings?.bank_details || null
+          bank_details: agency?.settings?.bank_details || null,
+          payment_methods: agency?.settings?.payment_methods || ['online']
         }
       }
     });
@@ -896,7 +901,8 @@ app.post('/api/widget/orders', async (req, res) => {
     pricing = {},
     passengers = [],
     metadata = {},
-    user_id: userIdFromBody = null
+    user_id: userIdFromBody = null,
+    payment_method: paymentMethodFromBody = null
   } = req.body || {};
 
   const contactEmail = String(contacts.email || '').trim().toLowerCase();
@@ -950,6 +956,14 @@ app.post('/api/widget/orders', async (req, res) => {
       });
     }
 
+    // Validate payment_method against agency's allowed methods
+    const allowedMethods = Array.isArray(agency?.settings?.payment_methods) && agency.settings.payment_methods.length
+      ? agency.settings.payment_methods
+      : ['online'];
+    const paymentMethod = VALID_PAYMENT_METHODS.includes(paymentMethodFromBody) && allowedMethods.includes(paymentMethodFromBody)
+      ? paymentMethodFromBody
+      : allowedMethods[0];
+
     const orderInsert = {
       order_number: generateOrderNumber(),
       user_id: userIdFromBody || null,
@@ -967,6 +981,7 @@ app.post('/api/widget/orders', async (req, res) => {
       total_price: totalPrice,
       currency,
       status: 'pending',
+      payment_method: paymentMethod,
       contact_email: contactEmail,
       contact_phone: contactPhone,
       raw_offer_data: {
@@ -1018,12 +1033,53 @@ app.post('/api/widget/orders', async (req, res) => {
       }
     }
 
+    // For invoice orders: send bank details email asynchronously
+    if (paymentMethod === 'invoice' && createdOrder.contact_email) {
+      const bank = agency?.settings?.bank_details || {};
+      if (bank.bank_name || bank.iban) {
+        setImmediate(async () => {
+          try {
+            const { sendTicketEmail: _, sendSupportEmail } = require('./services/emailService');
+            const lines = [
+              `Hello,`,
+              ``,
+              `Your flight booking has been created successfully.`,
+              `Order number: ${createdOrder.order_number}`,
+              `Route: ${origin} → ${destination}`,
+              `Amount due: ${totalPrice} ${currency}`,
+              ``,
+              `Please transfer the amount to:`,
+              bank.bank_name ? `Bank: ${bank.bank_name}` : null,
+              bank.iban ? `IBAN: ${bank.iban}` : null,
+              bank.swift_bic ? `SWIFT/BIC: ${bank.swift_bic}` : null,
+              bank.bank_account ? `Account: ${bank.bank_account}` : null,
+              ``,
+              `Please include your order number ${createdOrder.order_number} in the payment reference.`,
+              `Your ticket will be issued after payment confirmation.`,
+              ``,
+              `${agency.name || 'AviaFrame'}`
+            ].filter(l => l !== null).join('\n');
+            await sendSupportEmail({
+              to: createdOrder.contact_email,
+              subject: `Invoice — Payment Instructions for booking ${createdOrder.order_number}`,
+              text: lines
+            });
+            console.log('[widget/orders] invoice email sent to', createdOrder.contact_email);
+          } catch (e) {
+            console.error('[widget/orders] invoice email failed:', e.message);
+          }
+        });
+      }
+    }
+
     return res.status(201).json({
       order: createdOrder,
+      payment_method: paymentMethod,
       agency: {
         id: agency.id,
         name: agency.name,
-        domain: agency.domain
+        domain: agency.domain,
+        bank_details: paymentMethod === 'invoice' ? (agency?.settings?.bank_details || null) : null
       }
     });
   } catch (err) {
@@ -1248,6 +1304,49 @@ app.patch('/api/orders/:orderId/status', async (req, res) => {
   }
 });
 
+// Mark a cash/invoice order as paid by admin → triggers PDF generation + email
+app.post('/api/orders/:orderId/mark-paid', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+  if (!isAdminRole(auth.profile.role)) {
+    return forbidden(res, 'Admin role required to mark orders as paid');
+  }
+
+  const { orderId } = req.params;
+  try {
+    const { data: order, error: orderErr } = await supabase
+      .from('orders')
+      .select('id,order_number,drct_order_id,payment_status,payment_method,status,contact_email,origin,destination,total_price,currency')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (orderErr || !order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' } });
+    }
+    if (order.payment_status === 'paid') {
+      return res.status(400).json({ error: { code: 'ALREADY_PAID', message: 'Order is already marked as paid' } });
+    }
+
+    const nowIso = new Date().toISOString();
+    await supabase.from('orders').update({
+      payment_status: 'paid',
+      status: 'confirmed',
+      confirmed_at: nowIso,
+      updated_at: nowIso
+    }).eq('id', order.id);
+
+    // Trigger async ticket issuance + PDF + email (same flow as online card payment)
+    setImmediate(() => handlePaymentPaidAsync(order, `manual_${auth.profile.id}`));
+
+    return res.json({ ok: true, order_number: order.order_number, message: 'Order marked as paid. Ticket will be issued and emailed shortly.' });
+  } catch (err) {
+    console.error('mark-paid error:', err);
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: config.nodeEnv === 'development' ? err.message : 'Internal server error' } });
+  }
+});
+
 app.get('/api/admin/super-admins', async (req, res) => {
   const auth = await resolveAuthContext(req);
   if (auth.error) {
@@ -1462,7 +1561,8 @@ app.patch('/api/admin/agencies/:agencyId', async (req, res) => {
     is_active: isActive,
     language,
     bank_details: bankDetails,
-    widget_allowed_domains: widgetAllowedDomains
+    widget_allowed_domains: widgetAllowedDomains,
+    payment_methods: paymentMethods
   } = req.body || {};
 
   try {
@@ -1495,6 +1595,12 @@ app.patch('/api/admin/agencies/:agencyId', async (req, res) => {
         ...(settings.contact_person || {}),
         full_name: contactPersonName || null
       };
+    }
+    if (paymentMethods !== undefined) {
+      const filtered = Array.isArray(paymentMethods)
+        ? paymentMethods.filter(m => VALID_PAYMENT_METHODS.includes(m))
+        : ['online'];
+      settings.payment_methods = filtered.length ? filtered : ['online'];
     }
 
     const patch = {
@@ -1611,7 +1717,8 @@ app.post('/api/admin/agencies', async (req, res) => {
     commission_rate: commissionRate = 0,
     bank_details: bankDetails = {},
     language = 'en',
-    widget_allowed_domains: widgetAllowedDomains = []
+    widget_allowed_domains: widgetAllowedDomains = [],
+    payment_methods: paymentMethodsRaw = ['online']
   } = req.body || {};
 
   if (!name || !contactEmail) {
@@ -1623,21 +1730,30 @@ app.post('/api/admin/agencies', async (req, res) => {
     });
   }
 
-  const bd = bankDetails || {};
-  if (!bd.bank_name || !bd.iban) {
-    return res.status(400).json({
-      error: {
-        code: 'INVALID_INPUT',
-        message: 'bank_details.bank_name and bank_details.iban are required — they are displayed to clients in payment instructions'
-      }
-    });
+  const allowedPaymentMethods = Array.isArray(paymentMethodsRaw)
+    ? paymentMethodsRaw.filter(m => VALID_PAYMENT_METHODS.includes(m))
+    : ['online'];
+  const finalPaymentMethods = allowedPaymentMethods.length ? allowedPaymentMethods : ['online'];
+
+  // Bank details required only if invoice method is enabled
+  if (finalPaymentMethods.includes('invoice')) {
+    const bd = bankDetails || {};
+    if (!bd.bank_name || !bd.iban) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'bank_details.bank_name and bank_details.iban are required when invoice payment method is enabled'
+        }
+      });
+    }
   }
 
   const apiKey = `ag_${crypto.randomBytes(20).toString('hex')}`;
   const safeDomain = domain ? String(domain).trim().toLowerCase() : null;
   const settings = {
     language,
-    bank_details: bankDetails,
+    bank_details: bankDetails || {},
+    payment_methods: finalPaymentMethods,
     widget_allowed_domains: Array.isArray(widgetAllowedDomains)
       ? widgetAllowedDomains
           .map((d) => normalizeHost(d))

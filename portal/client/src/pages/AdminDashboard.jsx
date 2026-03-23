@@ -17,6 +17,7 @@ import {
   updateAdminInvoice,
   generateAdminInvoicePdf,
   finalizeTicketDocument,
+  markOrderPaid,
   getDocumentDownloadUrl,
   getOrderTicketDocument,
   getProfile,
@@ -34,6 +35,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [issuingOrderId, setIssuingOrderId] = useState(null);
+  const [markingPaidOrderId, setMarkingPaidOrderId] = useState(null);
   const [ticketDocLoadingId, setTicketDocLoadingId] = useState(null);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -87,7 +89,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     iban: '',
     swift_bic: '',
     sama_code: '',
-    widget_allowed_domains: ''
+    widget_allowed_domains: '',
+    payment_methods: ['online']
   });
   const [agencyForm, setAgencyForm] = useState({
     name: '',
@@ -101,7 +104,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     iban: '',
     swift_bic: '',
     sama_code: '',
-    widget_allowed_domains: ''
+    widget_allowed_domains: '',
+    payment_methods: ['online']
   });
   const [invoiceForm, setInvoiceForm] = useState({
     agency_id: '',
@@ -651,8 +655,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setNotice({ type: 'error', text: 'Name and email are required' });
       return;
     }
-    if (!agencyForm.bank_name || !agencyForm.iban) {
-      setNotice({ type: 'error', text: 'Bank name and IBAN are required — they are shown to clients in payment instructions' });
+    if ((agencyForm.payment_methods || []).includes('invoice') && (!agencyForm.bank_name || !agencyForm.iban)) {
+      setNotice({ type: 'error', text: 'Bank name and IBAN are required when Invoice payment method is enabled' });
       return;
     }
     try {
@@ -670,6 +674,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           swift_bic: agencyForm.swift_bic || null,
           sama_code: agencyForm.sama_code || null
         },
+        payment_methods: agencyForm.payment_methods || ['online'],
         widget_allowed_domains: parseWidgetDomains(agencyForm.widget_allowed_domains)
       };
       const { data, error } = await createAdminAgency(payload);
@@ -743,7 +748,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       sama_code: agency?.settings?.bank_details?.sama_code || '',
       widget_allowed_domains: Array.isArray(agency?.settings?.widget_allowed_domains)
         ? agency.settings.widget_allowed_domains.join('\n')
-        : ''
+        : '',
+      payment_methods: Array.isArray(agency?.settings?.payment_methods) && agency.settings.payment_methods.length
+        ? agency.settings.payment_methods
+        : ['online']
     });
   };
 
@@ -763,6 +771,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           swift_bic: agencyEditForm.swift_bic || null,
           sama_code: agencyEditForm.sama_code || null
         },
+        payment_methods: agencyEditForm.payment_methods || ['online'],
         widget_allowed_domains: parseWidgetDomains(agencyEditForm.widget_allowed_domains)
       };
       const { error } = await updateAdminAgency(agencyId, payload);
@@ -1120,6 +1129,21 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setNotice({ type: 'error', text: `Failed to issue ticket: ${err.message}` });
     } finally {
       setIssuingOrderId(null);
+    }
+  };
+
+  const handleMarkOrderPaid = async (order) => {
+    if (!window.confirm(`Mark order ${order.order_number} as paid? This will trigger ticket issuance and email to ${order.contact_email}.`)) return;
+    try {
+      setMarkingPaidOrderId(order.id);
+      const { error } = await markOrderPaid(order.id);
+      if (error) throw new Error(error.message || 'Failed to mark as paid');
+      setNotice({ type: 'success', text: `Order ${order.order_number} marked as paid. Ticket will be issued and emailed shortly.` });
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, payment_status: 'paid', status: 'confirmed', confirmed_at: new Date().toISOString() } : o));
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to mark as paid: ${err.message}` });
+    } finally {
+      setMarkingPaidOrderId(null);
     }
   };
 
@@ -1595,12 +1619,32 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                     <input value={agencyForm.contact_email} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_email: e.target.value }))} placeholder="Email (agency admin login) *" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.contact_phone} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_phone: e.target.value }))} placeholder="Phone" className="w-full border rounded px-2 py-1" />
                     <input value={agencyForm.contact_person_name} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_person_name: e.target.value }))} placeholder="Contact person full name" className="w-full border rounded px-2 py-1" />
-                    <p className="text-xs text-gray-500 pt-1">Bank details — shown to clients in payment instructions</p>
-                    <input value={agencyForm.bank_name} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_name: e.target.value }))} placeholder="Bank name *" className={`w-full border rounded px-2 py-1 ${!agencyForm.bank_name ? 'border-orange-300' : ''}`} />
-                    <input value={agencyForm.bank_account} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_account: e.target.value }))} placeholder="Account number" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.iban} onChange={(e) => setAgencyForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} placeholder="IBAN (SA...) *" className={`w-full border rounded px-2 py-1 ${!agencyForm.iban ? 'border-orange-300' : ''}`} />
-                    <input value={agencyForm.swift_bic} onChange={(e) => setAgencyForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} placeholder="SWIFT/BIC" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.sama_code} onChange={(e) => setAgencyForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} placeholder="SAMA bank code" className="w-full border rounded px-2 py-1" />
+                    <p className="text-xs text-gray-500 pt-1 font-semibold">Payment methods</p>
+                    <div className="flex gap-3 flex-wrap">
+                      {['online', 'cash', 'invoice'].map(m => (
+                        <label key={m} className="flex items-center gap-1 text-sm cursor-pointer">
+                          <input type="checkbox" checked={(agencyForm.payment_methods || []).includes(m)}
+                            onChange={e => setAgencyForm(p => ({
+                              ...p,
+                              payment_methods: e.target.checked
+                                ? [...(p.payment_methods || []).filter(x => x !== m), m]
+                                : (p.payment_methods || []).filter(x => x !== m)
+                            }))}
+                          />
+                          {m.charAt(0).toUpperCase() + m.slice(1)}
+                        </label>
+                      ))}
+                    </div>
+                    {(agencyForm.payment_methods || []).includes('invoice') && (
+                      <>
+                        <p className="text-xs text-gray-500 pt-1">Bank details — shown in invoice instructions</p>
+                        <input value={agencyForm.bank_name} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_name: e.target.value }))} placeholder="Bank name *" className={`w-full border rounded px-2 py-1 ${!agencyForm.bank_name ? 'border-orange-300' : ''}`} />
+                        <input value={agencyForm.bank_account} onChange={(e) => setAgencyForm((p) => ({ ...p, bank_account: e.target.value }))} placeholder="Account number" className="w-full border rounded px-2 py-1" />
+                        <input value={agencyForm.iban} onChange={(e) => setAgencyForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} placeholder="IBAN (SA...) *" className={`w-full border rounded px-2 py-1 ${!agencyForm.iban ? 'border-orange-300' : ''}`} />
+                        <input value={agencyForm.swift_bic} onChange={(e) => setAgencyForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} placeholder="SWIFT/BIC" className="w-full border rounded px-2 py-1" />
+                        <input value={agencyForm.sama_code} onChange={(e) => setAgencyForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} placeholder="SAMA bank code" className="w-full border rounded px-2 py-1" />
+                      </>
+                    )}
                     <textarea
                       value={agencyForm.widget_allowed_domains}
                       onChange={(e) => setAgencyForm((p) => ({ ...p, widget_allowed_domains: e.target.value }))}
@@ -1721,11 +1765,33 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                       <input value={agencyEditForm.contact_phone} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_phone: e.target.value }))} className="border rounded px-2 py-1" placeholder="Phone" />
                       <input value={agencyEditForm.contact_person_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_person_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Contact person full name" />
                       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={agencyEditForm.is_active} onChange={(e) => setAgencyEditForm((p) => ({ ...p, is_active: e.target.checked }))} /> Active</label>
-                      <input value={agencyEditForm.bank_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Bank name" />
-                      <input value={agencyEditForm.bank_account} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_account: e.target.value }))} className="border rounded px-2 py-1" placeholder="Account number" />
-                      <input value={agencyEditForm.iban} onChange={(e) => setAgencyEditForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="IBAN (SA...)" />
-                      <input value={agencyEditForm.swift_bic} onChange={(e) => setAgencyEditForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SWIFT/BIC" />
-                      <input value={agencyEditForm.sama_code} onChange={(e) => setAgencyEditForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SAMA bank code" />
+                      <div className="md:col-span-4">
+                        <p className="text-xs text-gray-500 mb-1 font-semibold">Payment methods</p>
+                        <div className="flex gap-4">
+                          {['online', 'cash', 'invoice'].map(m => (
+                            <label key={m} className="flex items-center gap-1 text-sm cursor-pointer">
+                              <input type="checkbox" checked={(agencyEditForm.payment_methods || []).includes(m)}
+                                onChange={e => setAgencyEditForm(p => ({
+                                  ...p,
+                                  payment_methods: e.target.checked
+                                    ? [...(p.payment_methods || []).filter(x => x !== m), m]
+                                    : (p.payment_methods || []).filter(x => x !== m)
+                                }))}
+                              />
+                              {m.charAt(0).toUpperCase() + m.slice(1)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      {(agencyEditForm.payment_methods || []).includes('invoice') && (
+                        <>
+                          <input value={agencyEditForm.bank_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Bank name" />
+                          <input value={agencyEditForm.bank_account} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_account: e.target.value }))} className="border rounded px-2 py-1" placeholder="Account number" />
+                          <input value={agencyEditForm.iban} onChange={(e) => setAgencyEditForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="IBAN (SA...)" />
+                          <input value={agencyEditForm.swift_bic} onChange={(e) => setAgencyEditForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SWIFT/BIC" />
+                          <input value={agencyEditForm.sama_code} onChange={(e) => setAgencyEditForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SAMA bank code" />
+                        </>
+                      )}
                       <textarea
                         value={agencyEditForm.widget_allowed_domains}
                         onChange={(e) => setAgencyEditForm((p) => ({ ...p, widget_allowed_domains: e.target.value }))}
@@ -1743,6 +1809,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         <div>Contact person: {a?.settings?.contact_person?.full_name || 'N/A'}</div>
                         <div>Bank: {a?.settings?.bank_details?.bank_name || 'N/A'} • IBAN: {a?.settings?.bank_details?.iban || 'N/A'}</div>
                         <div>SWIFT/BIC: {a?.settings?.bank_details?.swift_bic || 'N/A'} • SAMA: {a?.settings?.bank_details?.sama_code || 'N/A'}</div>
+                        <div>Payment methods: {Array.isArray(a?.settings?.payment_methods) && a.settings.payment_methods.length ? a.settings.payment_methods.join(', ') : 'online'}</div>
                         <div>Widget domains: {Array.isArray(a?.settings?.widget_allowed_domains) && a.settings.widget_allowed_domains.length ? a.settings.widget_allowed_domains.join(', ') : 'not set'}</div>
                         <div>Status: {a.is_active ? 'Active' : 'Inactive'}</div>
                       </div>
@@ -2097,12 +2164,33 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                               PNR: {order.drct_order_id}
                             </p>
                           )}
+                          {order.payment_method && order.payment_method !== 'online' && (
+                            <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              order.payment_method === 'cash'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {order.payment_method === 'cash' ? 'Cash' : 'Invoice'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex flex-col gap-2 lg:w-64">
+                      {/* Mark as Paid — only for cash/invoice orders not yet paid */}
+                      {(order.payment_method === 'cash' || order.payment_method === 'invoice') &&
+                       order.payment_status !== 'paid' &&
+                       normalizeStatus(order.status) !== 'cancelled' && (
+                        <button
+                          onClick={() => handleMarkOrderPaid(order)}
+                          disabled={markingPaidOrderId === order.id}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm disabled:opacity-60"
+                        >
+                          {markingPaidOrderId === order.id ? 'Processing...' : '✓ Mark as Paid'}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleIssueTicket(order)}
                         disabled={normalizeStatus(order.status) !== 'confirmed' || issuingOrderId === order.id}
