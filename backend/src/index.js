@@ -399,6 +399,7 @@ async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNum
   }
 
   const nowIso = new Date().toISOString();
+  const isValidUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
   const issuancePayload = {
     order_id: order.id,
     agency_id: order.agency_id,
@@ -408,7 +409,7 @@ async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNum
     issued_at: issuance?.issued_at || nowIso,
     status: 'issued',
     raw_provider_response: issuance?.raw_provider_response || {},
-    created_by: issuance?.created_by || createdBy
+    created_by: isValidUuid(issuance?.created_by) ? issuance.created_by : isValidUuid(createdBy) ? createdBy : null
   };
 
   const { data: savedIssuance, error: issuanceError } = await supabase
