@@ -1033,6 +1033,44 @@ app.post('/api/widget/orders', async (req, res) => {
       }
     }
 
+    // For cash orders: send booking confirmation email asynchronously
+    if (paymentMethod === 'cash' && createdOrder.contact_email) {
+      setImmediate(async () => {
+        try {
+          const { sendSupportEmail } = require('./services/emailService');
+          const agencyName = agency.name || 'AviaFrame';
+          const agencyPhone = agency.contact_phone || '';
+          const agencyEmail = agency.contact_email || '';
+          const lines = [
+            `Hello,`,
+            ``,
+            `Your flight booking has been created successfully.`,
+            ``,
+            `Order number: ${createdOrder.order_number}`,
+            `Route: ${origin} → ${destination}`,
+            `Amount: ${totalPrice} ${currency}`,
+            ``,
+            `Payment method: Cash at office`,
+            `Please visit our office to complete payment.`,
+            agencyPhone ? `Phone: ${agencyPhone}` : null,
+            agencyEmail ? `Email: ${agencyEmail}` : null,
+            ``,
+            `Your e-ticket will be issued and sent to you after cash payment is received.`,
+            ``,
+            `${agencyName}`
+          ].filter(l => l !== null).join('\n');
+          await sendSupportEmail({
+            to: createdOrder.contact_email,
+            subject: `Booking Confirmation ${createdOrder.order_number} — Pay at Office`,
+            text: lines
+          });
+          console.log('[widget/orders] cash confirmation email sent to', createdOrder.contact_email);
+        } catch (e) {
+          console.error('[widget/orders] cash confirmation email failed:', e.message);
+        }
+      });
+    }
+
     // For invoice orders: send bank details email asynchronously
     if (paymentMethod === 'invoice' && createdOrder.contact_email) {
       const bank = agency?.settings?.bank_details || {};
