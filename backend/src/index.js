@@ -403,7 +403,6 @@ async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNum
   }
 
   const nowIso = new Date().toISOString();
-  const isValidUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
   const issuancePayload = {
     order_id: order.id,
     agency_id: order.agency_id,
@@ -479,6 +478,8 @@ async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNum
   };
 }
 
+const isValidUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
 async function uploadPdfToStorage({ buffer, fileName, folder }) {
   const timestamp = Date.now();
   const safeName = String(fileName || 'document.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -522,7 +523,7 @@ async function saveDocumentMetadata({
     content_type: 'application/pdf',
     size_bytes: sizeBytes,
     checksum_sha256: checksum,
-    created_by: createdBy,
+    created_by: isValidUuid(createdBy) ? createdBy : null,
     metadata
   };
 

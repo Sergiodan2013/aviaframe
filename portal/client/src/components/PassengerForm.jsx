@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { User, Calendar, CreditCard, Briefcase, ArrowRight, Phone, Mail, Globe } from 'lucide-react';
-import PhoneInput from 'react-phone-number-input';
+import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 import LoadingScreen from './LoadingScreen';
 
@@ -29,7 +29,29 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
+
+    if (field === 'phone') {
+      if (!value || value.length < 4) {
+        setErrors(prev => ({ ...prev, phone: null }));
+      } else if (isValidPhoneNumber(value || '')) {
+        setErrors(prev => ({ ...prev, phone: null }));
+      } else {
+        setErrors(prev => ({ ...prev, phone: 'Please enter a valid phone number' }));
+      }
+      return;
+    }
+
+    if (field === 'dateOfBirth' && value) {
+      const yearStr = value.split('-')[0] || '';
+      const year = parseInt(yearStr, 10);
+      if (yearStr.length > 4 || year < 1900 || year > new Date().getFullYear()) {
+        setErrors(prev => ({ ...prev, dateOfBirth: `Please enter a valid year (1900–${new Date().getFullYear()})` }));
+      } else {
+        setErrors(prev => ({ ...prev, dateOfBirth: null }));
+      }
+      return;
+    }
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: null }));
     }
@@ -322,6 +344,7 @@ export default function PassengerForm({ selectedOffer, onSubmit, onBack, userEma
               id="dateOfBirth"
               value={formData.dateOfBirth}
               onChange={(e) => handleChange('dateOfBirth', e.target.value)}
+              min="1900-01-01"
               max={new Date().toISOString().split('T')[0]}
               className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-200 outline-none transition-all ${
                 errors.dateOfBirth ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CreditCard, Lock, CheckCircle, Plane, User, Briefcase, ArrowLeft } from 'lucide-react';
 
-export default function PaymentScreen({ selectedOffer, passengerData, orderId, onBack, onPaymentSuccess }) {
+export default function PaymentScreen({ selectedOffer, passengerData, orderId, orderNumber, onBack, onPaymentSuccess }) {
   const [cardData, setCardData] = useState({
     cardNumber: '',
     cardHolder: '',
@@ -119,7 +119,7 @@ export default function PaymentScreen({ selectedOffer, passengerData, orderId, o
 
       if (result.status === 'paid') {
         // Direct payment without 3DS
-        onPaymentSuccess?.({ orderNumber: orderId, status: 'paid', payment_id: result.payment_id });
+        onPaymentSuccess?.({ status: 'paid', payment_id: result.payment_id });
         return;
       }
 
@@ -165,7 +165,7 @@ export default function PaymentScreen({ selectedOffer, passengerData, orderId, o
             {/* Order Number */}
             <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
               <div className="text-xs text-gray-600 mb-1">Order Number</div>
-              <div className="text-lg font-bold text-blue-600">{orderId || '—'}</div>
+              <div className="text-lg font-bold text-blue-600">{orderNumber || '—'}</div>
             </div>
 
             {/* Flight Info */}

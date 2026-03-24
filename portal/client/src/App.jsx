@@ -114,18 +114,22 @@ function App() {
     if (paymentResult === 'success') {
       const orderId = params.get('order_id');
       // Restore full booking data saved before 3DS redirect
+      // Try sessionStorage first (more reliable for 3DS redirect in same tab), then localStorage
       let restoredBooking = null;
       try {
-        const saved = localStorage.getItem('moyasarPendingBooking');
+        const fromSession = sessionStorage.getItem('moyasarPendingBooking');
+        const fromLocal = localStorage.getItem('moyasarPendingBooking');
+        const saved = fromSession || fromLocal;
         if (saved) {
           restoredBooking = JSON.parse(saved);
+          sessionStorage.removeItem('moyasarPendingBooking');
           localStorage.removeItem('moyasarPendingBooking');
         }
       } catch (e) { /* ignore */ }
       setBooking(
         restoredBooking
           ? { ...restoredBooking, status: 'paid' }
-          : { orderNumber: orderId, bookingReference: orderId, status: 'paid' }
+          : { orderNumber: null, bookingReference: null, orderId, status: 'paid' }
       );
       setCurrentStep('success');
     } else {
@@ -633,8 +637,10 @@ function App() {
 
       setBooking(bookingData);
 
-      // Save to localStorage so success screen can restore after 3DS redirect
-      localStorage.setItem('moyasarPendingBooking', JSON.stringify(bookingData));
+      // Save to both storages so success screen can restore after 3DS redirect
+      const pendingStr = JSON.stringify(bookingData);
+      localStorage.setItem('moyasarPendingBooking', pendingStr);
+      sessionStorage.setItem('moyasarPendingBooking', pendingStr);
 
       // Refresh bookings list when user visits it next time
       setBookingsRefreshKey(prev => prev + 1);
@@ -658,8 +664,9 @@ function App() {
   };
 
   // Handle payment success
-  const handlePaymentSuccess = (bookingData) => {
-    setBooking(bookingData);
+  const handlePaymentSuccess = (paymentData) => {
+    // booking state already has orderNumber from handlePassengerSubmit — preserve it
+    setBooking(prev => ({ ...(prev || {}), status: 'paid', payment_id: paymentData?.payment_id }));
     setCurrentStep('success');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1364,6 +1371,7 @@ function App() {
             selectedOffer={selectedOffer}
             passengerData={passengerData}
             orderId={currentOrderId}
+            orderNumber={booking?.orderNumber}
             onBack={() => setCurrentStep('passenger')}
             onPaymentSuccess={handlePaymentSuccess}
           />
@@ -1387,14 +1395,22 @@ function App() {
 
               {/* Booking Reference */}
               <div className="bg-green-50 rounded-lg p-4 mb-4 border border-green-200 space-y-2">
-                <div>
-                  <div className="text-xs text-gray-500 mb-0.5">Order number (for support)</div>
-                  <div className="text-xl font-bold text-green-600 font-mono">{booking.orderNumber || booking.bookingReference}</div>
-                </div>
-                {booking.bookingReference && booking.bookingReference !== booking.orderNumber && (
-                  <div>
-                    <div className="text-xs text-gray-500 mb-0.5">PNR / Booking reference</div>
-                    <div className="text-lg font-bold text-purple-600 font-mono">{booking.bookingReference}</div>
+                {(booking.orderNumber || booking.bookingReference) ? (
+                  <>
+                    <div>
+                      <div className="text-xs text-gray-500 mb-0.5">Order number (for support)</div>
+                      <div className="text-xl font-bold text-green-600 font-mono">{booking.orderNumber || booking.bookingReference}</div>
+                    </div>
+                    {booking.bookingReference && booking.bookingReference !== booking.orderNumber && (
+                      <div>
+                        <div className="text-xs text-gray-500 mb-0.5">PNR / Booking reference</div>
+                        <div className="text-lg font-bold text-purple-600 font-mono">{booking.bookingReference}</div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-sm text-green-700">
+                    Order confirmed. Check your email for booking details.
                   </div>
                 )}
               </div>
