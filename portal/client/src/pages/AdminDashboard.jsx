@@ -1208,7 +1208,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     total: orders.length,
     pending: orders.filter(o => normalizeStatus(o.status) === 'pending').length,
     confirmed: orders.filter(o => normalizeStatus(o.status) === 'confirmed').length,
-    issued: orders.filter(o => normalizeStatus(o.status) === 'issued'.length,
+    issued: orders.filter(o => normalizeStatus(o.status) === 'issued').length,
     cancelled: orders.filter(o => normalizeStatus(o.status) === 'cancelled').length,
   };
   const showOrdersArea = (
