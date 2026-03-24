@@ -588,10 +588,10 @@ function App() {
 
       console.log('Order created successfully via n8n:', n8nResponse);
 
-      // n8n returns: { order_number, booking_reference, drct_order_id, status }
+      // n8n may return direct order fields OR a notification event {entity_id, metadata, ...}
       const bookingData = {
-        orderNumber: n8nResponse.order_number,
-        bookingReference: n8nResponse.booking_reference || n8nResponse.drct_order_id,
+        orderNumber: n8nResponse.order_number || n8nResponse.metadata?.order_number || null,
+        bookingReference: n8nResponse.booking_reference || n8nResponse.drct_order_id || n8nResponse.metadata?.drct_order_id || null,
         status: 'pending_payment',
         offer: selectedOffer,
         passenger: data,
@@ -600,7 +600,12 @@ function App() {
       };
 
       // Local fallback cache (used when Supabase list is slow/unavailable)
-      const resolvedOrderId = n8nResponse?.id || n8nResponse?.order_id || null;
+      // n8n may return a notification event {entity_type:'order', entity_id:'<order uuid>', id:'<event uuid>'}
+      // or a direct order response {order_id, order_number, ...}
+      const resolvedOrderId = n8nResponse?.order_id
+        || (n8nResponse?.entity_type === 'order' ? n8nResponse?.entity_id : null)
+        || n8nResponse?.entity_id
+        || null;
       const cachedOrder = {
         id: resolvedOrderId || `local_${Date.now()}`,
         order_number: n8nResponse.order_number || n8nResponse.booking_reference || `ORD-${Date.now()}`,
