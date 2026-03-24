@@ -3456,18 +3456,8 @@ app.post('/public/search', async (req, res) => {
   console.log('[payments] routes registered');
 })();
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    error: {
-      code: 'NOT_FOUND',
-      message: `Route ${req.method} ${req.path} not found`
-    }
-  });
-});
-
 // ─────────────────────────────────────────────────────────────────────────────
-// n8n Webhook Proxy
+// n8n Webhook Proxy — MUST be before 404 handler
 // Proxies /webhook/* requests to the configured n8n instance.
 // Required: N8N_WEBHOOK_URL env var (e.g. https://n8n.example.com/webhook)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3500,6 +3490,16 @@ app.all('/webhook/*', express.json({ limit: '10mb' }), async (req, res) => {
     console.error('[n8n-proxy] Error proxying to n8n:', err.message);
     res.status(502).json({ error: { code: 'N8N_PROXY_ERROR', message: err.message } });
   }
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route ${req.method} ${req.path} not found`
+    }
+  });
 });
 
 // Error handler
