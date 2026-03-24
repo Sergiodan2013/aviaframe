@@ -1349,17 +1349,23 @@ app.post('/api/orders/:orderId/mark-paid', async (req, res) => {
   if (auth.error) {
     return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
   }
-  if (!isAdminRole(auth.profile.role)) {
-    return forbidden(res, 'Admin role required to mark orders as paid');
+  if (!isAdminRole(auth.profile.role) && auth.profile.role !== 'agent') {
+    return forbidden(res, 'Admin or agent role required to mark orders as paid');
   }
 
   const { orderId } = req.params;
   try {
-    const { data: order, error: orderErr } = await supabase
+    let orderQuery = supabase
       .from('orders')
-      .select('id,order_number,drct_order_id,payment_status,payment_method,status,contact_email,origin,destination,total_price,currency')
-      .eq('id', orderId)
-      .maybeSingle();
+      .select('id,order_number,agency_id,drct_order_id,payment_status,payment_method,status,contact_email,origin,destination,total_price,currency')
+      .eq('id', orderId);
+
+    // Agents can only mark orders for their own agency
+    if (auth.profile.role === 'agent' && auth.profile.agency_id) {
+      orderQuery = orderQuery.eq('agency_id', auth.profile.agency_id);
+    }
+
+    const { data: order, error: orderErr } = await orderQuery.maybeSingle();
 
     if (orderErr || !order) {
       return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' } });

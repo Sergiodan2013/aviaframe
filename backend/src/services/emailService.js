@@ -119,7 +119,7 @@ async function sendSupportEmail({ to, from, subject, text, attachment = null }) 
     });
     await transporter.sendMail({
       from: sender, to, replyTo: from || undefined, subject, text,
-      attachments: attachments.map(a => ({ ...a, contentType: attachment?.contentType || 'application/octet-stream' }))
+      attachments: attachments.map(a => ({ ...a, contentType: a.contentType || 'application/octet-stream' }))
     });
     return { sent: true, error: null };
   }
