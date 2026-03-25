@@ -586,6 +586,15 @@ function App() {
         return;
       }
 
+      // n8n may return HTTP 200 but with success: false (application-level error from DRCT)
+      if (n8nResponse?.success === false) {
+        const errMsg = n8nResponse.error || n8nResponse.message || 'Order creation failed. Please try again.';
+        console.error('n8n order creation app error:', errMsg);
+        setError(errMsg);
+        setIsLoading(false);
+        return;
+      }
+
       console.log('Order created successfully via n8n:', n8nResponse);
 
       // n8n may return direct order fields OR a notification event {entity_id, metadata, ...}
@@ -649,6 +658,14 @@ function App() {
 
       // Refresh bookings list when user visits it next time
       setBookingsRefreshKey(prev => prev + 1);
+
+      // Guard: if order ID missing, show error instead of proceeding to payment
+      if (!resolvedOrderId) {
+        console.error('Order created but no ID returned from n8n:', n8nResponse);
+        setError('Order was created but booking reference is missing. Please contact support or try again.');
+        setIsLoading(false);
+        return;
+      }
 
       // Navigate to payment screen
       setCurrentOrderId(resolvedOrderId);
