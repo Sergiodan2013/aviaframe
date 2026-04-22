@@ -1,5 +1,7 @@
 const PDFDocument = require('pdfkit');
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function toMoney(value, currency = 'USD') {
   const amount = Number(value || 0);
   return `${amount.toFixed(2)} ${currency}`;
@@ -10,6 +12,30 @@ function safe(v, fallback = 'N/A') {
   return String(v);
 }
 
+function formatDateShort(v) {
+  if (!v) return 'N/A';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatTimeOnly(v) {
+  if (!v) return '--:--';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v).slice(0, 5);
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function flightDuration(dep, arr) {
+  if (!dep || !arr) return null;
+  const d1 = new Date(dep);
+  const d2 = new Date(arr);
+  if (Number.isNaN(d1.getTime()) || Number.isNaN(d2.getTime())) return null;
+  const mins = Math.round((d2 - d1) / 60000);
+  if (mins <= 0) return null;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
 function formatDateTime(v) {
   if (!v) return 'N/A';
   const d = new Date(v);
@@ -17,18 +43,369 @@ function formatDateTime(v) {
   return d.toISOString().replace('T', ' ').slice(0, 16);
 }
 
+// Parse ISO or "YYYY-MM-DD HH:MM" string into Date
+function parseDateTime(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  if (!Number.isNaN(d.getTime())) return d;
+  // try "YYYY-MM-DD HH:MM:SS"
+  const d2 = new Date(String(v).replace(' ', 'T'));
+  return Number.isNaN(d2.getTime()) ? null : d2;
+}
+
+function fmtTime(v) {
+  const d = parseDateTime(v);
+  if (!d) return '--:--';
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function fmtDate(v) {
+  const d = parseDateTime(v);
+  if (!d) return '';
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function calcDuration(dep, arr) {
+  const d1 = parseDateTime(dep);
+  const d2 = parseDateTime(arr);
+  if (!d1 || !d2) return null;
+  const mins = Math.round((d2 - d1) / 60000);
+  if (mins <= 0) return null;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+/**
+ * Build segments array from order.
+ * Tries raw_offer_data.offer.segments first, then falls back to order fields.
+ */
+function buildSegments(order) {
+  const raw = order.raw_offer_data?.offer?.segments;
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.map(seg => ({
+      origin: safe(seg.origin || seg.departure_airport?.code || seg.from, ''),
+      destination: safe(seg.destination || seg.arrival_airport?.code || seg.to, ''),
+      departure: seg.departure || seg.departure_time || `${seg.departure_date || ''} ${seg.departure_time_str || ''}`.trim(),
+      arrival: seg.arrival || seg.arrival_time || `${seg.arrival_date || ''} ${seg.arrival_time || seg.arrival_time_str || ''}`.trim(),
+      airline: safe(seg.carrier?.airline_name || seg.airline_name || seg.carrier?.airline_code || order.airline_name, 'N/A'),
+      flightNo: safe(seg.flight_number || order.flight_number, 'N/A'),
+      cabin: safe(seg.cabin_class || order.cabin_class || order.fare_class, 'Economy'),
+    }));
+  }
+  // fallback: single segment from order fields
+  return [{
+    origin: safe(order.origin, ''),
+    destination: safe(order.destination, ''),
+    departure: order.departure_time,
+    arrival: order.arrival_time,
+    airline: safe(order.airline_name || order.airline_code, 'N/A'),
+    flightNo: safe(order.flight_number, 'N/A'),
+    cabin: safe(order.cabin_class || order.fare_class, 'Economy'),
+  }];
+}
+
 function createPdfBuffer(drawFn) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
     const chunks = [];
-    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('data', chunk => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
-
     drawFn(doc);
     doc.end();
   });
 }
+
+// ─── Colors & Layout ────────────────────────────────────────────────────────
+
+const C = {
+  navy:   '#1E3A5F',
+  blue:   '#2563EB',
+  accent: '#0EA5E9',
+  text:   '#1E293B',
+  muted:  '#64748B',
+  border: '#E2E8F0',
+  light:  '#F8FAFC',
+  white:  '#FFFFFF',
+};
+
+const PAGE_W = 595.28;
+const MARGIN = 40;
+const CONTENT_W = PAGE_W - MARGIN * 2;
+
+// ─── Drawing Primitives ──────────────────────────────────────────────────────
+
+function hline(doc, y, color = C.border) {
+  doc.moveTo(MARGIN, y).lineTo(MARGIN + CONTENT_W, y)
+    .strokeColor(color).lineWidth(0.5).stroke();
+}
+
+// Draw arrow using lines only (no Unicode)
+function drawArrow(doc, x, y, width) {
+  const arrowLen = width;
+  const headSize = 5;
+  doc.moveTo(x, y).lineTo(x + arrowLen - headSize, y)
+    .strokeColor(C.muted).lineWidth(1).stroke();
+  doc.moveTo(x + arrowLen - headSize, y - headSize / 2)
+    .lineTo(x + arrowLen, y)
+    .lineTo(x + arrowLen - headSize, y + headSize / 2)
+    .strokeColor(C.muted).lineWidth(1).stroke();
+}
+
+// ─── Header ─────────────────────────────────────────────────────────────────
+
+function drawTicketHeader(doc, orderNumber, issuedAt) {
+  // Top accent bar
+  doc.rect(0, 0, PAGE_W, 4).fill(C.accent);
+
+  // Logo
+  doc.fontSize(20).font('Helvetica-Bold').fillColor(C.navy)
+    .text('Avia', MARGIN, 14, { continued: true });
+  doc.fillColor(C.accent).text('Frame');
+  doc.fontSize(7.5).font('Helvetica').fillColor(C.muted)
+    .text('FLIGHT BOOKING PLATFORM', MARGIN, 37);
+
+  // Booking number box (right)
+  const bw = 168, bh = 36, bx = PAGE_W - MARGIN - bw, by = 12;
+  doc.roundedRect(bx, by, bw, bh, 4).stroke(C.border);
+  doc.fontSize(7).font('Helvetica').fillColor(C.muted)
+    .text('BOOKING NUMBER', bx, by + 7, { width: bw, align: 'center' });
+  doc.fontSize(13).font('Helvetica-Bold').fillColor(C.navy)
+    .text(safe(orderNumber, '--'), bx, by + 18, { width: bw, align: 'center', characterSpacing: 1.5 });
+
+  return 56; // y after header
+}
+
+// ─── Flight Segment Card ─────────────────────────────────────────────────────
+
+/**
+ * Draws one flight segment in Kiwi style.
+ * Timeline: time (right-aligned) | dot-line-dot | airport name | carrier (right)
+ * Returns new y.
+ */
+function drawSegmentCard(doc, seg, yStart) {
+  const depTime = fmtTime(seg.departure);
+  const depDate = fmtDate(seg.departure);
+  const arrTime = fmtTime(seg.arrival);
+  const arrDate = fmtDate(seg.arrival);
+  const duration = calcDuration(seg.departure, seg.arrival);
+
+  const cardH = 108;
+  const pad = 12;
+
+  // Card border + left accent
+  doc.rect(MARGIN, yStart, CONTENT_W, cardH).fillAndStroke(C.white, C.border);
+  doc.rect(MARGIN, yStart, 3, cardH).fill(C.accent);
+
+  // Column x positions
+  const timeX   = MARGIN + 6;
+  const timeW   = 54;
+  const dotX    = MARGIN + 68;
+  const airportX = dotX + 12;
+  const carrierX = MARGIN + CONTENT_W - 138;
+  const carrierW = 133;
+
+  const depRowY = yStart + pad;
+  const arrRowY = yStart + cardH - 36;
+
+  // ── Departure time
+  doc.fontSize(18).font('Helvetica-Bold').fillColor(C.text)
+    .text(depTime, timeX, depRowY, { width: timeW, align: 'right' });
+  doc.fontSize(7).font('Helvetica').fillColor(C.muted)
+    .text(depDate, timeX, depRowY + 21, { width: timeW, align: 'right' });
+
+  // Dot dep
+  doc.circle(dotX, depRowY + 9, 4).fillAndStroke(C.accent, C.accent);
+
+  // Vertical line dep -> arr
+  doc.moveTo(dotX, depRowY + 13).lineTo(dotX, arrRowY + 5)
+    .strokeColor(C.accent).lineWidth(1.5).stroke();
+
+  // Origin airport name
+  const origIsShort = seg.origin.length <= 4;
+  doc.fontSize(origIsShort ? 14 : 9).font('Helvetica-Bold').fillColor(C.text)
+    .text(seg.origin.toUpperCase(), airportX, depRowY + (origIsShort ? 1 : 3),
+      { width: carrierX - airportX - 6 });
+
+  // ── Arrival time
+  doc.fontSize(18).font('Helvetica-Bold').fillColor(C.text)
+    .text(arrTime, timeX, arrRowY, { width: timeW, align: 'right' });
+  doc.fontSize(7).font('Helvetica').fillColor(C.muted)
+    .text(arrDate, timeX, arrRowY + 21, { width: timeW, align: 'right' });
+
+  // Dot arr
+  doc.circle(dotX, arrRowY + 9, 4).fillAndStroke(C.accent, C.accent);
+
+  // Destination airport name
+  const destIsShort = seg.destination.length <= 4;
+  doc.fontSize(destIsShort ? 14 : 9).font('Helvetica-Bold').fillColor(C.text)
+    .text(seg.destination.toUpperCase(), airportX, arrRowY + (destIsShort ? 1 : 3),
+      { width: carrierX - airportX - 6 });
+
+  // ── Carrier info (right column)
+  const lh = 13;
+  doc.fontSize(7).font('Helvetica').fillColor(C.muted)
+    .text('Carrier:', carrierX, depRowY + 2, { width: carrierW, align: 'right' });
+  doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C.text)
+    .text(seg.airline, carrierX, depRowY + lh, { width: carrierW, align: 'right' });
+  doc.fontSize(7).font('Helvetica').fillColor(C.muted)
+    .text('Flight no:', carrierX, depRowY + lh * 2 + 2, { width: carrierW, align: 'right' });
+  doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C.text)
+    .text(`${seg.flightNo}  -  ${seg.cabin}`, carrierX, depRowY + lh * 3, { width: carrierW, align: 'right' });
+  if (duration) {
+    doc.fontSize(7).font('Helvetica').fillColor(C.muted)
+      .text('Duration:', carrierX, depRowY + lh * 4 + 2, { width: carrierW, align: 'right' });
+    doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C.text)
+      .text(duration, carrierX, depRowY + lh * 5, { width: carrierW, align: 'right' });
+  }
+
+  return yStart + cardH;
+}
+
+// ─── Main Ticket Builder ─────────────────────────────────────────────────────
+
+async function buildTicketPdf({ order, passengers = [], issuance = {} }) {
+  return createPdfBuffer((doc) => {
+    const segments = buildSegments(order);
+    const firstSeg = segments[0] || {};
+    const lastSeg  = segments[segments.length - 1] || {};
+
+    const origLabel = safe(firstSeg.origin, safe(order.origin));
+    const destLabel = safe(lastSeg.destination, safe(order.destination));
+    const isRoundTrip = segments.length > 1;
+
+    const issuedAt = issuance?.issued_at
+      ? formatDateShort(issuance.issued_at)
+      : formatDateShort(new Date().toISOString());
+
+    // ── 1. Header
+    let y = drawTicketHeader(doc, order.order_number, issuedAt) + 10;
+
+    // ── 2. Route title  (no Unicode arrows — drawn vector)
+    const routeLabel = isRoundTrip
+      ? `${origLabel}  -  ${destLabel}  (return)`
+      : `${origLabel}  -  ${destLabel}`;
+    doc.fontSize(16).font('Helvetica-Bold').fillColor(C.text)
+      .text(routeLabel, MARGIN, y, { width: CONTENT_W });
+    y += 26;
+
+    hline(doc, y);
+    y += 10;
+
+    // ── 3. Flight segments
+    segments.forEach((seg, idx) => {
+      // Section label
+      let sectionLabel = isRoundTrip
+        ? (idx === 0 ? 'OUTBOUND' : 'RETURN')
+        : 'OUTBOUND';
+      const dur = calcDuration(seg.departure, seg.arrival);
+
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(C.text)
+        .text(sectionLabel, MARGIN, y);
+      if (dur) {
+        doc.fontSize(8).font('Helvetica').fillColor(C.muted)
+          .text(`Total duration: ${dur}`, MARGIN, y, { width: CONTENT_W, align: 'right' });
+      }
+      y += 16;
+
+      y = drawSegmentCard(doc, seg, y) + 8;
+    });
+
+    // ── 4. Timing note (compact)
+    doc.rect(MARGIN, y, CONTENT_W, 22).fill(C.light);
+    hline(doc, y);
+    hline(doc, y + 22);
+    doc.fontSize(7).font('Helvetica').fillColor(C.muted)
+      .text(
+        'All times are local. Arrive at airport at least 2h before departure (domestic) or 3h (international).',
+        MARGIN + 8, y + 7, { width: CONTENT_W - 16 }
+      );
+    y += 30;
+
+    hline(doc, y);
+    y += 10;
+
+    // ── 5. Passengers
+    doc.fontSize(11).font('Helvetica-Bold').fillColor(C.text)
+      .text('Passengers', MARGIN, y);
+    y += 18;
+
+    if (passengers.length === 0) {
+      doc.rect(MARGIN, y, CONTENT_W, 28).fillAndStroke(C.white, C.border);
+      doc.fontSize(9).font('Helvetica').fillColor(C.muted)
+        .text(safe(order.contact_email), MARGIN + 10, y + 9, { width: CONTENT_W - 20 });
+      y += 36;
+    } else {
+      passengers.slice(0, 8).forEach(p => {
+        const name = `${safe(p.last_name, '')} ${safe(p.first_name, '')}`.trim().toUpperCase() || 'PASSENGER';
+        const type = safe(p.passenger_type, 'ADT');
+        const h = 30;
+        doc.rect(MARGIN, y, CONTENT_W, h).fillAndStroke(C.white, C.border);
+
+        // person icon (circles)
+        doc.circle(MARGIN + 14, y + 11, 4).fill(C.muted);
+        doc.roundedRect(MARGIN + 10, y + 17, 8, 7, 2).fill(C.muted);
+
+        doc.fontSize(9.5).font('Helvetica-Bold').fillColor(C.text)
+          .text(name, MARGIN + 28, y + 9, { width: CONTENT_W - 100 });
+        doc.fontSize(8).font('Helvetica').fillColor(C.muted)
+          .text(type, MARGIN + CONTENT_W - 50, y + 11, { width: 44, align: 'right' });
+
+        // PNR if available
+        const pnr = safe(issuance.pnr || order.drct_order_id, null);
+        if (pnr && pnr !== 'N/A') {
+          doc.fontSize(7.5).font('Helvetica').fillColor(C.muted)
+            .text('PNR:', MARGIN + 28, y + 20, { continued: true })
+            .font('Helvetica-Bold').fillColor(C.text)
+            .text(` ${pnr}`, { characterSpacing: 0.5 });
+        }
+
+        y += h + 4;
+      });
+    }
+
+    y += 4;
+    hline(doc, y);
+    y += 10;
+
+    // ── 6. Fare
+    doc.rect(MARGIN, y, CONTENT_W, 46).fillAndStroke(C.light, C.border);
+    doc.fontSize(7).font('Helvetica').fillColor(C.muted)
+      .text('TOTAL FARE', MARGIN + 12, y + 9);
+    doc.fontSize(18).font('Helvetica-Bold').fillColor(C.navy)
+      .text(toMoney(order.total_price, order.currency || 'UAH'), MARGIN + 12, y + 20);
+
+    const status = String(order.payment_status || order.status || 'CONFIRMED').toUpperCase();
+    const bw = 90, bx = MARGIN + CONTENT_W - bw - 10;
+    doc.roundedRect(bx, y + 12, bw, 22, 4).fill(C.accent);
+    doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C.white)
+      .text(status, bx, y + 18, { width: bw, align: 'center' });
+    y += 46;
+
+    // ── 7. Contact bar
+    doc.rect(MARGIN, y, CONTENT_W, 28).fillAndStroke(C.navy, C.navy);
+    doc.fontSize(7).font('Helvetica').fillColor('#93C5FD')
+      .text('CONTACT', MARGIN + 12, y + 7);
+    const parts = [safe(order.contact_email, null), safe(order.contact_phone, null)].filter(Boolean);
+    doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C.white)
+      .text(parts.join('   |   '), MARGIN + 12, y + 17, { width: CONTENT_W - 24 });
+    y += 28;
+
+    y += 12;
+
+    // ── 8. Footer
+    hline(doc, y);
+    doc.fontSize(6.5).font('Helvetica').fillColor(C.muted)
+      .text(
+        'This is an electronic ticket. Please present this document along with a valid photo ID at check-in.',
+        MARGIN, y + 5, { width: CONTENT_W - 130 }
+      );
+    doc.fontSize(6.5).font('Helvetica').fillColor(C.muted)
+      .text(`Page 1/1  -  last updated on ${issuedAt}`, MARGIN, y + 5,
+        { width: CONTENT_W, align: 'right' });
+  });
+}
+
+// ─── Invoice PDF ─────────────────────────────────────────────────────────────
 
 async function buildInvoicePdf({ invoice, agency, orders = [] }) {
   return createPdfBuffer((doc) => {
@@ -79,262 +456,4 @@ async function buildInvoicePdf({ invoice, agency, orders = [] }) {
   });
 }
 
-function formatDateShort(v) {
-  if (!v) return 'N/A';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return String(v);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function formatTimeOnly(v) {
-  if (!v) return '--:--';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return String(v).slice(0, 5);
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-function flightDuration(dep, arr) {
-  if (!dep || !arr) return '';
-  const d1 = new Date(dep);
-  const d2 = new Date(arr);
-  if (Number.isNaN(d1.getTime()) || Number.isNaN(d2.getTime())) return '';
-  const mins = Math.round((d2 - d1) / 60000);
-  if (mins <= 0) return '';
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h}h ${m}m`;
-}
-
-// Colors
-const C = {
-  navy:      '#1E3A5F',
-  blue:      '#2563EB',
-  lightBlue: '#DBEAFE',
-  gray:      '#F1F5F9',
-  border:    '#CBD5E1',
-  text:      '#1E293B',
-  muted:     '#64748B',
-  white:     '#FFFFFF',
-  accent:    '#0EA5E9',
-};
-
-const PAGE_W = 595.28; // A4 width in points
-const MARGIN = 40;
-const CONTENT_W = PAGE_W - MARGIN * 2;
-
-function drawHeader(doc) {
-  // Dark navy header bar
-  doc.rect(0, 0, PAGE_W, 80).fill(C.navy);
-
-  // Plane icon (simple triangle + tail)
-  const px = MARGIN + 8;
-  const py = 28;
-  doc.save();
-  doc.fillColor(C.white).opacity(0.9);
-  doc.moveTo(px, py + 12).lineTo(px + 28, py + 4).lineTo(px + 28, py + 20).closePath().fill();
-  doc.moveTo(px + 10, py + 20).lineTo(px + 18, py + 28).lineTo(px + 22, py + 24).lineTo(px + 16, py + 20).closePath().fill();
-  doc.restore();
-
-  // "AviaFrame" wordmark
-  doc.fillColor(C.white).opacity(1).fontSize(22).font('Helvetica-Bold')
-    .text('Avia', px + 36, 24, { continued: true })
-    .fillColor(C.accent).text('Frame');
-  doc.fillColor(C.white).opacity(0.7).fontSize(9).font('Helvetica')
-    .text('WHITE-LABEL FLIGHT BOOKING', px + 36, 51);
-
-  // "ELECTRONIC TICKET" badge on right
-  doc.roundedRect(PAGE_W - MARGIN - 150, 22, 150, 36, 4).fill(C.blue);
-  doc.fillColor(C.white).opacity(1).fontSize(11).font('Helvetica-Bold')
-    .text('ELECTRONIC TICKET', PAGE_W - MARGIN - 144, 29, { width: 138, align: 'center' });
-  doc.fillColor(C.white).opacity(0.7).fontSize(8).font('Helvetica')
-    .text('ITINERARY RECEIPT', PAGE_W - MARGIN - 144, 44, { width: 138, align: 'center' });
-}
-
-function drawBookingRef(doc, order, issuance) {
-  const y = 96;
-  // Light gray background strip
-  doc.rect(MARGIN, y, CONTENT_W, 44).fillAndStroke(C.gray, C.border);
-
-  const pnr = safe(issuance.pnr || order.drct_order_id);
-  const ticketNum = safe(issuance.ticket_number || issuance.id);
-  const orderNum = safe(order.order_number);
-  const issuedAt = formatDateShort(issuance.issued_at || new Date().toISOString());
-
-  // Four columns
-  const colW = CONTENT_W / 4;
-  const labels = ['BOOKING REF', 'TICKET NUMBER', 'ORDER NUMBER', 'ISSUED DATE'];
-  const values = [pnr, ticketNum, orderNum, issuedAt];
-
-  labels.forEach((lbl, i) => {
-    const x = MARGIN + colW * i + 12;
-    doc.fillColor(C.muted).fontSize(7).font('Helvetica').text(lbl, x, y + 7, { width: colW - 16 });
-    doc.fillColor(C.text).fontSize(11).font('Helvetica-Bold').text(values[i], x, y + 18, { width: colW - 16 });
-    if (i < 3) {
-      doc.moveTo(MARGIN + colW * (i + 1), y + 8).lineTo(MARGIN + colW * (i + 1), y + 36).strokeColor(C.border).lineWidth(1).stroke();
-    }
-  });
-}
-
-function drawFlightSegment(doc, order, yStart) {
-  const segH = 130;
-  // Card with left blue accent bar
-  doc.rect(MARGIN, yStart, CONTENT_W, segH).fillAndStroke(C.white, C.border);
-  doc.rect(MARGIN, yStart, 4, segH).fill(C.blue);
-
-  // Section label
-  doc.fillColor(C.blue).fontSize(8).font('Helvetica-Bold')
-    .text('FLIGHT DETAILS', MARGIN + 16, yStart + 10);
-
-  const orig = (safe(order.origin) !== 'N/A' ? safe(order.origin) : '???').toUpperCase();
-  const dest = (safe(order.destination) !== 'N/A' ? safe(order.destination) : '???').toUpperCase();
-  const depTime = formatTimeOnly(order.departure_time);
-  const arrTime = formatTimeOnly(order.arrival_time);
-  const depDate = formatDateShort(order.departure_time);
-  const arrDate = formatDateShort(order.arrival_time);
-  const duration = flightDuration(order.departure_time, order.arrival_time);
-  const airline = safe(order.airline_name || order.airline_code);
-  const flightNo = safe(order.flight_number);
-  const cabin = safe(order.cabin_class || order.fare_class, 'Economy');
-
-  // Departure airport code (large)
-  doc.fillColor(C.navy).fontSize(38).font('Helvetica-Bold').text(orig, MARGIN + 16, yStart + 28, { width: 100 });
-  doc.fillColor(C.muted).fontSize(9).font('Helvetica').text(depDate, MARGIN + 16, yStart + 70, { width: 100 });
-  doc.fillColor(C.text).fontSize(18).font('Helvetica-Bold').text(depTime, MARGIN + 16, yStart + 84, { width: 100 });
-
-  // Arrow / flight path in center
-  const cx = MARGIN + CONTENT_W / 2;
-  const arrowY = yStart + 54;
-  const lineLen = 120;
-  doc.moveTo(cx - lineLen / 2, arrowY).lineTo(cx + lineLen / 2, arrowY).strokeColor(C.border).lineWidth(1.5).stroke();
-  // Arrow head
-  doc.moveTo(cx + lineLen / 2 - 8, arrowY - 5).lineTo(cx + lineLen / 2, arrowY).lineTo(cx + lineLen / 2 - 8, arrowY + 5).strokeColor(C.muted).lineWidth(1.5).stroke();
-  // Plane dot
-  doc.circle(cx, arrowY, 4).fillAndStroke(C.blue, C.blue);
-
-  // Duration below arrow
-  if (duration) {
-    doc.fillColor(C.muted).fontSize(8).font('Helvetica').text(duration, cx - 20, arrowY + 8, { width: 40, align: 'center' });
-  }
-
-  // Airline + flight number above arrow
-  doc.fillColor(C.muted).fontSize(8).font('Helvetica')
-    .text(`${airline}  ·  ${flightNo}  ·  ${cabin}`, cx - 90, yStart + 30, { width: 180, align: 'center' });
-
-  // Arrival airport code (large)
-  const rightX = MARGIN + CONTENT_W - 116;
-  doc.fillColor(C.navy).fontSize(38).font('Helvetica-Bold').text(dest, rightX, yStart + 28, { width: 100, align: 'right' });
-  doc.fillColor(C.muted).fontSize(9).font('Helvetica').text(arrDate, rightX, yStart + 70, { width: 100, align: 'right' });
-  doc.fillColor(C.text).fontSize(18).font('Helvetica-Bold').text(arrTime, rightX, yStart + 84, { width: 100, align: 'right' });
-
-  // Dashed tear line at bottom of card
-  doc.save();
-  doc.dash(4, { space: 4 });
-  doc.moveTo(MARGIN, yStart + segH - 1).lineTo(MARGIN + CONTENT_W, yStart + segH - 1).strokeColor(C.border).lineWidth(1).stroke();
-  doc.restore();
-
-  return yStart + segH;
-}
-
-function drawPassengers(doc, passengers, order, yStart) {
-  const rowH = 22;
-  const headerH = 28;
-  const tableH = headerH + Math.max(passengers.length, 1) * rowH + 8;
-
-  doc.rect(MARGIN, yStart, CONTENT_W, tableH).fillAndStroke(C.white, C.border);
-  doc.rect(MARGIN, yStart, 4, tableH).fill(C.accent);
-
-  // Table header
-  doc.rect(MARGIN + 4, yStart, CONTENT_W - 4, headerH).fill(C.gray);
-  doc.fillColor(C.blue).fontSize(8).font('Helvetica-Bold').text('PASSENGERS', MARGIN + 16, yStart + 10);
-  doc.fillColor(C.muted).fontSize(7).font('Helvetica')
-    .text('NAME', MARGIN + 16, yStart + 19, { width: 200 })
-    .text('TYPE', MARGIN + 240, yStart + 19, { width: 80 })
-    .text('DOCUMENT', MARGIN + 340, yStart + 19, { width: 140 });
-
-  if (passengers.length === 0) {
-    doc.fillColor(C.text).fontSize(10).font('Helvetica')
-      .text(`${safe(order.contact_email)}`, MARGIN + 16, yStart + headerH + 6, { width: CONTENT_W - 32 });
-  } else {
-    passengers.slice(0, 8).forEach((p, i) => {
-      const ry = yStart + headerH + i * rowH + 4;
-      if (i % 2 === 0) doc.rect(MARGIN + 4, ry - 2, CONTENT_W - 4, rowH).fill('#F8FAFC');
-      const name = `${safe(p.last_name, '')} ${safe(p.first_name, '')}`.trim() || 'N/A';
-      const docNum = safe(p.document_number || p.passport_number, '—');
-      doc.fillColor(C.text).fontSize(10).font('Helvetica-Bold').text(name.toUpperCase(), MARGIN + 16, ry + 2, { width: 200 });
-      doc.fillColor(C.muted).fontSize(9).font('Helvetica')
-        .text(safe(p.passenger_type, 'ADT'), MARGIN + 240, ry + 2, { width: 80 })
-        .text(docNum, MARGIN + 340, ry + 2, { width: 140 });
-    });
-  }
-
-  return yStart + tableH;
-}
-
-function drawFare(doc, order, yStart) {
-  const h = 64;
-  doc.rect(MARGIN, yStart, CONTENT_W, h).fillAndStroke(C.gray, C.border);
-
-  // Total amount prominently
-  doc.fillColor(C.muted).fontSize(8).font('Helvetica').text('TOTAL FARE', MARGIN + 16, yStart + 10);
-  doc.fillColor(C.navy).fontSize(26).font('Helvetica-Bold')
-    .text(toMoney(order.total_price, order.currency || 'USD'), MARGIN + 16, yStart + 22);
-
-  // Right side: payment status
-  const statusText = String(order.payment_status || order.status || 'paid').toUpperCase();
-  doc.roundedRect(PAGE_W - MARGIN - 120, yStart + 16, 120, 30, 4).fill(C.blue);
-  doc.fillColor(C.white).fontSize(10).font('Helvetica-Bold')
-    .text(statusText, PAGE_W - MARGIN - 114, yStart + 24, { width: 108, align: 'center' });
-
-  return yStart + h;
-}
-
-function drawContactBar(doc, order, yStart) {
-  const h = 36;
-  doc.rect(MARGIN, yStart, CONTENT_W, h).fillAndStroke(C.navy, C.navy);
-  doc.fillColor(C.white).opacity(0.7).fontSize(8).font('Helvetica').text('CONTACT', MARGIN + 16, yStart + 8);
-  doc.fillColor(C.white).opacity(1).fontSize(9).font('Helvetica-Bold')
-    .text(safe(order.contact_email), MARGIN + 16, yStart + 19, { continued: true })
-    .font('Helvetica').fillColor(C.white).opacity(0.7)
-    .text(`   ·   ${safe(order.contact_phone)}`, { continued: false });
-  return yStart + h;
-}
-
-function drawFooter(doc, yStart) {
-  const y = Math.max(yStart + 20, 760);
-  doc.moveTo(MARGIN, y).lineTo(MARGIN + CONTENT_W, y).strokeColor(C.border).lineWidth(0.5).stroke();
-  doc.fillColor(C.muted).fontSize(7).font('Helvetica')
-    .text(
-      'This is an electronic ticket. Please present this document along with a valid photo ID at check-in. ' +
-      'This document is generated automatically by AviaFrame Portal.',
-      MARGIN, y + 6, { width: CONTENT_W, align: 'center' }
-    );
-}
-
-async function buildTicketPdf({ order, passengers = [], issuance = {} }) {
-  return createPdfBuffer((doc) => {
-    drawHeader(doc);
-    drawBookingRef(doc, order, issuance);
-
-    let y = 158;
-
-    // Flight segment card
-    y = drawFlightSegment(doc, order, y) + 12;
-
-    // Passengers table
-    y = drawPassengers(doc, passengers, order, y) + 12;
-
-    // Fare row
-    y = drawFare(doc, order, y) + 12;
-
-    // Contact bar
-    y = drawContactBar(doc, order, y);
-
-    // Footer
-    drawFooter(doc, y);
-  });
-}
-
-module.exports = {
-  buildInvoicePdf,
-  buildTicketPdf
-};
+module.exports = { buildInvoicePdf, buildTicketPdf };

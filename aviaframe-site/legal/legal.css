@@ -152,3 +152,26 @@ img { max-width: 100%; display: block; }
   .nav-link { font-size: 13px; padding: 7px 10px; }
   .legal-wrap { padding: 32px 16px 52px; }
 }
+
+.lang-toggle {
+  display: inline-flex; align-items: center; gap: 3px; padding: 6px 12px;
+  border: 1px solid rgba(26,77,255,.28); border-radius: 999px; background: transparent;
+  font-size: 13px; font-weight: 600; cursor: pointer; color: #64748b;
+  font-family: inherit; transition: border-color .2s, color .2s;
+  white-space: nowrap;
+}
+.lang-toggle:hover { border-color: #2563eb; color: #2563eb; }
+.lt-sep { color: rgba(100,116,139,.4); font-weight: 300; margin: 0 1px; }
+.lt-opt { transition: color .15s; }
+.lt-active { color: #2563eb; }
+html[dir="rtl"] .site-nav-inner { flex-direction: row-reverse; }
+html[dir="rtl"] .nav-links { flex-direction: row-reverse; }
+html[dir="rtl"] .legal-breadcrumb-inner { flex-direction: row-reverse; }
+html[dir="rtl"] .legal-sub-nav { flex-direction: row-reverse; }
+html[dir="rtl"] .footer-cols { direction: rtl; }
+html[dir="rtl"] .legal-wrap h1,
+html[dir="rtl"] .legal-wrap h2,
+html[dir="rtl"] .legal-wrap p,
+html[dir="rtl"] .legal-wrap ul,
+html[dir="rtl"] .legal-wrap ol,
+html[dir="rtl"] .legal-wrap table { direction: rtl; text-align: right; }

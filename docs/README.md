@@ -48,3 +48,16 @@ All product and technical documentation lives in this directory.
 | File | Description |
 |---|---|
 | [PROD_READINESS_AND_EMAIL_SERVICE_AUDIT_2026-02-23.md](PROD_READINESS_AND_EMAIL_SERVICE_AUDIT_2026-02-23.md) | Production readiness audit — current state, gaps, priorities |
+
+---
+
+## 🧠 Workflow Docs (Cowork → Docs → Code)
+
+| File | Description |
+|---|---|
+| [decisions.md](decisions.md) | **Decision log** — почему приняты ключевые решения (мозг проекта) |
+| [tasks.md](tasks.md) | **Текущие задачи** — бэклог, в работе, готово |
+
+> **Правило:** Code не придумывает архитектуру. Code реализует то, что зафиксировано в docs.
+>
+> Новое решение → `decisions.md` → ТЗ для Code → реализация.

@@ -33,6 +33,9 @@
           <a class="nav-link" href="#pricing">Pricing</a>
           <a class="nav-link" href="/docs/">Docs</a>
           <a class="nav-link btn-nav-cta" href="#contact">Contact Sales</a>
+          <button class="lang-toggle" id="lang-toggle" aria-label="Toggle language">
+            <span class="lt-opt lt-active" data-l="en">EN</span><span class="lt-sep">|</span><span class="lt-opt" data-l="ar">AR</span>
+          </button>
         </div>
       </div>
     </nav>
@@ -315,11 +318,11 @@
                 </span>
                 sales@aviaframe.com
               </a>
-              <a class="contact-channel" href="https://wa.me/966505632561">
+              <a class="contact-channel" href="https://wa.me/966595743909">
                 <span class="cc-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                 </span>
-                WhatsApp +966 50 563 2561
+                WhatsApp +966 59 574 3909
               </a>
               <div class="contact-channel">
                 <span class="cc-icon">
@@ -349,7 +352,7 @@
           </div>
 
           <div class="contact-form-card">
-            <form class="contact-form" name="contact-sales" method="POST" data-netlify="true" netlify>
+            <form class="contact-form" name="contact-sales" method="POST" action="/thanks.html" data-netlify="true" netlify>
               <input type="hidden" name="form-name" value="contact-sales" />
               <div class="form-row-2">
                 <div class="fg">
@@ -435,7 +438,7 @@
             <a href="#contact">Contact Sales</a>
             <a href="mailto:sales@aviaframe.com">sales@aviaframe.com</a>
             <a href="mailto:support@aviaframe.com">support@aviaframe.com</a>
-            <a href="https://wa.me/966505632561">WhatsApp +966 50 563 2561</a>
+            <a href="https://wa.me/966595743909">WhatsApp +966 59 574 3909</a>
           </div>
           <div class="footer-col">
             <div class="footer-col-title">Legal</div>
@@ -448,5 +451,272 @@
       </div>
     </footer>
 
+  <script>
+  (function () {
+    var T = {
+      en: {
+        nav_demo:'Widget Demo', nav_pricing:'Pricing', nav_docs:'Docs', nav_contact:'Contact Sales',
+        hero_eyebrow:'White-label flight booking · Travel agencies',
+        hero_h1:'Your clients book flights under your brand. Live in a day.',
+        hero_lead:'AviaFrame is a ready-made booking platform — embeddable widget, order management portal, automated notifications. Under your brand, without months of development.',
+        hero_chip1:'Branded widget', hero_chip2:'Free subdomain setup', hero_chip3:'Order management', hero_chip4:'Live in <24h',
+        hero_cta1:'Get Started — SAR 300/mo', hero_cta2:'See Live Demo',
+        hero_stat1v:'SAR 300', hero_stat1l:'flat monthly fee',
+        hero_stat2v:'Free', hero_stat2l:'setup & onboarding',
+        hero_stat3v:'<24h', hero_stat3l:'from sign-up to live',
+        airlines_from:'Flights from',
+        how_h2:'Up and running in 3 steps', how_p:'We handle the technical setup. You handle the bookings.',
+        step1_h3:'Register your agency', step1_p:'Create your agency account in the AviaFrame portal. Get your management dashboard and API key — ready in minutes.',
+        step2_h3:'Choose your setup', step2_p:'Get a ready-made booking site at agency.aviaframe.com — or embed the widget on your existing website with 2 lines of code. Both are free to set up.',
+        step3_h3:'Start taking bookings', step3_p:'Your clients search, book, and pay online 24/7. Orders appear in your portal instantly. E-tickets are delivered automatically.',
+        pricing_eyebrow:'Pricing', pricing_h2:'One plan. Everything included.', pricing_subp:'No setup fees. No per-booking charges. No surprises. Cancel any time.',
+        pricing_plan:'Agency Platform', pricing_month:'/month', pricing_desc:'Everything your agency needs to sell flights online',
+        feat1:'Real-time flight search (50+ airports)', feat2:'Branded site on your subdomain — free', feat3:'Embeddable widget for your existing site',
+        feat4:'Order management & ticketing portal', feat5:'Automated e-ticket PDF delivery', feat6:'Email notifications to clients',
+        feat7:'Agency markup configuration', feat8:'Multi-passenger bookings', feat9:'24/7 client self-service booking',
+        badge1:'Free setup', badge2:'Free onboarding', badge3:'Cancel any time', pricing_cta:'Get Started Today',
+        opt1_h3:'Ready-made booking site', opt2_h3:'Embed on your existing site', opt3_h3:'Both options in one subscription',
+        opt1_p:'Get <strong>agency.aviaframe.com</strong> — a fully branded flight booking website, live within 24 hours. Your clients can search and book online around the clock. Zero development, zero delays.',
+        opt2_p:'Already have a website? Add <strong>2 lines of HTML</strong> and your existing site instantly gets full-featured flight booking. Works on WordPress, plain HTML, React, Vue — anything.',
+        opt3_p:'One SAR 300/month plan includes both the subdomain site <em>and</em> the embeddable widget. Use whichever fits your workflow — or both at once.',
+        opt1_tag1:'Free setup', opt1_tag2:'Live in <24 hours', opt1_tag3:'Your logo & colors',
+        opt2_tag1:'Free setup', opt2_tag2:'Live in 30 minutes', opt2_tag3:'Any website platform',
+        features_h2:'Everything your agency needs', features_subp:'A complete platform — built for travel agencies of every size.',
+        fc1_h3:'Booking Widget', fc1_p:'Fully brandable flight search widget. Set your logo, colors, and language. Works on any website platform in minutes.',
+        fc2_h3:'Management Portal', fc2_p:'View and manage every booking, send payment instructions, issue tickets, upload travel documents — from a clean web dashboard.',
+        fc3_h3:'Automated Notifications', fc3_p:'Clients receive confirmation emails, booking updates, and e-ticket PDFs automatically. Configure once, runs forever.',
+        fc4_h3:'Agency Markup', fc4_p:'Set a fixed SAR amount or a percentage margin on every ticket. You control what your clients pay. Your fee is yours — paid monthly by invoice.',
+        fc5_h3:'Isolated & Secure', fc5_p:'Each agency is completely isolated — your clients, orders, and data are never mixed with anyone else. Role-based access for your team.',
+        fc6_h3:'Mobile-Ready', fc6_p:'The widget and booking flow are fully responsive. Clients search and book on phone, tablet, or desktop — no app required.',
+        features_cta_p:'Ready to launch your agency online?', features_cta_btn:'Contact Sales →',
+        contact_eyebrow:'Get started', contact_h2:"Let's set up your agency",
+        contact_lead:"Tell us about your agency and we'll get back to you within one business day. Setup is free and takes under 24 hours.",
+        contact_ch3:'Response within 1 business day',
+        promise1:'Free setup & onboarding', promise2:'No technical skills required', promise3:'Live in under 24 hours', promise4:'Cancel any time',
+        form_company:'Agency / Company Name *', form_name:'Your Name *', form_email:'Email Address *', form_phone:'Phone / WhatsApp *',
+        form_website:'Agency Website (if you have one)', form_volume:'Monthly bookings', form_setup:'Preferred setup',
+        form_message:'Questions or comments', form_submit:'Send Request →',
+        form_note:'We reply within 1 business day. Your info is never shared with third parties.',
+        footer_tagline:'White-label flight booking for travel agencies.',
+        footer_col_platform:'Platform', footer_col_contact:'Contact', footer_col_legal:'Legal',
+        footer_lnk_demo:'Widget Demo', footer_lnk_pricing:'Pricing', footer_lnk_docs:'Documentation', footer_lnk_portal:'Portal Preview', footer_lnk_sales:'Contact Sales',
+        legal_terms:'Terms &amp; Conditions', legal_refund:'Refund Policy', legal_privacy:'Privacy Policy', legal_contact_info:'Contact Information',
+        wp_title:'Flight Search', wp_from:'From', wp_to:'To', wp_depart:'Departure', wp_return:'Return', wp_pax:'Pax', wp_pax_val:'1 Adult', wp_search:'Search Flights', wp_nonstop:'Non-stop · 1h 55m', wp_select:'Select', wp_try:'Try live demo →',
+        vol_placeholder:'Select range…', vol1:'Less than 50/month', vol2:'50 – 200/month', vol3:'200 – 500/month', vol4:'500+/month',
+        setup_placeholder:'Select…', setup1:'Ready-made site on subdomain', setup2:'Embed widget on my site', setup3:'Both options', setup4:'Not sure yet',
+      },
+      ar: {
+        nav_demo:'عرض الويدجت', nav_pricing:'الأسعار', nav_docs:'الوثائق', nav_contact:'تواصل معنا',
+        hero_eyebrow:'حجز رحلات بعلامتك التجارية · وكالات السفر',
+        hero_h1:'عملاؤك يحجزون رحلاتهم تحت علامتك التجارية. جاهز خلال يوم.',
+        hero_lead:'أفياإطار منصة حجز جاهزة — ويدجت قابل للتضمين، بوابة إدارة الطلبات، إشعارات تلقائية. تحت علامتك التجارية، دون أشهر من التطوير.',
+        hero_chip1:'ويدجت بعلامتك', hero_chip2:'إعداد نطاق مجاني', hero_chip3:'إدارة الطلبات', hero_chip4:'جاهز في أقل من 24 ساعة',
+        hero_cta1:'ابدأ الآن — 300 ريال/شهر', hero_cta2:'شاهد العرض المباشر',
+        hero_stat1v:'300 ريال', hero_stat1l:'رسوم شهرية ثابتة',
+        hero_stat2v:'مجاناً', hero_stat2l:'الإعداد والتأهيل',
+        hero_stat3v:'أقل من 24 ساعة', hero_stat3l:'من التسجيل حتى الإطلاق',
+        airlines_from:'رحلات من',
+        how_h2:'جاهز للعمل في 3 خطوات', how_p:'نتولى الإعداد التقني. أنت تتولى الحجوزات.',
+        step1_h3:'سجّل وكالتك', step1_p:'أنشئ حساب وكالتك في بوابة أفياإطار. احصل على لوحة الإدارة ومفتاح API — جاهز في دقائق.',
+        step2_h3:'اختر إعدادك', step2_p:'احصل على موقع حجز جاهز على agency.aviaframe.com — أو ضمّن الويدجت في موقعك الحالي بسطرين من الكود. كلاهما مجاني الإعداد.',
+        step3_h3:'ابدأ في استقبال الحجوزات', step3_p:'يبحث عملاؤك ويحجزون ويدفعون إلكترونياً على مدار الساعة. تظهر الطلبات في بوابتك فوراً. تُسلَّم التذاكر الإلكترونية تلقائياً.',
+        pricing_eyebrow:'الأسعار', pricing_h2:'خطة واحدة. كل شيء متضمّن.', pricing_subp:'لا رسوم إعداد. لا رسوم لكل حجز. لا مفاجآت. إلغاء في أي وقت.',
+        pricing_plan:'منصة الوكالة', pricing_month:'/شهر', pricing_desc:'كل ما تحتاجه وكالتك لبيع رحلات الطيران عبر الإنترنت',
+        feat1:'بحث فوري عن الرحلات (50+ مطار)', feat2:'موقع بعلامتك على نطاقك الفرعي — مجاناً', feat3:'ويدجت قابل للتضمين في موقعك الحالي',
+        feat4:'بوابة إدارة الطلبات وإصدار التذاكر', feat5:'تسليم تلقائي لتذاكر PDF الإلكترونية', feat6:'إشعارات البريد الإلكتروني للعملاء',
+        feat7:'إعداد هامش ربح الوكالة', feat8:'حجوزات متعددة الركاب', feat9:'حجز ذاتي للعملاء على مدار الساعة',
+        badge1:'إعداد مجاني', badge2:'تأهيل مجاني', badge3:'إلغاء في أي وقت', pricing_cta:'ابدأ اليوم',
+        opt1_h3:'موقع حجز جاهز', opt2_h3:'ضمّن في موقعك الحالي', opt3_h3:'كلا الخيارين في اشتراك واحد',
+        opt1_p:'احصل على <strong>agency.aviaframe.com</strong> — موقع حجز جاهز بعلامتك التجارية، جاهز خلال 24 ساعة. عملاؤك يبحثون ويحجزون على مدار الساعة. بدون تطوير، بدون تأخير.',
+        opt2_p:'هل لديك موقع بالفعل؟ أضف <strong>سطرين من HTML</strong> ويحصل موقعك فوراً على ميزات حجز الرحلات الكاملة. يعمل على WordPress والـ HTML العادي وReact وVue — وأي شيء آخر.',
+        opt3_p:'خطة 300 ريال/شهر تتضمن موقع النطاق الفرعي <em>والويدجت</em> القابل للتضمين. استخدم أيهما يناسب سير عملك — أو كليهما معاً.',
+        opt1_tag1:'إعداد مجاني', opt1_tag2:'جاهز في أقل من 24 ساعة', opt1_tag3:'شعارك وألوانك',
+        opt2_tag1:'إعداد مجاني', opt2_tag2:'جاهز في 30 دقيقة', opt2_tag3:'أي منصة ويب',
+        features_h2:'كل ما تحتاجه وكالتك', features_subp:'منصة كاملة مصممة لوكالات السفر بجميع أحجامها.',
+        fc1_h3:'ويدجت الحجز', fc1_p:'ويدجت بحث عن رحلات قابل للتخصيص بالكامل. حدد شعارك وألوانك ولغتك. يعمل على أي منصة موقع ويب في دقائق.',
+        fc2_h3:'بوابة الإدارة', fc2_p:'عرض وإدارة كل حجز، إرسال تعليمات الدفع، إصدار التذاكر، رفع وثائق السفر — من لوحة ويب نظيفة.',
+        fc3_h3:'إشعارات تلقائية', fc3_p:'يتلقى العملاء رسائل تأكيد وتحديثات الحجز وتذاكر PDF الإلكترونية تلقائياً. اضبط مرة واحدة، يعمل للأبد.',
+        fc4_h3:'هامش ربح الوكالة', fc4_p:'حدد مبلغاً ثابتاً بالريال أو هامش نسبة مئوية على كل تذكرة. أنت تتحكم في ما يدفعه عملاؤك. رسومك لك — تُدفع شهرياً بالفاتورة.',
+        fc5_h3:'معزول وآمن', fc5_p:'كل وكالة معزولة تماماً — عملاؤك وطلباتك وبياناتك لا تختلط مع أي شخص آخر. وصول قائم على الأدوار لفريقك.',
+        fc6_h3:'متوافق مع الموبايل', fc6_p:'الويدجت وتدفق الحجز متجاوبان بالكامل. يبحث العملاء ويحجزون عبر الهاتف أو الجهاز اللوحي أو الكمبيوتر — لا تطبيق مطلوب.',
+        features_cta_p:'هل أنت مستعد لإطلاق وكالتك عبر الإنترنت؟', features_cta_btn:'تواصل مع المبيعات ←',
+        contact_eyebrow:'ابدأ الآن', contact_h2:'لنقم بإعداد وكالتك',
+        contact_lead:'أخبرنا عن وكالتك وسنعود إليك خلال يوم عمل واحد. الإعداد مجاني ويستغرق أقل من 24 ساعة.',
+        contact_ch3:'الرد خلال يوم عمل واحد',
+        promise1:'إعداد وتأهيل مجاني', promise2:'لا تحتاج مهارات تقنية', promise3:'جاهز في أقل من 24 ساعة', promise4:'إلغاء في أي وقت',
+        form_company:'اسم الوكالة / الشركة *', form_name:'اسمك *', form_email:'عنوان البريد الإلكتروني *', form_phone:'الهاتف / واتساب *',
+        form_website:'موقع الوكالة (إن وجد)', form_volume:'الحجوزات الشهرية', form_setup:'الإعداد المفضل',
+        form_message:'أسئلة أو تعليقات', form_submit:'إرسال الطلب →',
+        form_note:'نرد خلال يوم عمل واحد. لن نشارك معلوماتك مع أطراف ثالثة.',
+        footer_tagline:'حجز تذاكر طيران بعلامتك التجارية لوكالات السفر.',
+        footer_col_platform:'المنصة', footer_col_contact:'التواصل', footer_col_legal:'القانونية',
+        footer_lnk_demo:'عرض الويدجت', footer_lnk_pricing:'الأسعار', footer_lnk_docs:'التوثيق', footer_lnk_portal:'معاينة البوابة', footer_lnk_sales:'تواصل مع المبيعات',
+        legal_terms:'الشروط والأحكام', legal_refund:'سياسة الاسترداد', legal_privacy:'سياسة الخصوصية', legal_contact_info:'معلومات الاتصال',
+        wp_title:'البحث عن رحلات', wp_from:'من', wp_to:'إلى', wp_depart:'المغادرة', wp_return:'العودة', wp_pax:'المسافرون', wp_pax_val:'مسافر واحد', wp_search:'البحث عن رحلات', wp_nonstop:'مباشر · 1 س 55 د', wp_select:'اختر', wp_try:'جرّب العرض المباشر ←',
+        vol_placeholder:'اختر النطاق…', vol1:'أقل من 50/شهر', vol2:'50 – 200/شهر', vol3:'200 – 500/شهر', vol4:'500+/شهر',
+        setup_placeholder:'اختر…', setup1:'موقع جاهز على النطاق الفرعي', setup2:'تضمين الويدجت في موقعي', setup3:'كلا الخيارين', setup4:'غير متأكد بعد',
+      }
+    };
+
+    var sel = function(s){ return document.querySelector(s); };
+    var selAll = function(s){ return document.querySelectorAll(s); };
+    var setText = function(s, v){ var el=sel(s); if(el) el.textContent=v; };
+    var setHTML = function(s, v){ var el=sel(s); if(el) el.innerHTML=v; };
+
+    function applyLang(lang) {
+      var t = T[lang] || T.en;
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      try { localStorage.setItem('aviaframe-lang', lang); } catch(e){}
+
+      // Nav
+      setText('.nav-links a[href="/widget-demo.html"]', t.nav_demo);
+      setText('.nav-links a[href="#pricing"]', t.nav_pricing);
+      setText('.nav-links a[href="/docs/"]', t.nav_docs);
+      setText('.btn-nav-cta', t.nav_contact);
+
+      // Hero
+      setText('#hero .eyebrow', t.hero_eyebrow);
+      setText('#hero h1', t.hero_h1);
+      setText('#hero .lead', t.hero_lead);
+      var chips = selAll('.hero-chips .chip');
+      var chipKeys = ['hero_chip1','hero_chip2','hero_chip3','hero_chip4'];
+      chips.forEach(function(c,i){ if(chipKeys[i]) c.textContent = t[chipKeys[i]]; });
+      var ctaBtns = selAll('.hero-actions a');
+      if(ctaBtns[0]) ctaBtns[0].textContent = t.hero_cta1;
+      if(ctaBtns[1]) ctaBtns[1].textContent = t.hero_cta2;
+      var stats = selAll('.hero-stats .stat-item');
+      if(stats[0]){ var s0q=stats[0].querySelector('strong'); var s0s=stats[0].querySelector('span'); if(s0q)s0q.textContent=t.hero_stat1v; if(s0s)s0s.textContent=t.hero_stat1l; }
+      if(stats[1]){ var s1q=stats[1].querySelector('strong'); var s1s=stats[1].querySelector('span'); if(s1q)s1q.textContent=t.hero_stat2v; if(s1s)s1s.textContent=t.hero_stat2l; }
+      if(stats[2]){ var s2q=stats[2].querySelector('strong'); var s2s=stats[2].querySelector('span'); if(s2q)s2q.textContent=t.hero_stat3v; if(s2s)s2s.textContent=t.hero_stat3l; }
+
+      // Airlines
+      setText('.airlines-label', t.airlines_from);
+
+      // How it works
+      setText('#how .section-header h2', t.how_h2);
+      setText('#how .section-header p', t.how_p);
+      var steps = selAll('.step-card');
+      if(steps[0]){ setText('.step-card:nth-child(1) h3', t.step1_h3); setText('.step-card:nth-child(1) p', t.step1_p); }
+      if(steps[1]){ setText('.step-card:nth-child(2) h3', t.step2_h3); setText('.step-card:nth-child(2) p', t.step2_p); }
+      if(steps[2]){ setText('.step-card:nth-child(3) h3', t.step3_h3); setText('.step-card:nth-child(3) p', t.step3_p); }
+
+      // Pricing
+      setText('#pricing .eyebrow-light', t.pricing_eyebrow);
+      setText('#pricing .h-light', t.pricing_h2);
+      setText('#pricing .p-light', t.pricing_subp);
+      setText('.plan-label', t.pricing_plan);
+      var planPrice = sel('.plan-price');
+      if(planPrice){ var priceSpan=planPrice.querySelector('span'); if(priceSpan) priceSpan.textContent=t.pricing_month; }
+      setText('.plan-desc', t.pricing_desc);
+      var feats = selAll('.plan-features li');
+      var featKeys=['feat1','feat2','feat3','feat4','feat5','feat6','feat7','feat8','feat9'];
+      feats.forEach(function(li,i){ if(featKeys[i]) li.textContent=t[featKeys[i]]; });
+      var badges = selAll('.plan-badges span');
+      if(badges[0]) badges[0].textContent=t.badge1;
+      if(badges[1]) badges[1].textContent=t.badge2;
+      if(badges[2]) badges[2].textContent=t.badge3;
+      setText('.btn-pricing-cta', t.pricing_cta);
+      var optItems = selAll('.option-item');
+      if(optItems[0]){ setText('.option-item:nth-child(1) h3', t.opt1_h3); setHTML('.option-item:nth-child(1) p', t.opt1_p); var ot1=selAll('.option-item:nth-child(1) .option-tags span'); if(ot1[0])ot1[0].textContent=t.opt1_tag1; if(ot1[1])ot1[1].textContent=t.opt1_tag2; if(ot1[2])ot1[2].textContent=t.opt1_tag3; }
+      if(optItems[1]){ setText('.option-item:nth-child(2) h3', t.opt2_h3); setHTML('.option-item:nth-child(2) p', t.opt2_p); var ot2=selAll('.option-item:nth-child(2) .option-tags span'); if(ot2[0])ot2[0].textContent=t.opt2_tag1; if(ot2[1])ot2[1].textContent=t.opt2_tag2; if(ot2[2])ot2[2].textContent=t.opt2_tag3; }
+      if(optItems[2]){ setText('.option-item:nth-child(3) h3', t.opt3_h3); setHTML('.option-item:nth-child(3) > div > p', t.opt3_p); }
+
+      // Features
+      setText('#features .section-header h2', t.features_h2);
+      setText('#features .section-header p', t.features_subp);
+      var fcards = selAll('.feature-card');
+      var fcKeys=[['fc1_h3','fc1_p'],['fc2_h3','fc2_p'],['fc3_h3','fc3_p'],['fc4_h3','fc4_p'],['fc5_h3','fc5_p'],['fc6_h3','fc6_p']];
+      fcards.forEach(function(fc,i){ if(fcKeys[i]){ var h=fc.querySelector('h3'), p=fc.querySelector('p'); if(h)h.textContent=t[fcKeys[i][0]]; if(p)p.textContent=t[fcKeys[i][1]]; } });
+      var fcCta = sel('.features-cta');
+      if(fcCta){ var fcP=fcCta.querySelector('p'), fcBtn=fcCta.querySelector('a'); if(fcP)fcP.textContent=t.features_cta_p; if(fcBtn)fcBtn.textContent=t.features_cta_btn; }
+
+      // Contact
+      setText('#contact .eyebrow', t.contact_eyebrow);
+      setText('#contact h2', t.contact_h2);
+      setText('.contact-lead', t.contact_lead);
+      var chs = selAll('.contact-channel');
+      if(chs[2]){ var chspan=chs[2].querySelector(':last-child'); if(chspan&&chspan.nodeType===undefined){}; var chNodes=[].slice.call(chs[2].childNodes).filter(function(n){return n.nodeType===3&&n.textContent.trim();}); if(chNodes[0]) chNodes[0].textContent=' '+t.contact_ch3; else { var lastChild=chs[2].lastChild; if(lastChild&&lastChild.nodeType===3) lastChild.textContent=' '+t.contact_ch3; } }
+      var promises = selAll('.promise');
+      var promKeys=['promise1','promise2','promise3','promise4'];
+      promises.forEach(function(p,i){ if(promKeys[i]){ var nodes=[].slice.call(p.childNodes).filter(function(n){return n.nodeType===3&&n.textContent.trim();}); if(nodes[0]) nodes[0].textContent=' '+t[promKeys[i]]; } });
+      var flabels = selAll('.contact-form label');
+      var formMap={'f-company':'form_company','f-name':'form_name','f-email':'form_email','f-phone':'form_phone','f-website':'form_website','f-volume':'form_volume','f-setup':'form_setup','f-message':'form_message'};
+      flabels.forEach(function(lbl){ var forid=lbl.getAttribute('for'); if(formMap[forid]) lbl.textContent=t[formMap[forid]]; });
+      var submitBtn = sel('.btn-form');
+      if(submitBtn) submitBtn.textContent = t.form_submit;
+      setText('.form-note', t.form_note);
+
+      // Footer
+      setText('.footer-brand span:last-child', t.footer_tagline);
+      var footerCols = selAll('.footer-col-title');
+      if(footerCols[0]) footerCols[0].textContent=t.footer_col_platform;
+      if(footerCols[1]) footerCols[1].textContent=t.footer_col_contact;
+      if(footerCols[2]) footerCols[2].textContent=t.footer_col_legal;
+
+      // Footer platform links
+      var footerPlatformLinks = selAll('.footer-col:nth-child(1) a');
+      var platformKeys = ['footer_lnk_demo','footer_lnk_pricing','footer_lnk_docs','footer_lnk_portal'];
+      footerPlatformLinks.forEach(function(a,i){ if(platformKeys[i]&&t[platformKeys[i]]) a.textContent=t[platformKeys[i]]; });
+      var footerSalesLink = sel('.footer-col:nth-child(2) a[href="#contact"]');
+      if(footerSalesLink) footerSalesLink.textContent=t.footer_lnk_sales;
+
+      // Footer legal links
+      var legalLinks = selAll('.footer-col a[href^="/legal/"]');
+      var legalKeys = ['legal_terms','legal_refund','legal_privacy','legal_contact_info'];
+      legalLinks.forEach(function(a, i){ if(legalKeys[i] && t[legalKeys[i]]) a.innerHTML=t[legalKeys[i]]; });
+
+      // Hero widget preview
+      var wpHeader = sel('.wp-header'); if(wpHeader){ var wpSpan=wpHeader.lastChild; while(wpSpan&&wpSpan.nodeType!==3) wpSpan=wpSpan.previousSibling; if(wpSpan) wpSpan.textContent=' '+t.wp_title; }
+      var wpLabels = selAll('.wp-label');
+      var wpLabelMap = [t.wp_from, t.wp_to, t.wp_depart, t.wp_return, t.wp_pax];
+      wpLabels.forEach(function(el,i){ if(wpLabelMap[i]!==undefined) el.textContent=wpLabelMap[i]; });
+      var wpPaxInput = sel('.wp-field:last-child .wp-input'); if(wpPaxInput&&wpPaxInput.closest('.wp-row')) { var paxField=selAll('.wp-row')[0]; if(paxField){ var lastWpField=paxField.querySelectorAll('.wp-field'); var lastField=lastWpField[lastWpField.length-1]; if(lastField){ var wpInp=lastField.querySelector('.wp-input'); if(wpInp) wpInp.textContent=t.wp_pax_val; } } }
+      var wpBtn = sel('.wp-btn'); if(wpBtn) wpBtn.textContent=t.wp_search;
+      var wpMid = sel('.wp-mid'); if(wpMid){ var midSpan=wpMid.querySelector('span'); if(midSpan) midSpan.textContent=t.wp_nonstop; }
+      var wpSels = selAll('.wp-sel'); wpSels.forEach(function(s){ s.textContent=t.wp_select; });
+      var wpOverlay = sel('.wp-overlay span'); if(wpOverlay) wpOverlay.textContent=t.wp_try;
+
+      // Form select options
+      var volSel = sel('#f-volume');
+      if(volSel){ var volOpts=volSel.querySelectorAll('option'); if(volOpts[0])volOpts[0].textContent=t.vol_placeholder; if(volOpts[1])volOpts[1].textContent=t.vol1; if(volOpts[2])volOpts[2].textContent=t.vol2; if(volOpts[3])volOpts[3].textContent=t.vol3; if(volOpts[4])volOpts[4].textContent=t.vol4; }
+      var setupSel = sel('#f-setup');
+      if(setupSel){ var setupOpts=setupSel.querySelectorAll('option'); if(setupOpts[0])setupOpts[0].textContent=t.setup_placeholder; if(setupOpts[1])setupOpts[1].textContent=t.setup1; if(setupOpts[2])setupOpts[2].textContent=t.setup2; if(setupOpts[3])setupOpts[3].textContent=t.setup3; if(setupOpts[4])setupOpts[4].textContent=t.setup4; }
+
+      // Toggle button appearance
+      var toggle = document.getElementById('lang-toggle');
+      if(toggle){
+        toggle.querySelectorAll('.lt-opt').forEach(function(opt){
+          opt.classList.toggle('lt-active', opt.getAttribute('data-l') === lang);
+        });
+      }
+    }
+
+    var currentLang;
+    try { currentLang = localStorage.getItem('aviaframe-lang') || 'en'; } catch(e){ currentLang='en'; }
+
+    document.addEventListener('DOMContentLoaded', function(){
+      applyLang(currentLang);
+      var toggle = document.getElementById('lang-toggle');
+      if(toggle){
+        toggle.addEventListener('click', function(){
+          currentLang = currentLang === 'en' ? 'ar' : 'en';
+          applyLang(currentLang);
+        });
+      }
+    });
+    // Apply immediately if DOM already ready
+    if(document.readyState !== 'loading') {
+      applyLang(currentLang);
+      var toggle = document.getElementById('lang-toggle');
+      if(toggle){
+        toggle.addEventListener('click', function(){
+          currentLang = currentLang === 'en' ? 'ar' : 'en';
+          applyLang(currentLang);
+        });
+      }
+    }
+  })();
+  </script>
   </body>
 </html>

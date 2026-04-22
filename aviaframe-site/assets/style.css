@@ -650,3 +650,64 @@ h1 {
   .contact-form-card { padding: 22px; }
   .pricing-card { padding: 24px; }
 }
+
+/* ── LANGUAGE TOGGLE ──────────────────────────────────────────────── */
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 12px;
+  border: 1px solid rgba(26,77,255,.28);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: inherit;
+  transition: border-color .2s, color .2s, background .2s;
+  white-space: nowrap;
+}
+.lang-toggle:hover { border-color: var(--primary); color: var(--primary); background: rgba(26,77,255,.04); }
+.lt-sep { color: rgba(100,116,139,.4); font-weight: 300; margin: 0 1px; }
+.lt-opt { transition: color .15s; }
+.lt-active { color: var(--primary); }
+
+/* ── RTL OVERRIDES ────────────────────────────────────────────────── */
+html[dir="rtl"] body { font-family: 'Inter', 'Segoe UI', Tahoma, 'Arabic Typesetting', sans-serif; }
+html[dir="rtl"] .site-nav-inner { flex-direction: row-reverse; }
+html[dir="rtl"] .nav-links { flex-direction: row-reverse; }
+html[dir="rtl"] .hero-grid { direction: rtl; }
+html[dir="rtl"] .hero-text { text-align: right; }
+html[dir="rtl"] .hero-chips { justify-content: flex-end; }
+html[dir="rtl"] .hero-actions { flex-direction: row-reverse; }
+html[dir="rtl"] .hero-stats { direction: rtl; }
+html[dir="rtl"] .airlines-inner { direction: rtl; }
+html[dir="rtl"] .section-header, html[dir="rtl"] .section-header-light { text-align: right; }
+html[dir="rtl"] .steps-grid { direction: rtl; }
+html[dir="rtl"] .step-card { text-align: right; }
+html[dir="rtl"] .step-num { text-align: right; }
+html[dir="rtl"] .features-grid { direction: rtl; }
+html[dir="rtl"] .feature-card { text-align: right; }
+html[dir="rtl"] .pricing-grid { direction: rtl; }
+html[dir="rtl"] .plan-features { padding-right: 0; padding-left: 0; text-align: right; }
+html[dir="rtl"] .plan-features li { padding-left: 0; padding-right: 20px; }
+html[dir="rtl"] .plan-features li::before { left: auto; right: 0; }
+html[dir="rtl"] .plan-badges { justify-content: flex-end; }
+html[dir="rtl"] .pricing-options { direction: rtl; }
+html[dir="rtl"] .option-item { direction: rtl; }
+html[dir="rtl"] .option-item > div { text-align: right; }
+html[dir="rtl"] .option-tags { justify-content: flex-end; }
+html[dir="rtl"] .contact-grid { direction: rtl; }
+html[dir="rtl"] .contact-info { text-align: right; }
+html[dir="rtl"] .contact-channels { align-items: flex-end; }
+html[dir="rtl"] .contact-channel { flex-direction: row-reverse; }
+html[dir="rtl"] .contact-promises { align-items: flex-end; }
+html[dir="rtl"] .promise { flex-direction: row-reverse; }
+html[dir="rtl"] .contact-form-card { direction: rtl; }
+html[dir="rtl"] .fg label { text-align: right; display: block; }
+html[dir="rtl"] input, html[dir="rtl"] textarea, html[dir="rtl"] select { text-align: right; direction: rtl; }
+html[dir="rtl"] .footer-wrap { direction: rtl; }
+html[dir="rtl"] .footer-brand { text-align: right; }
+html[dir="rtl"] .footer-col { text-align: right; }
+html[dir="rtl"] .features-cta { direction: rtl; }

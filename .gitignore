@@ -16,3 +16,13 @@ build/
 
 # Misc
 .DS_Store
+
+# Local Netlify folder
+.netlify
+
+# Claude Code settings
+.claude/
+
+# Working documents
+_archive/
+DRCT_MIGRATION_INSTRUCTION.docx

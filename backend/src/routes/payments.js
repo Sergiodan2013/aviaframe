@@ -5,6 +5,8 @@ const axios = require('axios');
 const supabase = require('../lib/supabase');
 const drctService = require('../services/drctService');
 const emailService = require('../services/emailService');
+const { ensureTicketPdfForOrder } = require('../services/orderService');
+const { config } = require('../config');
 
 const router = express.Router();
 
@@ -173,57 +175,84 @@ router.get('/api/payments/callback', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Internal: issue DRCT ticket + send email (DB already marked paid before call)
+// Internal: issue DRCT ticket + generate PDF + send HTML email with attachment
 // ─────────────────────────────────────────────────────────────────────────────
 async function handlePaymentPaidAsync(order, paymentId) {
-  console.log(`[payments] order ${order.order_number} marked as paid (${paymentId})`);
+  console.log(`[payments] handlePaymentPaidAsync start: order=${order.order_number} payment=${paymentId}`);
 
-  // Issue DRCT ticket
+  // 1. Issue DRCT ticket
+  let pnr = null;
+  let ticketNumber = null;
   if (order.drct_order_id) {
     try {
-      await drctService.issueOrder(order.drct_order_id);
+      const issued = await drctService.issueOrder(order.drct_order_id, {
+        orderId: order.id,
+        agencyId: order.agency_id
+      });
+      pnr = issued.pnr;
+      ticketNumber = issued.ticket_number;
       await supabase.from('orders').update({ status: 'ticketed' }).eq('id', order.id);
-      console.log(`[payments] order ${order.order_number} ticketed`);
+      console.log(`[payments] DRCT issued: order=${order.order_number} pnr=${pnr}`);
     } catch (err) {
       console.error(`[payments] DRCT issue failed for ${order.order_number}:`, err.message);
-      // Don't throw — payment is done, ticket can be issued manually
+      // Continue — payment done, ticket can be issued manually
     }
   }
 
-  // Send booking confirmation email
-  if (order.contact_email) {
-    try {
-      const amount = order.total_price != null
-        ? `${Number(order.total_price).toFixed(2)} ${order.currency || ''}`
-        : 'N/A';
-      const emailText = [
-        'Hello,',
-        '',
-        'Your payment has been received and your booking is confirmed.',
-        '',
-        `Order: ${order.order_number}`,
-        `Route: ${order.origin || 'N/A'} → ${order.destination || 'N/A'}`,
-        `Departure: ${order.departure_time || 'N/A'}`,
-        `Amount paid: ${amount}`,
-        '',
-        'Your e-ticket will be sent to this email once issued.',
-        'If you have any questions, please contact us.',
-        '',
-        'Aviaframe Portal'
-      ].join('\n');
+  // 2. Generate PDF + send ticket email
+  try {
+    // Fetch full order data (need all fields for PDF)
+    const { data: fullOrder } = await supabase
+      .from('orders')
+      .select('id,order_number,user_id,agency_id,drct_order_id,origin,destination,departure_time,arrival_time,airline_code,airline_name,flight_number,total_price,currency,status,contact_email,contact_phone,raw_offer_data')
+      .eq('id', order.id)
+      .single();
 
-      await emailService.sendSupportEmail({
-        to: order.contact_email,
-        from: null,
-        subject: `Booking confirmed — ${order.order_number}`,
-        text: emailText,
-      });
-      console.log(`[payments] confirmation email sent to ${order.contact_email} for ${order.order_number}`);
-    } catch (err) {
-      console.error(`[payments] confirmation email failed for ${order.order_number}:`, err.message);
-      // Don't throw — email failure is non-critical
+    if (!fullOrder) throw new Error('Could not re-fetch order for PDF generation');
+
+    const { doc, issuance: savedIssuance } = await ensureTicketPdfForOrder({
+      order: fullOrder,
+      createdBy: 'payment_webhook',
+      pnr,
+      ticketNumber
+    });
+
+    if (fullOrder.contact_email && doc) {
+      const { data: blob } = await supabase.storage
+        .from(config.documentsBucket)
+        .download(doc.storage_path);
+
+      if (blob) {
+        const buffer = Buffer.from(await blob.arrayBuffer());
+
+        const { data: passengers } = await supabase
+          .from('passengers')
+          .select('first_name,last_name,passenger_type')
+          .eq('order_id', fullOrder.id);
+
+        const emailResult = await emailService.sendTicketEmail({
+          to: fullOrder.contact_email,
+          order: fullOrder,
+          passengers: passengers || [],
+          issuance: savedIssuance || {},
+          attachment: {
+            fileName: `ticket-${fullOrder.order_number}.pdf`,
+            buffer
+          }
+        });
+
+        if (emailResult.sent && savedIssuance?.id) {
+          await supabase.from('ticket_issuances')
+            .update({ email_status: 'sent', email_sent_at: new Date().toISOString() })
+            .eq('id', savedIssuance.id);
+        }
+        console.log(`[payments] ticket email sent to ${fullOrder.contact_email} for ${fullOrder.order_number}`);
+      }
     }
+  } catch (err) {
+    console.error(`[payments] PDF/email failed for ${order.order_number}:`, err.message);
   }
 }
 
 module.exports = router;
+module.exports.handlePaymentPaidAsync = handlePaymentPaidAsync;

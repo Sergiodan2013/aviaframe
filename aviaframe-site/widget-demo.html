@@ -85,6 +85,9 @@
         <a class="nav-link" href="#pricing">Pricing</a>
         <a class="nav-link" href="mailto:hello@aviaframe.com">Contact</a>
         <a class="nav-cta" href="mailto:hello@aviaframe.com?subject=I want to start">Get Started</a>
+        <button class="lang-toggle" id="site-lang-trigger" aria-label="Toggle language" onclick="window.__aviaLangToggle&&window.__aviaLangToggle()">
+          <span class="lt-opt lt-active" data-l="en">EN</span><span class="lt-sep">|</span><span class="lt-opt" data-l="ar">AR</span>
+        </button>
       </div>
     </div>
   </nav>
@@ -119,5 +122,23 @@
   </div>
 
   <script src="/aviaframe-widget.js"></script>
+  <script>
+    (function(){
+      var btn = document.getElementById('site-lang-trigger');
+      if(!btn) return;
+      var orig = window.__aviaLangToggle;
+      window.__aviaLangToggle = function(){
+        if(orig) orig();
+        var cur = btn.querySelector('.lt-active');
+        btn.querySelectorAll('.lt-opt').forEach(function(o){
+          o.classList.toggle('lt-active', o.getAttribute('data-l') !== (cur && cur.getAttribute('data-l')));
+        });
+        // Also flip page direction for demo context
+        var lang = btn.querySelector('.lt-active') ? btn.querySelector('.lt-active').getAttribute('data-l') : 'en';
+        document.documentElement.lang = lang;
+        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      };
+    })();
+  </script>
 </body>
 </html>

@@ -131,18 +131,22 @@
     }
 
     function renderSuccess(orderNumber, email) {
+      const lang = (function(){ try{ return localStorage.getItem('aviaframe-lang')||'en'; }catch(e){ return 'en'; } })();
+      const isAr = lang === 'ar';
+      const dir = isAr ? 'rtl' : 'ltr';
       root.innerHTML = `
-        <div class="card">
+        <div class="card" dir="${dir}">
           <div class="success-box">
             <div class="success-icon">✅</div>
-            <div class="success-title">Payment Successful!</div>
-            <div class="success-sub">Your booking is confirmed and your e-ticket is being generated.</div>
-            <div class="order-ref">Booking Reference: ${orderNumber}</div>
+            <div class="success-title">${isAr ? 'تمّت عملية الدفع بنجاح!' : 'Payment Successful!'}</div>
+            <div class="success-sub">${isAr ? 'تم تأكيد حجزك وجاري إصدار تذكرتك الإلكترونية.' : 'Your booking is confirmed and your e-ticket is being generated.'}</div>
+            <div class="order-ref">${isAr ? 'رقم مرجع الحجز' : 'Booking Reference'}: ${orderNumber}</div>
             <div class="ticket-note">
-              📧 Your <strong>PDF e-ticket</strong> will be sent to <strong>${email}</strong> within a few minutes.
-              <br>Check your inbox (and spam folder).
+              📧 ${isAr
+                ? `ستُرسَل <strong>تذكرتك الإلكترونية PDF</strong> إلى <strong>${email}</strong> خلال ثوانٍ معدودة. تحقق من صندوق الوارد (ومجلد البريد العشوائي).`
+                : `Your <strong>PDF e-ticket</strong> will be sent to <strong>${email}</strong> within a few seconds. Check your inbox (and spam folder).`}
             </div>
-            <a class="btn-back" href="/widget-demo.html">← Search Another Flight</a>
+            <a class="btn-back" href="/widget-demo.html">${isAr ? 'البحث عن رحلة أخرى ←' : '← Search Another Flight'}</a>
           </div>
         </div>`;
     }
