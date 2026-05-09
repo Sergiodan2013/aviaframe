@@ -2,6 +2,7 @@
 
 const express = require('express');
 const axios = require('axios');
+const crypto = require('crypto');
 const supabase = require('../lib/supabase');
 const drctService = require('../services/drctService');
 const emailService = require('../services/emailService');
@@ -172,6 +173,94 @@ router.get('/api/payments/callback', async (req, res) => {
 
   console.log(`[payments/callback] payment ${paymentId} failed for order ${order.order_number}`);
   return res.redirect(`${APP_URL}?payment_result=failed&order_id=${order.id}`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/webhooks/moyasar
+// Server-to-server webhook from Moyasar on payment status change.
+// Verifies HMAC-SHA256 signature, then handles paid/failed events.
+// Set MOYASAR_WEBHOOK_SECRET in Railway env vars (from Moyasar dashboard → Webhooks).
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/api/webhooks/moyasar', async (req, res) => {
+  const WEBHOOK_SECRET = process.env.MOYASAR_WEBHOOK_SECRET || '';
+
+  // 1. Verify HMAC signature if secret is configured
+  if (WEBHOOK_SECRET) {
+    const signature = req.headers['x-moyasar-signature'] || '';
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body));
+    const expected = crypto
+      .createHmac('sha256', WEBHOOK_SECRET)
+      .update(rawBody)
+      .digest('hex');
+
+    if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) {
+      console.warn('[webhooks/moyasar] Invalid signature — rejected');
+      return res.status(401).json({ error: { code: 'INVALID_SIGNATURE', message: 'Invalid webhook signature' } });
+    }
+  }
+
+  // 2. Parse body
+  let payment;
+  try {
+    const bodyStr = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : JSON.stringify(req.body);
+    payment = JSON.parse(bodyStr);
+  } catch {
+    return res.status(400).json({ error: { code: 'INVALID_BODY', message: 'Cannot parse webhook body' } });
+  }
+
+  const paymentId = payment?.id;
+  const status = payment?.status;
+
+  console.log(`[webhooks/moyasar] received payment=${paymentId} status=${status}`);
+
+  // 3. Only act on paid events
+  if (status !== 'paid') {
+    // For failed/cancelled — update order status but no ticket issuance
+    if (paymentId && (status === 'failed' || status === 'authorized')) {
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('id, payment_status')
+        .filter('metadata->>moyasar_payment_id', 'eq', paymentId)
+        .limit(1);
+      const order = orders?.[0];
+      if (order && order.payment_status !== 'paid' && order.payment_status !== 'failed') {
+        await supabase.from('orders').update({ payment_status: status }).eq('id', order.id);
+      }
+    }
+    return res.json({ received: true });
+  }
+
+  // 4. Find order by moyasar_payment_id
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('id, order_number, drct_order_id, payment_status, contact_email, origin, destination, departure_time, currency, total_price, agency_id')
+    .filter('metadata->>moyasar_payment_id', 'eq', paymentId)
+    .limit(1);
+
+  const order = orders?.[0];
+  if (!order) {
+    // Payment arrived before initiate saved the ID — log and accept (Moyasar will retry)
+    console.error(`[webhooks/moyasar] order not found for payment ${paymentId}`);
+    return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+  }
+
+  // 5. Idempotency — if already paid, skip (webhook may fire twice)
+  if (order.payment_status === 'paid') {
+    console.log(`[webhooks/moyasar] order ${order.order_number} already paid — skipping`);
+    return res.json({ received: true, skipped: true });
+  }
+
+  // 6. Mark as paid and issue ticket async
+  await supabase
+    .from('orders')
+    .update({ payment_status: 'paid', status: 'confirmed', confirmed_at: new Date().toISOString() })
+    .eq('id', order.id);
+
+  // Respond immediately — Moyasar expects 2xx fast
+  res.json({ received: true });
+
+  // Issue ticket + send email in background
+  setImmediate(() => handlePaymentPaidAsync(order, paymentId));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

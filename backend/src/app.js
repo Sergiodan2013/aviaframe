@@ -10,6 +10,9 @@ const { client, httpDuration } = require('./lib/metrics');
 
 const app = express();
 
+// Moyasar webhook needs raw body for HMAC signature verification — must be before express.json()
+app.use('/api/webhooks/moyasar', express.raw({ type: '*/*' }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
