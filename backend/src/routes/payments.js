@@ -82,9 +82,23 @@ router.post('/api/payments/initiate', express.json(), async (req, res) => {
     );
     moyasarPayment = data;
   } catch (err) {
-    const moyasarMsg = err.response?.data?.message || err.response?.data?.errors?.join(', ') || err.message;
-    console.error('[payments/initiate] Moyasar error:', moyasarMsg, JSON.stringify(err.response?.data || {}));
-    return res.status(502).json({ error: { code: 'PAYMENT_GATEWAY_ERROR', message: moyasarMsg } });
+    const errData = err.response?.data || {};
+    // Extract human-readable message from Moyasar validation errors object
+    let moyasarMsg = errData.message || err.message;
+    let errCode = 'PAYMENT_GATEWAY_ERROR';
+    if (errData.errors && typeof errData.errors === 'object') {
+      const allMsgs = Object.values(errData.errors).flat();
+      moyasarMsg = allMsgs.join('; ') || moyasarMsg;
+      // Map Moyasar field errors to our codes
+      const errStr = JSON.stringify(errData.errors).toLowerCase();
+      if (errStr.includes('source.number') || errStr.includes('card number')) errCode = 'invalid_card_number';
+      else if (errStr.includes('source.cvc') || errStr.includes('cvc')) errCode = 'invalid_cvc';
+      else if (errStr.includes('source.month') || errStr.includes('source.year') || errStr.includes('expir')) errCode = 'invalid_expiry_date';
+    } else if (errData.type === 'blocked' || (errData.message || '').toLowerCase().includes('country')) {
+      errCode = 'restricted_card';
+    }
+    console.error('[payments/initiate] Moyasar error:', moyasarMsg, JSON.stringify(errData));
+    return res.status(502).json({ error: { code: errCode, message: moyasarMsg } });
   }
 
   // Save moyasar_payment_id to order metadata
