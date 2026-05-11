@@ -122,6 +122,36 @@ router.post('/api/payments/initiate', express.json(), async (req, res) => {
     return res.json({ payment_id: moyasarPayment.id, status: 'paid' });
   }
 
+  // Payment failed — extract response code and return user-facing error code
+  if (moyasarPayment.status === 'failed') {
+    const responseCode = String(moyasarPayment.source?.response_code || '');
+    const failMsg = moyasarPayment.message || moyasarPayment.source?.message || 'Payment failed';
+    const RESPONSE_CODE_MAP = {
+      '06': 'invalid_card_number', '14': 'invalid_card_number', '15': 'invalid_card_number',
+      '56': 'invalid_card_number', '79': 'invalid_card_number',
+      '33': 'expired_card', '54': 'expired_card',
+      '51': 'insufficient_funds',
+      '61': 'exceeds_limit', '65': 'exceeds_limit',
+      '82': 'invalid_cvc',
+      '55': 'incorrect_pin', '75': 'pin_tries_exceeded',
+      '05': 'do_not_honor', '12': 'do_not_honor',
+      '04': 'card_blocked', '07': 'card_blocked', '34': 'card_blocked',
+      '35': 'card_blocked', '36': 'card_blocked', '37': 'card_blocked',
+      '38': 'card_blocked', '41': 'card_blocked', '43': 'card_blocked',
+      '59': 'card_blocked', '63': 'card_blocked', '67': 'card_blocked',
+      '40': 'function_not_supported', '57': 'function_not_supported',
+      '62': 'restricted_card', '93': 'restricted_card',
+      '94': 'duplicate_transaction',
+      '01': 'bank_unavailable', '02': 'bank_unavailable', '09': 'bank_unavailable',
+      '22': 'bank_unavailable', '90': 'bank_unavailable', '91': 'bank_unavailable',
+      '92': 'bank_unavailable', '96': 'bank_unavailable',
+    };
+    const errCode = RESPONSE_CODE_MAP[responseCode] || 'do_not_honor';
+    console.log(`[payments/initiate] payment failed: order=${order.order_number} response_code=${responseCode} code=${errCode}`);
+    await supabase.from('orders').update({ payment_status: 'failed' }).eq('id', order_id);
+    return res.status(402).json({ error: { code: errCode, message: failMsg, response_code: responseCode } });
+  }
+
   // Payment requires 3DS or pending
   const transactionUrl = moyasarPayment.source?.transaction_url || null;
   console.log(`[payments/initiate] order ${order.order_number} → moyasar ${moyasarPayment.id} status=${moyasarPayment.status}`);
