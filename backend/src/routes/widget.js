@@ -161,6 +161,7 @@ router.post('/api/widget/orders', async (req, res) => {
   const basePrice = Number(pricing.base_price ?? offer.base_price ?? offer.price ?? 0);
   const taxes = Number(pricing.taxes ?? offer.taxes ?? 0);
   const baggagePrice = Number(pricing.baggage_price ?? 0);
+  const markupAmount = Number(pricing.markup_amount ?? offer.price?.markup_amount ?? 0);
   const totalPrice = Number(pricing.total_price ?? (basePrice + taxes + baggagePrice));
 
   if (!contactEmail || !contactPhone || !origin || !destination || !Number.isFinite(totalPrice) || totalPrice <= 0) {
@@ -226,6 +227,7 @@ router.post('/api/widget/orders', async (req, res) => {
       taxes: Number.isFinite(taxes) ? taxes : 0,
       baggage_price: Number.isFinite(baggagePrice) ? baggagePrice : 0,
       total_price: totalPrice,
+      markup_amount: Number.isFinite(markupAmount) && markupAmount > 0 ? markupAmount : 0,
       currency,
       status: 'pending',
       payment_method: paymentMethod,

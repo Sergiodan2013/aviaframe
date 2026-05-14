@@ -78,6 +78,83 @@ app.use('/', require('./routes/payments'));
 // n8n webhook proxy — MUST be before 404 handler
 const N8N_BASE_URL = (process.env.N8N_WEBHOOK_URL || '').replace(/\/+$/, '');
 
+// ─── Search proxy with markup application ────────────────────────────────────
+app.post('/webhook/drct/search', express.json({ limit: '10mb' }), async (req, res) => {
+  if (!N8N_BASE_URL) {
+    return res.status(503).json({ error: { code: 'N8N_NOT_CONFIGURED', message: 'N8N_WEBHOOK_URL is not configured' } });
+  }
+
+  const agencyKey = req.body?.agency_key || null;
+
+  // Load agency commission settings
+  let commission = null;
+  if (agencyKey) {
+    try {
+      const supabase = require('./lib/supabase');
+      const normalizedKey = String(agencyKey).trim().toLowerCase();
+      const { data: agency } = await supabase
+        .from('agencies')
+        .select('settings')
+        .or(`api_key.eq.${normalizedKey},domain.eq.${normalizedKey}`)
+        .maybeSingle();
+      commission = agency?.settings?.commission || null;
+    } catch (err) {
+      console.error('[search-proxy] Failed to load agency commission:', err.message);
+    }
+  }
+
+  // Proxy request to n8n
+  const targetUrl = `${N8N_BASE_URL}/drct/search`;
+  let n8nResponse;
+  try {
+    n8nResponse = await axios({
+      method: 'POST',
+      url: targetUrl,
+      headers: { 'Content-Type': 'application/json' },
+      data: req.body,
+      timeout: 55000,
+      validateStatus: () => true
+    });
+  } catch (err) {
+    console.error('[search-proxy] n8n error:', err.message);
+    return res.status(502).json({ error: { code: 'N8N_PROXY_ERROR', message: err.message } });
+  }
+
+  // Apply markup to offers if commission is configured
+  const result = n8nResponse.data;
+  if (commission && Array.isArray(result?.offers) && result.offers.length > 0) {
+    result.offers = result.offers.map(offer => applyMarkup(offer, commission));
+    console.log(`[search-proxy] Applied markup (${commission.model} ${commission.model === 'percentage' ? commission.percentage + '%' : commission.fixed_amount + ' ' + (commission.currency || 'SAR')}) to ${result.offers.length} offers for agency ${agencyKey}`);
+  }
+
+  return res.status(n8nResponse.status).json(result);
+});
+
+function applyMarkup(offer, commission) {
+  const price = offer?.price || {};
+  const total = Number(price.total || 0);
+  if (!total) return offer;
+
+  let markup = 0;
+  if (commission.model === 'percentage' && commission.percentage > 0) {
+    markup = Math.round(total * commission.percentage / 100 * 100) / 100;
+  } else if (commission.model === 'fixed' && commission.fixed_amount > 0) {
+    markup = Number(commission.fixed_amount);
+  }
+
+  if (!markup) return offer;
+
+  return {
+    ...offer,
+    price: {
+      ...price,
+      total: Math.round((total + markup) * 100) / 100,
+      original_total: total,
+      markup_amount: markup,
+    }
+  };
+}
+
 app.all('/webhook/*', express.json({ limit: '10mb' }), async (req, res) => {
   if (!N8N_BASE_URL) {
     return res.status(503).json({ error: { code: 'N8N_NOT_CONFIGURED', message: 'N8N_WEBHOOK_URL is not configured on the server' } });
