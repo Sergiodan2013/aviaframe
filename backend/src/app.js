@@ -74,6 +74,7 @@ app.use('/api/support', require('./routes/support'));
 app.use('/public', require('./routes/public'));
 app.use('/api', require('./routes/documents'));
 app.use('/', require('./routes/payments'));
+app.use('/api/payments', require('./routes/tamara'));
 
 // n8n webhook proxy — MUST be before 404 handler
 const N8N_BASE_URL = (process.env.N8N_WEBHOOK_URL || '').replace(/\/+$/, '');
@@ -94,10 +95,14 @@ app.post('/webhook/drct/search', express.json({ limit: '10mb' }), async (req, re
       const normalizedKey = String(agencyKey).trim().toLowerCase();
       const { data: agency } = await supabase
         .from('agencies')
-        .select('settings')
+        .select('settings,commission_rate')
         .or(`api_key.eq.${normalizedKey},domain.eq.${normalizedKey}`)
         .maybeSingle();
       commission = agency?.settings?.commission || null;
+      // Attach commission_rate column value so applyMarkup can use it for percentage model
+      if (commission && agency?.commission_rate) {
+        commission = { ...commission, _rate: Number(agency.commission_rate) };
+      }
     } catch (err) {
       console.error('[search-proxy] Failed to load agency commission:', err.message);
     }
@@ -124,7 +129,8 @@ app.post('/webhook/drct/search', express.json({ limit: '10mb' }), async (req, re
   const result = n8nResponse.data;
   if (commission && Array.isArray(result?.offers) && result.offers.length > 0) {
     result.offers = result.offers.map(offer => applyMarkup(offer, commission));
-    console.log(`[search-proxy] Applied markup (${commission.model} ${commission.model === 'percentage' ? commission.percentage + '%' : commission.fixed_amount + ' ' + (commission.currency || 'SAR')}) to ${result.offers.length} offers for agency ${agencyKey}`);
+    const pctLog = Number(commission._rate ?? commission.percentage ?? 0);
+    console.log(`[search-proxy] Applied markup (${commission.model} ${(commission.model === 'percent' || commission.model === 'percentage') ? pctLog + '%' : commission.fixed_amount + ' ' + (commission.currency || 'SAR')}) to ${result.offers.length} offers for agency ${agencyKey}`);
   }
 
   return res.status(n8nResponse.status).json(result);
@@ -136,9 +142,10 @@ function applyMarkup(offer, commission) {
   if (!total) return offer;
 
   let markup = 0;
-  if (commission.model === 'percentage' && commission.percentage > 0) {
-    markup = Math.round(total * commission.percentage / 100 * 100) / 100;
-  } else if (commission.model === 'fixed' && commission.fixed_amount > 0) {
+  const pct = Number(commission._rate ?? commission.percentage ?? 0);
+  if ((commission.model === 'percent' || commission.model === 'percentage') && pct > 0) {
+    markup = Math.round(total * pct / 100 * 100) / 100;
+  } else if (commission.model === 'fixed' && Number(commission.fixed_amount) > 0) {
     markup = Number(commission.fixed_amount);
   }
 
