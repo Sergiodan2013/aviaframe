@@ -13,17 +13,21 @@ function fmtAmt(value) {
 }
 
 /**
- * Normalise phone to Tamara format: local Saudi number without country code.
+ * Normalise phone to Tamara format: local Saudi 9-digit number.
  * Tamara expects "544337866" not "+966544337866"
+ * Falls back to test number if phone is missing or not SA format.
  */
 function normalisePhone(phone) {
-  if (!phone) return '500000000';
+  if (!phone) return '512345678';
   const digits = String(phone).replace(/\D/g, '');
-  // Strip leading 966 or +966
-  if (digits.startsWith('966')) return digits.slice(3);
-  // Strip leading 0
-  if (digits.startsWith('0')) return digits.slice(1);
-  return digits;
+  // Strip leading 966 (Saudi country code)
+  if (digits.startsWith('966') && digits.length === 12) return digits.slice(3);
+  // Strip leading 0 (local format 05XXXXXXXX)
+  if (digits.startsWith('05') && digits.length === 10) return digits.slice(1);
+  // Already 9-digit local SA number (5XXXXXXXX)
+  if (digits.startsWith('5') && digits.length === 9) return digits;
+  // Non-SA number — use fallback
+  return '512345678';
 }
 
 /**
