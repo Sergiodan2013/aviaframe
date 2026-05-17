@@ -13,19 +13,17 @@ function fmtAmt(value) {
 }
 
 /**
- * Normalise phone to E.164 format for Saudi numbers.
- * Accepts: 05XXXXXXXX, 5XXXXXXXX, +9665XXXXXXXX, 9665XXXXXXXX
+ * Normalise phone to Tamara format: local Saudi number without country code.
+ * Tamara expects "544337866" not "+966544337866"
  */
 function normalisePhone(phone) {
-  if (!phone) return '+966500000000'; // fallback for missing phone
+  if (!phone) return '500000000';
   const digits = String(phone).replace(/\D/g, '');
-  if (digits.startsWith('966')) return `+${digits}`;
-  if (digits.startsWith('05') || digits.startsWith('5')) {
-    const local = digits.replace(/^0/, '');
-    return `+966${local}`;
-  }
-  // Already has country code or unknown format — prefix + if missing
-  return phone.startsWith('+') ? phone : `+${digits}`;
+  // Strip leading 966 or +966
+  if (digits.startsWith('966')) return digits.slice(3);
+  // Strip leading 0
+  if (digits.startsWith('0')) return digits.slice(1);
+  return digits;
 }
 
 /**
@@ -51,13 +49,26 @@ function buildCheckoutPayload(order, { language = 'en' } = {}) {
     }
   ];
 
+  const addr = {
+    first_name: order.contact_first_name || 'Customer',
+    last_name: order.contact_last_name || 'Customer',
+    line1: 'Saudi Arabia',
+    line2: '',
+    region: 'Riyadh',
+    postal_code: '12345',
+    city: 'Riyadh',
+    country_code: 'SA',
+    phone_number: phone
+  };
+
   const payload = {
     order_reference_id: String(order.id),
-    total_amount: { amount: fmtAmt(total), currency },
+    order_number: String(order.order_number || order.id),
+    total_amount: { amount: total, currency },
     description: `Flight booking ${order.order_number || order.id}`,
     country_code: 'SA',
     payment_type: 'PAY_BY_INSTALMENTS',
-    instalments: 3,
+    instalments: null,
     locale: language === 'ar' ? 'ar_SA' : 'en_US',
     items,
     consumer: {
@@ -66,29 +77,15 @@ function buildCheckoutPayload(order, { language = 'en' } = {}) {
       phone_number: phone,
       email: order.contact_email || ''
     },
-    billing_address: {
-      first_name: order.contact_first_name || 'Customer',
-      last_name: order.contact_last_name || 'Customer',
-      phone_number: phone,
-      address_line1: 'Saudi Arabia',
-      city: 'Riyadh',
-      country_code: 'SA'
+    billing_address: addr,
+    shipping_address: addr,
+    merchant_url: {
+      success: `${SUCCESS_URL}?order_id=${order.id}`,
+      failure: `${FAILURE_URL}?order_id=${order.id}`,
+      cancel: `${CANCEL_URL}?order_id=${order.id}`,
+      notification: `${process.env.BACKEND_URL || 'https://peaceful-amazement-production-629f.up.railway.app'}/api/payments/tamara/webhook`
     },
-    shipping_address: {
-      first_name: order.contact_first_name || 'Customer',
-      last_name: order.contact_last_name || 'Customer',
-      phone_number: phone,
-      address_line1: 'Saudi Arabia',
-      city: 'Riyadh',
-      country_code: 'SA'
-    },
-    merchant: {
-      merchant_url: SUCCESS_URL,
-      success_url: `${SUCCESS_URL}?order_id=${order.id}`,
-      failure_url: `${FAILURE_URL}?order_id=${order.id}`,
-      cancel_url: `${CANCEL_URL}?order_id=${order.id}`,
-      notification_url: `${process.env.BACKEND_URL || 'https://peaceful-amazement-production-629f.up.railway.app'}/api/payments/tamara/webhook`
-    },
+    is_mobile: false,
     risk_assessment: {}
   };
 
