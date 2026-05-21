@@ -46,13 +46,38 @@ router.post('/tamara/checkout-session', async (req, res) => {
     return res.status(400).json({ error: { code: 'ORDER_NOT_PENDING', message: 'Order is not in pending state' } });
   }
 
+  // Load first passenger for consumer name
+  const { data: passenger } = await supabase
+    .from('passengers')
+    .select('first_name,last_name')
+    .eq('order_id', orderId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!passenger) {
+    return res.status(400).json({ error: { code: 'NO_PASSENGERS', message: 'Order has no passengers — cannot build Tamara checkout' } });
+  }
+  if (!order.total_price || Number(order.total_price) <= 0) {
+    return res.status(400).json({ error: { code: 'INVALID_TOTAL', message: 'Order total_price must be > 0' } });
+  }
+  if (!order.contact_email) {
+    return res.status(400).json({ error: { code: 'MISSING_EMAIL', message: 'Order contact_email is required' } });
+  }
+
   try {
-    const checkoutPayload = buildCheckoutPayload(order, { language });
-    console.log('[tamara] checkout payload:', JSON.stringify(checkoutPayload, null, 2));
+    let checkoutPayload;
+    try {
+      checkoutPayload = buildCheckoutPayload(order, passenger, { language });
+    } catch (mapErr) {
+      return res.status(400).json({ error: { code: mapErr.code || 'PAYLOAD_BUILD_FAILED', message: mapErr.message } });
+    }
+    console.log('[tamara] checkout payload compact=' + JSON.stringify(checkoutPayload));
+    console.log(`[tamara] order=${orderId} total=${order.total_price} ${order.currency} consumer="${passenger.first_name} ${passenger.last_name}" phone=${checkoutPayload.consumer.phone_number}`);
+
     const session = await tamaraClient.createCheckoutSession(checkoutPayload);
 
     // Update order with Tamara session info
-    await supabase
+    const { data: updatedOrder, error: updateError } = await supabase
       .from('orders')
       .update({
         payment_provider: 'tamara',
@@ -61,9 +86,22 @@ router.post('/tamara/checkout-session', async (req, res) => {
         status: 'pending_payment',
         updated_at: new Date().toISOString()
       })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .select('id,payment_provider,payment_provider_order_id,payment_provider_status,status')
+      .single();
+
+    if (updateError || !updatedOrder) {
+      console.error('[tamara] order update failed after checkout-session:', updateError?.message || 'no row updated');
+      return res.status(500).json({
+        error: {
+          code: 'TAMARA_ORDER_UPDATE_FAILED',
+          message: updateError?.message || 'Failed to link order to Tamara session'
+        }
+      });
+    }
 
     console.log(`[tamara] Checkout session created for order ${orderId}: ${session.checkout_id}`);
+    console.log('[tamara] order linked to session=' + JSON.stringify(updatedOrder));
 
     return res.json({
       checkout_id: session.checkout_id,
@@ -71,7 +109,7 @@ router.post('/tamara/checkout-session', async (req, res) => {
       tamara_order_id: session.order_id
     });
   } catch (err) {
-    console.error('[tamara] checkout-session error:', err.response?.data || err.message);
+    console.error('[tamara] checkout-session error status=' + (err.response?.status || 'no-status') + ' body=' + JSON.stringify(err.response?.data || err.message));
     return res.status(502).json({
       error: {
         code: 'TAMARA_CHECKOUT_FAILED',
@@ -84,7 +122,7 @@ router.post('/tamara/checkout-session', async (req, res) => {
 // ─── POST /api/payments/tamara/webhook ────────────────────────────────────────
 // Receives Tamara webhook events. Public endpoint, validated via tamaraToken.
 router.post('/tamara/webhook', express.json(), async (req, res) => {
-  const tamaraToken = req.query.tamaraToken || req.headers['x-tamara-token'];
+  const tamaraToken = req.query.tamaraToken || req.headers['x-notification-token'] || req.headers['x-tamara-token'];
 
   // Validate token
   const { valid, error: tokenError } = validateWebhookToken(tamaraToken);

@@ -208,8 +208,13 @@ router.post('/api/widget/orders', async (req, res) => {
     const allowedMethods = Array.isArray(agency?.settings?.payment_methods) && agency.settings.payment_methods.length
       ? agency.settings.payment_methods
       : ['online'];
-    const paymentMethod = VALID_PAYMENT_METHODS.includes(paymentMethodFromBody) && allowedMethods.includes(paymentMethodFromBody)
-      ? paymentMethodFromBody
+    const requestedMethod = String(paymentMethodFromBody || '').trim().toLowerCase();
+    const tamaraAllowed = requestedMethod === 'tamara'
+      && VALID_PAYMENT_METHODS.includes('tamara')
+      && (allowedMethods.includes('tamara') || allowedMethods.includes('online'));
+    const paymentMethod = VALID_PAYMENT_METHODS.includes(requestedMethod)
+      && (allowedMethods.includes(requestedMethod) || tamaraAllowed)
+      ? requestedMethod
       : allowedMethods[0];
 
     const orderInsert = {
@@ -230,7 +235,8 @@ router.post('/api/widget/orders', async (req, res) => {
       markup_amount: Number.isFinite(markupAmount) && markupAmount > 0 ? markupAmount : 0,
       currency,
       status: 'pending',
-      payment_method: paymentMethod,
+      payment_method: paymentMethod === 'tamara' ? 'online' : paymentMethod,
+      payment_provider: paymentMethod === 'tamara' ? 'tamara' : paymentMethod === 'online' ? 'moyasar' : null,
       contact_email: contactEmail,
       contact_phone: contactPhone,
       raw_offer_data: {
@@ -261,9 +267,15 @@ router.post('/api/widget/orders', async (req, res) => {
     }
 
     if (Array.isArray(passengers) && passengers.length > 0) {
+      const normalizeGender = (g) => {
+        const v = String(g || '').toLowerCase().trim();
+        if (v === 'male' || v === 'm') return 'male';
+        if (v === 'female' || v === 'f') return 'female';
+        return null;
+      };
       const passengerRows = passengers.map((p) => ({
         order_id: createdOrder.id,
-        gender: p.gender || null,
+        gender: normalizeGender(p.gender),
         first_name: p.first_name || p.firstName || 'N/A',
         last_name: p.last_name || p.lastName || 'N/A',
         date_of_birth: p.date_of_birth || p.dateOfBirth || null,
@@ -278,7 +290,15 @@ router.post('/api/widget/orders', async (req, res) => {
         .from('passengers')
         .insert(passengerRows);
       if (passengerError) {
-        console.warn('Widget passengers insert failed:', passengerError.message);
+        console.error('Widget passengers insert failed:', passengerError.message);
+        // Roll back the order so the client gets a clear error instead of a broken order
+        await supabase.from('orders').delete().eq('id', createdOrder.id);
+        return res.status(400).json({
+          error: {
+            code: 'PASSENGER_INSERT_FAILED',
+            message: `Passenger data invalid: ${passengerError.message}`
+          }
+        });
       }
     }
 

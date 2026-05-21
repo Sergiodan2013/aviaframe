@@ -18,6 +18,9 @@ const ORDERS_LIST_COLUMNS = [
   'status',
   'payment_status',
   'payment_method',
+  'payment_provider',
+  'payment_provider_order_id',
+  'payment_provider_status',
   'contact_email',
   'contact_phone',
   'created_at',
@@ -26,7 +29,7 @@ const ORDERS_LIST_COLUMNS = [
   'cancelled_at'
 ].join(',');
 
-const VALID_PAYMENT_METHODS = ['online', 'cash', 'invoice'];
+const VALID_PAYMENT_METHODS = ['online', 'cash', 'invoice', 'tamara'];
 
 const config = {
   port: process.env.PORT || 3000,
