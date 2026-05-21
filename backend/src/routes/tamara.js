@@ -83,7 +83,7 @@ router.post('/tamara/checkout-session', async (req, res) => {
         payment_provider: 'tamara',
         payment_provider_order_id: session.order_id || null,
         payment_provider_status: 'tamara_checkout_created',
-        status: 'pending_payment',
+        status: 'pending',
         updated_at: new Date().toISOString()
       })
       .eq('id', orderId)
