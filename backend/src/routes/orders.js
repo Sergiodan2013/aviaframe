@@ -512,13 +512,14 @@ router.post('/api/orders/:orderId/ticket/finalize', async (req, res) => {
       const pdfBuffer = Buffer.from(pdfArrayBuffer);
       const { data: emailPassengers } = await supabase
         .from('passengers')
-        .select('first_name,last_name,passenger_type')
+        .select('first_name,last_name,passenger_type,baggage_allowance')
         .eq('order_id', order.id);
       emailState = await sendTicketEmail({
         to: order.contact_email,
         order,
         passengers: emailPassengers || [],
         issuance: issuance || {},
+        agency: ensureResult.agency || null,
         attachment: { fileName: doc.file_name, buffer: pdfBuffer }
       });
     }

@@ -44,7 +44,19 @@ const config = {
   widgetTokenSecret: process.env.WIDGET_TOKEN_SECRET || process.env.SUPABASE_ANON_KEY || 'aviaframe-widget-dev-secret',
   widgetTokenTtlSec: Number(process.env.WIDGET_TOKEN_TTL_SEC || 1800),
   internalApiToken: process.env.INTERNAL_API_TOKEN || '',
-  emailWebhookSecret: process.env.EMAIL_WEBHOOK_SECRET || ''
+  internalQaEnabled: process.env.INTERNAL_QA_ENABLED === 'true',
+  internalQaAgencyId: process.env.INTERNAL_QA_AGENCY_ID || '',
+  internalQaAllowedHosts: String(process.env.INTERNAL_QA_ALLOWED_HOSTS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
+  internalQaMaxActiveTickets: Number(process.env.INTERNAL_QA_MAX_ACTIVE_TICKETS || 5),
+  internalQaVoidWindowHours: Number(process.env.INTERNAL_QA_VOID_WINDOW_HOURS || 20),
+  emailWebhookSecret: process.env.EMAIL_WEBHOOK_SECRET || '',
+  allowPdfOnlyTicketIssuance: process.env.ALLOW_PDF_ONLY_TICKET_ISSUANCE === 'true',
+  airportAutocompleteUrl: process.env.AIRPORT_AUTOCOMPLETE_URL || 'https://autocomplete.travelpayouts.com/places2',
+  airportAutocompleteTimeoutMs: Number(process.env.AIRPORT_AUTOCOMPLETE_TIMEOUT_MS || 3500),
+  publicSearchDrctEnabled: process.env.FEATURE_PUBLIC_SEARCH_DRCT === 'true'
 };
 
 module.exports = { config, ORDERS_LIST_COLUMNS, VALID_PAYMENT_METHODS };

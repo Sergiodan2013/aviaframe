@@ -9,6 +9,7 @@
     "build": "echo \"Building backend...\" && mkdir -p dist && cp -R src/* dist/ || true",
     "test": "jest --runInBand",
     "test:n8n": "node scripts/test_n8n.js",
+    "redeploy:agency-site": "node scripts/redeploy_agency_site.js",
     "lint": "eslint src tests"
   },
   "dependencies": {
@@ -16,8 +17,11 @@
     "axios": "^1.13.3",
     "bottleneck": "^2.19.5",
     "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
+    "jszip": "^3.10.1",
+    "multer": "^2.1.1",
     "nodemailer": "^6.10.1",
     "opossum": "^5.0.1",
     "pdfkit": "^0.17.2",

@@ -1,6 +1,10 @@
 'use strict';
 
-require('dotenv').config();
+try {
+  require('dotenv').config();
+} catch (_) {
+  // In managed runtimes like Railway, env vars are injected directly.
+}
 const app = require('./app');
 const { config } = require('./config');
 

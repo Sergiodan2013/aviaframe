@@ -98,7 +98,7 @@ async function canAccessDocument(auth, doc) {
   return false;
 }
 
-async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNumber = null }) {
+async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNumber = null, airlinePnr = null, tickets = [] }) {
   let issuance = null;
   const { data: existingIssuance } = await supabase
     .from('ticket_issuances')
@@ -128,7 +128,11 @@ async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNum
     pnr: issuance?.pnr || pnr || order.drct_order_id || null,
     issued_at: issuance?.issued_at || nowIso,
     status: 'issued',
-    raw_provider_response: issuance?.raw_provider_response || {},
+    raw_provider_response: {
+      ...(issuance?.raw_provider_response || {}),
+      ...(airlinePnr ? { airline_pnr: airlinePnr } : {}),
+      ...(Array.isArray(tickets) && tickets.length > 0 ? { tickets } : {})
+    },
     created_by: isValidUuid(issuance?.created_by) ? issuance.created_by : isValidUuid(createdBy) ? createdBy : null
   };
 
@@ -141,15 +145,33 @@ async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNum
     throw new Error(issuanceError?.message || 'Failed to save ticket issuance');
   }
 
-  const { data: passengers } = await supabase
-    .from('passengers')
-    .select('first_name,last_name,passenger_type')
-    .eq('order_id', order.id);
+  const [{ data: passengers }, { data: agency }] = await Promise.all([
+    supabase
+      .from('passengers')
+      .select('first_name,last_name,passenger_type,baggage_allowance')
+      .eq('order_id', order.id),
+    supabase
+      .from('agencies')
+      .select('id,name,domain,contact_email,contact_phone,settings')
+      .eq('id', order.agency_id)
+      .maybeSingle()
+  ]);
+
+  // Surface the airline PNR + e-ticket numbers at the top level so the PDF/email
+  // renderers can read them directly (they are persisted inside raw_provider_response).
+  const issuanceForRender = {
+    ...savedIssuance,
+    airline_pnr: airlinePnr || savedIssuance.raw_provider_response?.airline_pnr || null,
+    tickets: (Array.isArray(tickets) && tickets.length > 0
+      ? tickets
+      : savedIssuance.raw_provider_response?.tickets) || []
+  };
 
   const pdfBuffer = await buildTicketPdf({
     order,
     passengers: passengers || [],
-    issuance: savedIssuance
+    issuance: issuanceForRender,
+    agency: agency || null
   });
 
   const fileName = `ticket-${order.order_number || order.id}.pdf`;
@@ -188,7 +210,12 @@ async function ensureTicketPdfForOrder({ order, createdBy, pnr = null, ticketNum
 
   const url = await createSignedDocumentUrl(doc.storage_bucket, doc.storage_path, 3600);
   return {
-    issuance: finalizedIssuance || savedIssuance,
+    issuance: {
+      ...(finalizedIssuance || savedIssuance),
+      airline_pnr: issuanceForRender.airline_pnr,
+      tickets: issuanceForRender.tickets
+    },
+    agency: agency || null,
     doc,
     url,
     generated: true
@@ -343,12 +370,49 @@ async function ensureAuthUserByEmail(email) {
   return { user: createdData.user, created: true, invited: false };
 }
 
+/**
+ * Issues a DRCT ticket (if drct_order_id is set), then generates the PDF
+ * and saves a ticket_issuance record. Returns the same shape as
+ * ensureTicketPdfForOrder: { issuance, doc, url, generated, pnr, ticketNumber }.
+ *
+ * Throws on DRCT failure so callers can decide whether to cancel or continue.
+ */
+async function issueDrctTicket({ order, createdBy = 'system' }) {
+  const drctService = require('./drctService');
+
+  let pnr = null;
+  let ticketNumber = null;
+
+  if (order.drct_order_id) {
+    const issued = await drctService.issueOrder(order.drct_order_id, {
+      orderId: order.id,
+      agencyId: order.agency_id
+    });
+    pnr = issued.pnr;
+    ticketNumber = issued.ticket_number;
+    await supabase
+      .from('orders')
+      .update({ status: 'ticketed', updated_at: new Date().toISOString() })
+      .eq('id', order.id);
+    console.log(`[issueDrctTicket] DRCT issued: order=${order.order_number} pnr=${pnr} ticket=${ticketNumber}`);
+  } else {
+    if (!config.allowPdfOnlyTicketIssuance) {
+      throw new Error('PDF_ONLY_TICKET_ISSUANCE_DISABLED');
+    }
+    console.warn(`[issueDrctTicket] No drct_order_id — sandbox PDF-only path allowed for order=${order.order_number}`);
+  }
+
+  const result = await ensureTicketPdfForOrder({ order, createdBy, pnr, ticketNumber });
+  return { ...result, pnr, ticketNumber };
+}
+
 module.exports = {
   uploadPdfToStorage,
   saveDocumentMetadata,
   createSignedDocumentUrl,
   canAccessDocument,
   ensureTicketPdfForOrder,
+  issueDrctTicket,
   generateInvoicePdfForInvoice,
   linkAgencyAdminProfileByEmail,
   findAuthUserByEmail,

@@ -14,6 +14,14 @@ const config = {
   retryDelay: parseInt(process.env.N8N_RETRY_DELAY_MS || '1000', 10)
 };
 
+const requestTimeouts = {
+  search: parseInt(process.env.N8N_TIMEOUT_SEARCH_MS || `${config.timeout}`, 10),
+  price: parseInt(process.env.N8N_TIMEOUT_PRICE_MS || `${config.timeout}`, 10),
+  orderCreate: parseInt(process.env.N8N_TIMEOUT_ORDER_CREATE_MS || '90000', 10),
+  issue: parseInt(process.env.N8N_TIMEOUT_ORDER_ISSUE_MS || '90000', 10),
+  cancel: parseInt(process.env.N8N_TIMEOUT_ORDER_CANCEL_MS || '45000', 10)
+};
+
 /**
  * Send request to n8n webhook
  * @param {Object} params - Request parameters
@@ -166,7 +174,10 @@ async function drctSearch(searchParams, tenantId) {
     workflowPath: '/drct/search',
     payload: searchParams,
     requestType: 'offers_search',
-    tenantId
+    tenantId,
+    options: {
+      timeout: requestTimeouts.search
+    }
   });
 }
 
@@ -181,7 +192,10 @@ async function drctPrice(priceParams, tenantId) {
     workflowPath: '/drct/price',
     payload: priceParams,
     requestType: 'price',
-    tenantId
+    tenantId,
+    options: {
+      timeout: requestTimeouts.price
+    }
   });
 }
 
@@ -203,6 +217,7 @@ async function drctCreateOrder(orderParams, tenantId, bookingId) {
     tenantId,
     bookingId,
     options: {
+      timeout: requestTimeouts.orderCreate,
       headers: {
         'Idempotency-Key': idempotencyKey
       }
@@ -228,6 +243,7 @@ async function drctIssue(issueParams, tenantId, bookingId) {
     tenantId,
     bookingId,
     options: {
+      timeout: requestTimeouts.issue,
       headers: {
         'Idempotency-Key': idempotencyKey
       }
@@ -248,7 +264,10 @@ async function drctCancel(cancelParams, tenantId, bookingId) {
     payload: cancelParams,
     requestType: 'cancel',
     tenantId,
-    bookingId
+    bookingId,
+    options: {
+      timeout: requestTimeouts.cancel
+    }
   });
 }
 
@@ -264,7 +283,12 @@ function isRetryableError(error) {
   }
 
   // Timeout errors are retryable
-  if (error.name === 'AbortError' || error.message.includes('timeout')) {
+  if (
+    error.name === 'AbortError' ||
+    error.name === 'TimeoutError' ||
+    error.code === 'ETIMEDOUT' ||
+    String(error.message || '').toLowerCase().includes('timeout')
+  ) {
     return true;
   }
 
@@ -336,5 +360,6 @@ module.exports = {
   drctIssue,
   drctCancel,
   healthCheck,
-  config
+  config,
+  requestTimeouts
 };

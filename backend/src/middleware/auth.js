@@ -113,7 +113,7 @@ async function resolveAuthContext(req) {
         return { error: 'PROFILE_NOT_FOUND' };
       }
       profile = created;
-    } else if (userEmail && (!profile.agency_id || normalizeRole(profile.role) === 'user')) {
+    } else if (userEmail && (!profile.agency_id || normalizeRole(profile.role) === 'user') && !['admin', 'super_admin'].includes(normalizeRole(profile.role))) {
       const { data: agenciesByEmail } = await supabase
         .from('agencies')
         .select('id')
