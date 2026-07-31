@@ -1,0 +1,1363 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Complete Booking — AviaFrame</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/style.css" />
+  <style>
+    body { margin: 0; padding: 24px; background: #e9effb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #111827; }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    .nav { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+    .nav a { color: #2563eb; font-size: 14px; text-decoration: none; }
+    .nav a:hover { text-decoration: underline; }
+    .nav-sep { color: #9ca3af; }
+    .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; color: #1e293b; text-decoration: none; }
+    .brand svg { width: 24px; height: 24px; }
+    .brand-frame { color: #2563eb; font-weight: 400; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 28px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); margin-bottom: 16px; }
+    h2 { margin: 0 0 18px; font-size: 20px; color: #1e293b; }
+    .flight-summary { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+    .airport { text-align: center; }
+    .airport .airport-code { font-size: 32px; font-weight: 800; color: #1e3a5f; background: transparent; border-radius: 0; padding: 0; overflow: visible; }
+    .airport .airport-date { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .airport .airport-time { font-size: 18px; font-weight: 700; color: #1e293b; }
+    .arrow { text-align: center; color: #94a3b8; font-size: 20px; }
+    .arrow .airline { font-size: 11px; color: #64748b; display: block; }
+    .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin-bottom: 12px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .form-row.single { grid-template-columns: 1fr; }
+    .form-row.triple { grid-template-columns: 1fr 1fr 1fr; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+    input { width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 12px; font-size: 14px; color: #1e293b; background: #fff; outline: none; }
+    input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    input.card-input { font-family: 'Courier New', monospace; letter-spacing: 2px; }
+    .total-row { display: flex; justify-content: space-between; align-items: center; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
+    .total-label { font-size: 14px; color: #0369a1; font-weight: 600; }
+    .total-amount { font-size: 24px; font-weight: 800; color: #1e3a5f; }
+    .btn-pay { width: 100%; background: #2563eb; color: #fff; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background .15s; }
+    .btn-pay:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-pay:disabled { background: #93c5fd; cursor: not-allowed; }
+    .test-card-hint { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 16px; }
+    .test-card-hint strong { display: block; margin-bottom: 4px; }
+    /* Demo test-cards helper: shown only when DRY_RUN_MODE is on. */
+    .demo-cards-panel { background: linear-gradient(180deg, #eef2ff 0%, #f5f3ff 100%); border: 1px solid #c7d2fe; border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; font-size: 13px; color: #3730a3; }
+    .demo-cards-panel .dcp-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: #312e81; margin-bottom: 6px; }
+    .demo-cards-panel .dcp-title .dcp-badge { background: #4f46e5; color: #fff; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+    .demo-cards-panel .dcp-lead { color: #4338ca; margin-bottom: 10px; line-height: 1.5; font-size: 12.5px; }
+    .demo-cards-panel .dcp-lead strong { color: #312e81; }
+    .demo-cards-panel .dcp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .demo-cards-panel .dcp-card { background: #ffffff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; transition: border-color .15s, box-shadow .15s; }
+    .demo-cards-panel .dcp-card:hover { border-color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,.15); }
+    .demo-cards-panel .dcp-card-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .demo-cards-panel .dcp-card-label { font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: #6366f1; font-weight: 700; }
+    .demo-cards-panel .dcp-card-number { font-family: 'Courier New', monospace; font-size: 13px; color: #1e1b4b; font-weight: 600; letter-spacing: 1px; }
+    .demo-cards-panel .dcp-fill-btn { background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer; letter-spacing: .03em; white-space: nowrap; transition: background .15s; }
+    .demo-cards-panel .dcp-fill-btn:hover { background: #4338ca; }
+    .demo-cards-panel .dcp-fill-btn.dcp-fill-btn-danger { background: #dc2626; }
+    .demo-cards-panel .dcp-fill-btn.dcp-fill-btn-danger:hover { background: #b91c1c; }
+    .demo-cards-panel .dcp-fill-btn.filled { background: #16a34a; }
+    .demo-cards-panel .dcp-warn { background: #fef3c7; border: 1px solid #fde68a; color: #78350f; border-radius: 6px; padding: 8px 12px; font-size: 12px; line-height: 1.5; }
+    .demo-cards-panel .dcp-warn strong { color: #78350f; }
+    .loading { font-size: 16px; color: #4b5563; text-align: center; padding: 40px; }
+    .spinner { display: inline-block; width: 32px; height: 32px; border: 3px solid #dbeafe; border-top-color: #2563eb; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-box { border: 1px solid #fecaca; background: #fff1f2; color: #b91c1c; border-radius: 12px; padding: 14px; font-size: 14px; white-space: pre-wrap; margin-bottom: 16px; }
+    .success-box { text-align: center; padding: 20px; }
+    .success-icon { font-size: 64px; line-height: 1; }
+    .success-title { font-size: 28px; font-weight: 800; color: #1e293b; margin: 12px 0 6px; }
+    .success-sub { font-size: 15px; color: #4b5563; margin-bottom: 20px; }
+    .order-ref { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px; font-size: 18px; font-weight: 700; color: #1e40af; text-align: center; margin: 12px 0; }
+    .ticket-note { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #166534; margin-top: 12px; }
+    .btn-back { display: inline-block; background: #f1f5f9; color: #475569; font-weight: 600; font-size: 14px; padding: 10px 20px; border-radius: 999px; text-decoration: none; margin-top: 16px; }
+    .btn-back:hover { background: #e2e8f0; }
+    .step-indicator { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; }
+    .step { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 999px; }
+    .step.done { background: #d1fae5; color: #065f46; }
+    .step.active { background: #dbeafe; color: #1e40af; }
+    .step.pending { background: #f1f5f9; color: #94a3b8; }
+    .sep { color: #d1d5db; }
+    .payment-security-badge { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; padding: 10px 0 4px; border-top: 1px solid #f1f5f9; flex-wrap: wrap; }
+    .payment-security-badge .badge-lock { font-size: 13px; color: #64748b; display: flex; align-items: center; gap: 5px; }
+    .badge-powered { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #94a3b8; }
+    .badge-powered img { height: 18px; opacity: .75; }
+    .card-brands { display: flex; gap: 6px; align-items: center; }
+    .card-brand { height: 28px; width: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.15); display: block; background: #fff; }
+    .card-brand.card-brand-mada { width: 72px; border: 1px solid #e2e8f0; overflow: hidden; padding: 0; }
+    .card-brand.card-brand-mada img { width: 100%; height: 100%; display: block; object-fit: contain; }
+    .method-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 16px 0; }
+    .method-card { border: 2px solid #e5e7eb; border-radius: 12px; padding: 16px; cursor: pointer; text-align: center; transition: all .15s; background: #fff; }
+    .method-card:hover { border-color: #93c5fd; background: #eff6ff; }
+    .method-card.selected { border-color: #2563eb; background: #eff6ff; }
+    .method-card .method-icon { font-size: 28px; margin-bottom: 6px; }
+    .method-card .method-name { font-size: 14px; font-weight: 700; color: #1e293b; }
+    .method-card .method-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .invoice-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; margin: 16px 0; }
+    .invoice-box h3 { margin: 0 0 10px; font-size: 15px; color: #1e293b; }
+    .invoice-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; border-bottom: 1px solid #e2e8f0; }
+    .invoice-row:last-child { border-bottom: none; }
+    .invoice-row .lbl { color: #64748b; }
+    .invoice-row .val { font-weight: 600; font-family: monospace; }
+    .price-breakdown { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; margin: 16px 0; }
+    .price-breakdown h3 { margin: 0 0 10px; font-size: 15px; color: #1e293b; }
+    .price-breakdown-note { margin: 0 0 12px; font-size: 13px; line-height: 1.55; color: #475569; }
+    .price-breakdown-note strong { color: #1e293b; }
+    .price-breakdown-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; font-size: 14px; border-bottom: 1px solid #e2e8f0; }
+    .price-breakdown-row:last-child { border-bottom: none; }
+    .price-breakdown-row.total { font-size: 16px; font-weight: 800; color: #1e293b; padding-top: 12px; }
+    .price-breakdown-row .lbl { color: #475569; }
+    .price-breakdown-row .val { font-weight: 700; color: #1e293b; }
+    .price-breakdown-row .sub { display: block; margin-top: 2px; font-size: 11px; color: #64748b; font-weight: 500; }
+    .price-disclaimer { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.55; color: #1d4ed8; margin: 14px 0; }
+    .price-disclaimer strong { color: #1e3a8a; }
+    .scheme-chip { display: inline-flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 12px; }
+    .scheme-chip.active { background: #ecfdf5; border-color: #86efac; color: #166534; }
+    .cash-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 20px; margin: 16px 0; text-align: center; }
+    .cash-box .cash-icon { font-size: 40px; }
+    .cash-box h3 { margin: 8px 0 4px; color: #92400e; }
+    .cash-box p { margin: 0; font-size: 13px; color: #b45309; }
+    .btn-continue { width: 100%; background: #2563eb; color: #fff; border: none; border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background .15s; margin-top: 8px; }
+    .btn-continue:hover { background: #1d4ed8; }
+    .booking-footer-shell { margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <a class="brand" href="/">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#2563EB"/>
+        </svg>
+        Avia<span class="brand-frame">Frame</span>
+      </a>
+      <span class="nav-sep">›</span>
+      <a href="/widget-demo.html">Search</a>
+      <span class="nav-sep">›</span>
+      <span style="color:#374151">Payment</span>
+    </div>
+
+  <div id="root">
+      <div class="loading">
+        <div class="spinner"></div><br/>
+        Preparing your booking...
+      </div>
+    </div>
+  </div>
+  <script>
+    (function renderEarlyPaymentResultFallback() {
+      try {
+        var params = new URLSearchParams(window.location.search || '');
+        var paymentResult = params.get('payment_result');
+        var orderId = params.get('order_id');
+        if (!paymentResult || !orderId) return;
+
+        var root = document.getElementById('root');
+        if (!root) return;
+
+        if (paymentResult === 'success') {
+          root.innerHTML = `
+            <div class="card">
+              <div class="success-box">
+                <div class="success-icon">✅</div>
+                <div class="success-title">Payment confirmed</div>
+                <div class="success-sub">Your booking was paid successfully. We are preparing your e-ticket now.</div>
+                <div class="order-ref">Booking Reference: ${orderId}</div>
+                <div class="ticket-note">If the full confirmation screen does not load automatically, your booking is still safe and already being processed.</div>
+                <a class="btn-back" href="/widget-demo.html">← Search Another Flight</a>
+              </div>
+            </div>`;
+          return;
+        }
+
+        root.innerHTML = `
+          <div class="card">
+            <div class="error-box">Payment was not completed. Please try again or use a different card.</div>
+            <a class="btn-back" href="/widget-demo.html">← Back to Search</a>
+          </div>`;
+      } catch (_) {}
+    })();
+  </script>
+  <div class="booking-footer-shell">
+    <footer class="site-footer">
+      <div class="footer-wrap">
+        <div class="footer-brand">
+          <span style="display:inline-flex;align-items:center;gap:8px;">
+            <svg style="width:24px;height:24px;opacity:.85" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#ffffff"/>
+            </svg>
+            <span style="font-size:16px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:-.2px">Avia<span style="font-weight:400;color:rgba(147,197,253,.9)">Frame</span></span>
+          </span>
+          <span id="footer-tagline">White-label flight booking for travel agencies.</span>
+          <span class="footer-legal-name">© 2026 Consolidator Aviatech Limited (شركة توحيد أفياتيك المحدودة)</span>
+        </div>
+        <div class="footer-cols">
+          <div class="footer-col">
+            <div class="footer-col-title" id="footer-col-platform">Platform</div>
+            <a href="/widget-demo.html" id="footer-link-demo">Widget Demo</a>
+            <a href="/#pricing" id="footer-link-pricing">Pricing</a>
+            <a href="/docs/" id="footer-link-docs">Documentation</a>
+            <a href="/app-preview.html" id="footer-link-portal">Portal Preview</a>
+          </div>
+          <div class="footer-col">
+            <div class="footer-col-title" id="footer-col-contact">Contact</div>
+            <a href="/#contact" id="footer-link-sales">Contact Sales</a>
+            <a href="mailto:sales@aviaframe.com">sales@aviaframe.com</a>
+            <a href="mailto:support@aviaframe.com">support@aviaframe.com</a>
+            <a href="mailto:info.sa@consolodator.aero">info.sa@consolodator.aero</a>
+            <a href="https://wa.me/966567189306">WhatsApp +966 56 718 9306</a>
+          </div>
+          <div class="footer-col">
+            <div class="footer-col-title" id="footer-col-legal">Legal</div>
+            <a href="/legal/terms-and-conditions.html" id="footer-legal-terms">Terms &amp; Conditions</a>
+            <a href="/legal/refund-and-cancellation-policy.html" id="footer-legal-refund">Refund Policy</a>
+            <a href="/legal/privacy-policy.html" id="footer-legal-privacy">Privacy Policy</a>
+            <a href="/legal/contact-information.html" id="footer-legal-contact">Contact Information</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/config.js"></script>
+  <script>
+    const RUNTIME = window.AVIAFRAME_RUNTIME_CONFIG || {};
+    const BACKEND = RUNTIME.backendUrl || 'https://peaceful-amazement-production-629f.up.railway.app';
+    const AGENCY_KEY = RUNTIME.agencyKey || 'ag_eed8b706614bee6a4712686d1026f02b6a862485';
+    const MOYASAR_PK = RUNTIME.moyasarPublicKey || 'pk_live_iXhEB7xrWqPoh2SMRBt45fA73mVoKKa8EjZt5end';
+    const SITE_ORIGIN_HOST =
+      RUNTIME.bookingOriginHost ||
+      RUNTIME.siteOriginHost ||
+      window.location.hostname ||
+      'aviaframe.com';
+    const DEFAULT_DRY_RUN = Boolean(RUNTIME.defaultDryRunIssue);
+    const PAYMENT_RETURN_URL = RUNTIME.paymentReturnUrl || `${window.location.origin}/booking.html`;
+    const SHOW_TEST_PAYMENT_CARDS = (
+      typeof RUNTIME.showTestPaymentCards === 'boolean'
+        ? RUNTIME.showTestPaymentCards
+        : /(^|\.)testenvavia\.netlify\.app$/i.test(window.location.hostname)
+    );
+    const ENABLE_CARD_FEE_PREVIEW = (
+      typeof RUNTIME.enableCardFeePreview === 'boolean'
+        ? RUNTIME.enableCardFeePreview
+        : /(^|\.)testenvavia\.netlify\.app$/i.test(window.location.hostname)
+    );
+    const ENABLE_OFFER_PRICE_FLOW = (
+      typeof RUNTIME.enableOfferPriceFlow === 'boolean'
+        ? RUNTIME.enableOfferPriceFlow
+        : /(^|\.)testenvavia\.netlify\.app$/i.test(window.location.hostname)
+    );
+    const CARD_LOOKUP_MIN_DIGITS = 16;
+    const PAGE_PARAMS = new URLSearchParams(window.location.search);
+    const DRY_RUN_PARAM = PAGE_PARAMS.get('dry_run');
+    const DRY_RUN_MODE = DRY_RUN_PARAM === '1' || (DRY_RUN_PARAM !== '0' && DEFAULT_DRY_RUN);
+
+    function getLang() {
+      try { return localStorage.getItem('aviaframe-lang') || 'en'; } catch(e) { return 'en'; }
+    }
+    function applyFooterLang(lang) {
+      const T = {
+        en: {
+          footer_tagline: 'White-label flight booking for travel agencies.',
+          footer_col_platform: 'Platform',
+          footer_col_contact: 'Contact',
+          footer_col_legal: 'Legal',
+          footer_lnk_demo: 'Widget Demo',
+          footer_lnk_pricing: 'Pricing',
+          footer_lnk_docs: 'Documentation',
+          footer_lnk_portal: 'Portal Preview',
+          footer_lnk_sales: 'Contact Sales',
+          legal_terms: 'Terms & Conditions',
+          legal_refund: 'Refund Policy',
+          legal_privacy: 'Privacy Policy',
+          legal_contact_info: 'Contact Information'
+        },
+        ar: {
+          footer_tagline: 'حجز تذاكر طيران بعلامتك التجارية لوكالات السفر.',
+          footer_col_platform: 'المنصة',
+          footer_col_contact: 'التواصل',
+          footer_col_legal: 'القانونية',
+          footer_lnk_demo: 'عرض الويدجت',
+          footer_lnk_pricing: 'الأسعار',
+          footer_lnk_docs: 'التوثيق',
+          footer_lnk_portal: 'معاينة البوابة',
+          footer_lnk_sales: 'تواصل مع المبيعات',
+          legal_terms: 'الشروط والأحكام',
+          legal_refund: 'سياسة الاسترداد',
+          legal_privacy: 'سياسة الخصوصية',
+          legal_contact_info: 'معلومات الاتصال'
+        }
+      };
+      const t = T[lang] || T.en;
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      setText('footer-tagline', t.footer_tagline);
+      setText('footer-col-platform', t.footer_col_platform);
+      setText('footer-col-contact', t.footer_col_contact);
+      setText('footer-col-legal', t.footer_col_legal);
+      setText('footer-link-demo', t.footer_lnk_demo);
+      setText('footer-link-pricing', t.footer_lnk_pricing);
+      setText('footer-link-docs', t.footer_lnk_docs);
+      setText('footer-link-portal', t.footer_lnk_portal);
+      setText('footer-link-sales', t.footer_lnk_sales);
+      setText('footer-legal-terms', t.legal_terms);
+      setText('footer-legal-refund', t.legal_refund);
+      setText('footer-legal-privacy', t.legal_privacy);
+      setText('footer-legal-contact', t.legal_contact_info);
+    }
+    applyFooterLang(getLang());
+
+    const PAY_ERRORS = {
+      // Card number
+      invalid_card_number:      { en: 'Invalid card number. Please check the number and try again.',       ar: 'رقم البطاقة غير صحيح. يرجى التحقق من الرقم والمحاولة مرة أخرى.' },
+      // Funds / limits
+      insufficient_funds:       { en: 'Insufficient funds on your card. Please top up or use a different card.',  ar: 'رصيد البطاقة غير كافٍ. يرجى تعبئة الرصيد أو استخدام بطاقة أخرى.' },
+      exceeds_limit:            { en: 'Transaction exceeds your card\'s limit. Please use a different card.',      ar: 'المبلغ يتجاوز الحد المسموح به للبطاقة. يرجى استخدام بطاقة أخرى.' },
+      // Expiry / CVV
+      expired_card:             { en: 'Your card has expired. Please use a different card.',                ar: 'انتهت صلاحية البطاقة. يرجى استخدام بطاقة أخرى.' },
+      invalid_expiry_date:      { en: 'Invalid expiry date. Please check the month and year.',              ar: 'تاريخ انتهاء الصلاحية غير صحيح. يرجى التحقق من الشهر والسنة.' },
+      invalid_cvc:              { en: 'Invalid CVV code. Please check the 3-digit code on the back of your card.', ar: 'رمز CVV غير صحيح. يرجى التحقق من الرمز المكوّن من 3 أرقام على ظهر البطاقة.' },
+      // PIN
+      incorrect_pin:            { en: 'Incorrect PIN. Please try again or use a different card.',           ar: 'الرقم السري غير صحيح. يرجى المحاولة مرة أخرى أو استخدام بطاقة أخرى.' },
+      pin_tries_exceeded:       { en: 'Too many incorrect PIN attempts. Please contact your bank.',         ar: 'تجاوزت عدد محاولات الرقم السري. يرجى التواصل مع البنك.' },
+      // Bank declines
+      do_not_honor:             { en: 'Payment declined by your bank. Please contact your bank or use a different card.', ar: 'رفض البنك إتمام الدفعة. يرجى التواصل مع البنك أو استخدام بطاقة أخرى.' },
+      card_blocked:             { en: 'This card has been blocked. Please contact your bank immediately.',  ar: 'تم إيقاف هذه البطاقة. يرجى التواصل مع البنك فوراً.' },
+      restricted_card:          { en: 'This card cannot be used for this transaction. Please use a different card.', ar: 'لا يمكن استخدام هذه البطاقة لهذه المعاملة. يرجى استخدام بطاقة أخرى.' },
+      function_not_supported:   { en: 'Your card does not support online payments. Please use a different card.', ar: 'بطاقتك لا تدعم المدفوعات الإلكترونية. يرجى استخدام بطاقة أخرى.' },
+      card_velocity_exceeded:   { en: 'Too many payment attempts. Please wait a few minutes and try again.', ar: 'تجاوزت عدد المحاولات المسموح به. يرجى الانتظار دقائق والمحاولة مجدداً.' },
+      card_not_supported:       { en: 'This card type is not supported. Please use Visa, Mastercard or mada.', ar: 'نوع البطاقة غير مدعوم. يرجى استخدام Visa أو Mastercard أو mada.' },
+      unsupported_currency:    { en: 'This payment gateway does not support the ticket currency for this booking yet. Please contact support to complete the order.', ar: 'بوابة الدفع الحالية لا تدعم عملة التذكرة لهذا الحجز حالياً. يرجى التواصل مع الدعم لإكمال الطلب.' },
+      // Duplicate
+      duplicate_transaction:    { en: 'Duplicate transaction detected. Please wait a moment before trying again.', ar: 'تم رصد معاملة مكررة. يرجى الانتظار قليلاً قبل المحاولة مجدداً.' },
+      // Bank / network unavailable
+      bank_unavailable:         { en: 'Your bank is temporarily unavailable. Please try again in a few minutes.', ar: 'البنك غير متاح مؤقتاً. يرجى المحاولة مرة أخرى بعد بضع دقائق.' },
+      PAYMENT_GATEWAY_ERROR:    { en: 'Payment service error. Please try again in a moment.',               ar: 'خطأ في خدمة الدفع. يرجى المحاولة مرة أخرى بعد قليل.' },
+      NETWORK_ERROR:            { en: 'Connection error. Please check your internet and try again.',        ar: 'خطأ في الاتصال. يرجى التحقق من الإنترنت والمحاولة مرة أخرى.' },
+      DEFAULT:                  { en: 'Payment failed. Please try again or use a different card.',          ar: 'فشل الدفع. يرجى المحاولة مرة أخرى أو استخدام بطاقة أخرى.' },
+    };
+
+    function payErrorMsg(code, fallbackMsg) {
+      const lang = getLang();
+      const entry = PAY_ERRORS[code] || PAY_ERRORS.DEFAULT;
+      // Append WhatsApp support link
+      const waLink = lang === 'ar'
+        ? ' <a href="https://wa.me/966567189306" target="_blank" style="color:#b91c1c;text-decoration:underline">تواصل مع الدعم</a>'
+        : ' <a href="https://wa.me/966567189306" target="_blank" style="color:#b91c1c;text-decoration:underline">Contact support</a>';
+      return entry[lang] + waLink;
+    }
+
+    const root = document.getElementById('root');
+
+    function fmt(v) {
+      if (!v) return '—';
+      const d = new Date(v);
+      if (isNaN(d)) return v;
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    function fmtTime(v) {
+      if (!v) return '—';
+      const d = new Date(v);
+      if (isNaN(d)) return String(v).slice(0, 5);
+      return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+    function roundMoney(v) {
+      return Math.round(Number(v || 0) * 100) / 100;
+    }
+    function formatAmount(v, currency = 'SAR') {
+      return `${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+    }
+    function normalizeCardDigits(cardDigits = '') {
+      return String(cardDigits || '').replace(/\D/g, '');
+    }
+    function paymentSchemeLabel(quote) {
+      if (!quote) return 'Card type pending';
+      if (quote.pricing_tier === 'sandbox_estimated_non_sar') {
+        if (quote.scheme === 'visa') return 'Visa';
+        if (quote.scheme === 'mastercard') return 'Mastercard';
+        if (quote.scheme === 'mada') return 'mada';
+        return 'Sandbox demo card';
+      }
+      if (quote.pricing_tier === 'mada_local') return 'mada';
+      if (quote.pricing_tier === 'local_credit_card') return quote.scheme === 'visa' ? 'Saudi-issued Visa' : 'Saudi-issued Mastercard';
+      if (quote.pricing_tier === 'international_card') return quote.scheme === 'visa' ? 'International Visa' : 'International Mastercard';
+      return 'Card type pending';
+    }
+    function paymentFeeRateLabel(quote) {
+      if (!quote || !Number.isFinite(Number(quote.rate))) return '';
+      return `${(Number(quote.rate) * 100).toFixed(Number(quote.rate) === 0.01 ? 0 : 2)}%`;
+    }
+    function paymentFeeSummaryLabel(quote) {
+      if (!quote) return '';
+      if (quote.pricing_tier === 'sandbox_estimated_non_sar') {
+        return `${paymentSchemeLabel(quote)} · Demo estimate · ${paymentFeeRateLabel(quote)} + fixed fee + VAT`;
+      }
+      return `${paymentSchemeLabel(quote)} · ${paymentFeeRateLabel(quote)} + 1 SAR + VAT`;
+    }
+    function paymentHasDetailedFeeBreakdown(quote) {
+      return Boolean(quote);
+    }
+    function renderBreakdownRows(quote, options = {}) {
+      const ticketTotal = Number.isFinite(Number(quote?.order_subtotal))
+        ? roundMoney(Math.max(0, Number(quote.order_subtotal) - _baggagePrice))
+        : roundMoney(Math.max(0, _totalPrice - _baggagePrice));
+      const baggageRow = _baggagePrice > 0
+        ? `<div class="price-breakdown-row"><span class="lbl">Baggage</span><span class="val">${formatAmount(_baggagePrice, _currency)}</span></div>`
+        : '';
+      const subtotalValue = Number.isFinite(Number(quote?.order_subtotal))
+        ? formatAmount(quote.order_subtotal, _currency)
+        : formatAmount(_totalPrice, _currency);
+      const subtotalRow = `<div class="price-breakdown-row"><span class="lbl">Booking subtotal</span><span class="val">${subtotalValue}</span></div>`;
+      const feeLine = !quote
+        ? `<div class="price-breakdown-row"><span class="lbl">Card processing fee</span><span class="val">Calculated after secure card verification</span></div>`
+        : `<div class="price-breakdown-row"><span class="lbl">Card processing fee <span class="sub">${paymentFeeSummaryLabel(quote)}</span></span><span class="val">${formatAmount(quote.processing_fee_total, _currency)}</span></div>`;
+      const feeBreakdownRows = !quote || !paymentHasDetailedFeeBreakdown(quote)
+        ? ''
+        : `
+          <div class="price-breakdown-row"><span class="lbl">Percentage fee</span><span class="val">${formatAmount(quote.variable_fee, _currency)}</span></div>
+          <div class="price-breakdown-row"><span class="lbl">Gateway fixed fee</span><span class="val">${formatAmount(quote.fixed_fee, _currency)}</span></div>
+          <div class="price-breakdown-row"><span class="lbl">VAT on fees</span><span class="val">${formatAmount(quote.vat_amount, _currency)}</span></div>
+        `;
+      const totalLine = !quote
+        ? `<div class="price-breakdown-row total"><span class="lbl">Total to pay</span><span class="val">Shown before payment confirmation</span></div>`
+        : `<div class="price-breakdown-row total"><span class="lbl">Total to pay</span><span class="val">${formatAmount(quote.final_payable_amount, _currency)}</span></div>`;
+      return `
+        <div class="price-breakdown-row"><span class="lbl">Ticket price</span><span class="val">${formatAmount(ticketTotal, _currency)}</span></div>
+        ${baggageRow}
+        ${subtotalRow}
+        ${feeLine}
+        ${feeBreakdownRows}
+        ${totalLine}
+        ${options.includeRefundNote ? `<div class="price-breakdown-note" style="margin:10px 0 0;color:#64748b">Card processing fee is non-refundable for customer-initiated cancellations after successful payment.</div>` : ''}
+      `;
+    }
+    function buildPreviewSummary(quote) {
+      if (!ENABLE_CARD_FEE_PREVIEW || !quote) return '';
+      const ticketTotal = roundMoney(Math.max(0, Number(quote.order_subtotal || _totalPrice) - _baggagePrice));
+      const totalLabel = quote.estimate_only ? 'Estimated total charged' : 'Total charged';
+      const feeLabel = quote.estimate_only ? 'Estimated card processing fee' : 'Card processing fee';
+      return `
+        <div class="invoice-box" style="text-align:left">
+          <h3>Payment Summary</h3>
+          <div class="invoice-row"><span class="lbl">Ticket price</span><span class="val">${formatAmount(ticketTotal, _currency)}</span></div>
+          ${_baggagePrice > 0 ? `<div class="invoice-row"><span class="lbl">Baggage</span><span class="val">${formatAmount(_baggagePrice, _currency)}</span></div>` : ''}
+          <div class="invoice-row"><span class="lbl">Booking subtotal</span><span class="val">${formatAmount(quote.order_subtotal, _currency)}</span></div>
+          <div class="invoice-row"><span class="lbl">${feeLabel}</span><span class="val">${formatAmount(quote.processing_fee_total, _currency)}</span></div>
+          <div class="invoice-row"><span class="lbl">${totalLabel}</span><span class="val">${formatAmount(quote.final_payable_amount, _currency)}</span></div>
+        </div>
+      `;
+    }
+    function buildWidgetPassengerPayload() {
+      return [{
+        type: 'ADT',
+        first_name: _pax.firstName,
+        last_name: _pax.lastName,
+        date_of_birth: _pax.dateOfBirth,
+        gender: _pax.gender,
+        document: {
+          type: 'passport',
+          number: _pax.passportNumber,
+          expiry_date: _pax.passportExpiry,
+          issuing_country: _pax.nationality || 'SA'
+        }
+      }];
+    }
+    function buildWidgetOrderOffer() {
+      return {
+        ...(_offer || {}),
+        origin: _offer.origin,
+        destination: _offer.destination,
+        departure_time: _offer.departure_time,
+        arrival_time: _offer.arrival_time,
+        airline_code: _offer.airline_code,
+        airline_name: _offer.airline_name,
+        flight_number: _offer.flight_number,
+        base_price: _basePrice,
+        taxes: _taxes,
+        total_price: _totalPrice,
+        currency: _currency,
+        offer_id: _offer.offer_id || _offer.id || null
+      };
+    }
+    function buildWidgetPricingPayload() {
+      return {
+        base_price: _basePrice,
+        taxes: _taxes,
+        baggage_price: _baggagePrice,
+        markup_amount: _markupAmount,
+        total_price: _totalPrice,
+        currency: _currency
+      };
+    }
+    function buildOfferPriceStatusHtml() {
+      if (!_offerPriceConfirmed) return '';
+      if (_offerPriceChanged) {
+        return `
+          <div class="price-disclaimer" style="background:#fff7ed;border-color:#fdba74;color:#9a3412">
+            <strong>Final fare updated by airline.</strong> The live price changed from ${formatAmount(_offerPriceOriginalTotal, _currency)} to ${formatAmount(_totalPrice, _currency)} before card processing fee.
+          </div>
+        `;
+      }
+      return `
+        <div class="price-disclaimer" style="background:#ecfdf5;border-color:#86efac;color:#166534">
+          <strong>Final fare confirmed by airline.</strong> The live ticket total is ${formatAmount(_totalPrice, _currency)} before card processing fee.
+        </div>
+      `;
+    }
+    async function confirmOfferPrice() {
+      if (_offerPriceConfirmed) return true;
+      const originalTotal = Number(_totalPrice || 0);
+      try {
+        const resp = await fetch(`${BACKEND}/api/widget/price-offer`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${_token}`,
+            'Idempotency-Key': `wgt_price_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+          },
+          body: JSON.stringify({
+            offer: buildWidgetOrderOffer(),
+            passengers: buildWidgetPassengerPayload(),
+            metadata: {
+              origin_host: SITE_ORIGIN_HOST,
+              source: 'widget_demo',
+              dry_run_issue: DRY_RUN_MODE
+            }
+          })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(data?.error?.message || `OfferPrice failed with status ${resp.status}`);
+        }
+
+        const pricedOffer = data?.priced_offer || null;
+        const pricedPricing = data?.pricing || {};
+        const confirmedFareTotal = Number(pricedPricing.total_price || pricedOffer?.price?.total || _basePrice || 0);
+        const confirmedTaxes = Number(pricedPricing.taxes || pricedOffer?.price?.breakdown?.taxes || _taxes || 0);
+        const confirmedCurrency = String(pricedPricing.currency || pricedOffer?.price?.currency || _currency || 'SAR').toUpperCase();
+
+        _pricedOffer = pricedOffer;
+        _offerPriceData = data;
+        _offerPriceOriginalTotal = originalTotal;
+        _offerPriceChanged = Boolean(data?.price_changed) || Math.abs((confirmedFareTotal + _baggagePrice) - originalTotal) > 0.009;
+        _offerPriceConfirmed = true;
+        if (pricedOffer && typeof pricedOffer === 'object') {
+          _offer = pricedOffer;
+        }
+        _basePrice = confirmedFareTotal;
+        _taxes = confirmedTaxes;
+        _currency = confirmedCurrency;
+        _totalPrice = roundMoney(confirmedFareTotal + _baggagePrice);
+        _paymentQuote = null;
+        _paymentQuoteStatus = 'idle';
+        return true;
+      } catch (err) {
+        renderError(`Unable to confirm final fare before payment: ${err.message}`);
+        return false;
+      }
+    }
+
+    function renderError(msg, backBtn = true) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="error-box">${msg}</div>
+          ${backBtn ? '<a class="btn-back" href="/widget-demo.html">← Back to Search</a>' : ''}
+        </div>`;
+    }
+
+    function renderSuccess(orderNumber, email, options = {}) {
+      const lang = (function(){ try{ return localStorage.getItem('aviaframe-lang')||'en'; }catch(e){ return 'en'; } })();
+      const isAr = lang === 'ar';
+      const dir = isAr ? 'rtl' : 'ltr';
+      const dryRunIssue = Boolean(options.dryRunIssue);
+      const deliveryNote = dryRunIssue
+        ? (email
+          ? `🧪 ${isAr
+            ? `هذا الطلب في وضع <strong>Dry Run</strong>. لن تتم أي عملية إصدار حقيقية في DRCT، لكن سيتم إرسال <strong>تذكرة PDF تجريبية</strong> إلى <strong>${email}</strong> خلال ثوانٍ معدودة.`
+            : `This order is in <strong>Dry Run</strong> mode. No real DRCT ticket issuance will happen, but a <strong>demo PDF ticket</strong> will be sent to <strong>${email}</strong> within a few seconds.`}`
+          : `🧪 ${isAr
+            ? 'هذا الطلب في وضع <strong>Dry Run</strong>. لن تتم أي عملية إصدار حقيقية في DRCT، وسيتم تجهيز تذكرة PDF تجريبية خلال ثوانٍ معدودة.'
+            : 'This order is in <strong>Dry Run</strong> mode. No real DRCT ticket issuance will happen, and a demo PDF ticket is being prepared now.'}`)
+        : (email
+          ? `📧 ${isAr
+            ? `ستُرسَل <strong>تذكرتك الإلكترونية PDF</strong> إلى <strong>${email}</strong> خلال ثوانٍ معدودة. تحقق من صندوق الوارد (ومجلد البريد العشوائي).`
+            : `Your <strong>PDF e-ticket</strong> will be sent to <strong>${email}</strong> within a few seconds. Check your inbox (and spam folder).`}`
+          : `📧 ${isAr
+            ? 'يتم الآن تجهيز تذكرتك الإلكترونية PDF. تحقق من بريدك الإلكتروني خلال لحظات قليلة.'
+            : 'Your PDF e-ticket is now being prepared. Please check your email in the next few moments.'}`);
+      root.innerHTML = `
+        <div class="card" dir="${dir}">
+          <div class="success-box">
+            <div class="success-icon">✅</div>
+            <div class="success-title">${isAr ? 'تمّت عملية الدفع بنجاح!' : 'Payment Successful!'}</div>
+            <div class="success-sub">${dryRunIssue
+              ? (isAr ? 'تم استلام الدفعة في وضع الاختبار، ويتم الآن إنشاء تذكرة تجريبية وإرسالها إلى بريدك الإلكتروني.' : 'Payment was received in test mode and a demo e-ticket is now being generated for your email.')
+              : (isAr ? 'تم تأكيد حجزك وجاري إصدار تذكرتك الإلكترونية.' : 'Your booking is confirmed and your e-ticket is being generated.')
+            }</div>
+            <div class="order-ref">${isAr ? 'رقم مرجع الحجز' : 'Booking Reference'}: ${orderNumber}</div>
+            ${buildPreviewSummary(options.paymentPreview)}
+            <div class="ticket-note">${deliveryNote}</div>
+            <a class="btn-back" href="/widget-demo.html">${isAr ? 'البحث عن رحلة أخرى ←' : '← Search Another Flight'}</a>
+          </div>
+        </div>`;
+    }
+
+    function clearPendingPaymentContext() {
+      localStorage.removeItem('pendingOrderId');
+      localStorage.removeItem('pendingOrderEmail');
+      localStorage.removeItem('pendingOrderNumber');
+      localStorage.removeItem('pendingPaymentQuote');
+    }
+
+    function getPaymentQuoteButtonText() {
+      if (!ENABLE_CARD_FEE_PREVIEW) return `Pay ${formatAmount(_totalPrice, _currency)}`;
+      if (_paymentQuoteStatus === 'loading') return 'Checking final payable amount...';
+      if (_paymentQuoteStatus === 'ready' && _paymentQuote) {
+        return `Pay ${formatAmount(_paymentQuote.final_payable_amount, _currency)}`;
+      }
+      return 'Confirm total after card verification';
+    }
+
+    function getPaymentQuoteTotalText() {
+      if (!ENABLE_CARD_FEE_PREVIEW) return formatAmount(_totalPrice, _currency);
+      if (_paymentQuoteStatus === 'loading') return 'Checking with payment provider...';
+      if (_paymentQuoteStatus === 'ready' && _paymentQuote) {
+        return formatAmount(_paymentQuote.final_payable_amount, _currency);
+      }
+      return 'Shown after secure card verification';
+    }
+
+    function getPaymentQuoteChipText() {
+      if (_paymentQuoteStatus === 'loading') return 'Checking card type securely...';
+      if (_paymentQuoteStatus === 'ready' && _paymentQuote) {
+        return `Card verified: ${paymentSchemeLabel(_paymentQuote)}`;
+      }
+      return 'Enter your full card number to confirm the final payable amount';
+    }
+
+    function getPaymentQuoteDisclaimerHtml() {
+      if (_paymentQuoteStatus === 'ready' && _paymentQuote) {
+        const readyStyle = _paymentQuote.estimate_only
+          ? 'background:#eff6ff;border-color:#93c5fd;color:#1d4ed8'
+          : 'background:#ecfdf5;border-color:#86efac;color:#166534';
+        return `
+          <div class="price-disclaimer" style="${readyStyle}">
+            <strong>Final payable amount confirmed.</strong> ${_paymentQuote.message}
+          </div>
+        `;
+      }
+      return `
+        <div class="price-disclaimer">
+          <strong>Final payable amount is shown before you pay.</strong> We verify the card type with our payment provider first, then display any applicable processing fee.
+        </div>
+      `;
+    }
+
+    function updatePaymentQuoteUi(errorHtml = '') {
+      if (!ENABLE_CARD_FEE_PREVIEW) return;
+      const breakdown = document.getElementById('payment-breakdown');
+      const chip = document.getElementById('card-scheme-chip');
+      const totalAmount = document.getElementById('final-payable-amount');
+      const payBtn = document.getElementById('pay-btn');
+      const payErr = document.getElementById('pay-error');
+      const disclaimer = document.getElementById('payment-quote-disclaimer');
+
+      if (breakdown) {
+        breakdown.innerHTML = `<h3>Payment total</h3>${renderBreakdownRows(_paymentQuote, { includeRefundNote: true })}`;
+      }
+      if (chip) {
+        chip.classList.toggle('active', _paymentQuoteStatus === 'ready' && Boolean(_paymentQuote));
+        chip.textContent = getPaymentQuoteChipText();
+      }
+      if (totalAmount) {
+        totalAmount.textContent = getPaymentQuoteTotalText();
+      }
+      if (payBtn) {
+        payBtn.textContent = getPaymentQuoteButtonText();
+        payBtn.disabled = _paymentQuoteStatus !== 'ready' || !_paymentQuote;
+      }
+      if (payErr) {
+        payErr.innerHTML = errorHtml || '';
+      }
+      if (disclaimer) {
+        disclaimer.innerHTML = getPaymentQuoteDisclaimerHtml();
+      }
+    }
+
+    async function requestPaymentQuote(orderId, cardDigits) {
+      const requestId = ++_paymentQuoteRequestSeq;
+      _paymentQuoteStatus = 'loading';
+      _paymentQuote = null;
+      updatePaymentQuoteUi();
+
+      try {
+        const resp = await fetch(`${BACKEND}/api/payments/card-scheme-check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId,
+            card_number: cardDigits
+          })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (requestId !== _paymentQuoteRequestSeq) return;
+
+        if (!resp.ok) {
+          _paymentQuoteStatus = 'error';
+          _paymentQuote = null;
+          updatePaymentQuoteUi(`<div class="error-box">${payErrorMsg(data?.error?.code || 'DEFAULT', data?.error?.message)}</div>`);
+          return;
+        }
+
+        _paymentQuote = data?.payment_pricing || null;
+        _paymentQuoteStatus = _paymentQuote ? 'ready' : 'idle';
+        updatePaymentQuoteUi();
+      } catch (_) {
+        if (requestId !== _paymentQuoteRequestSeq) return;
+        _paymentQuoteStatus = 'error';
+        _paymentQuote = null;
+        updatePaymentQuoteUi(`<div class="error-box">${payErrorMsg('NETWORK_ERROR')}</div>`);
+      }
+    }
+
+    // ── Card payment return page handler ──────────────────────────────────────
+    (function checkCardPaymentReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const paymentResult = params.get('payment_result');
+      const returnedOrderId = params.get('order_id');
+      const pendingOrderId = localStorage.getItem('pendingOrderId');
+
+      if (!paymentResult) return;
+      if (!returnedOrderId) {
+        renderError('Payment confirmation was received without an order reference. Please contact support.');
+        clearPendingPaymentContext();
+        return;
+      }
+
+      const hasMatchingPendingOrder = pendingOrderId && returnedOrderId === pendingOrderId;
+      const email = hasMatchingPendingOrder ? (localStorage.getItem('pendingOrderEmail') || '') : '';
+      const orderNumber = hasMatchingPendingOrder
+        ? (localStorage.getItem('pendingOrderNumber') || returnedOrderId)
+        : returnedOrderId;
+      let pendingQuote = null;
+      try {
+        if (hasMatchingPendingOrder) {
+          pendingQuote = JSON.parse(localStorage.getItem('pendingPaymentQuote') || 'null');
+        }
+      } catch (_) {}
+
+      clearPendingPaymentContext();
+
+      if (paymentResult === 'success') {
+        localStorage.removeItem('selectedOffer');
+        localStorage.removeItem('passengerData');
+        renderSuccess(orderNumber, email, { paymentPreview: pendingQuote });
+        return;
+      }
+
+      root.innerHTML = `<div class="card"><div class="error-box">Payment was not completed. Please try again or use a different card.</div><a class="btn-back" href="/widget-demo.html">← Back to Search</a></div>`;
+    })();
+
+    // ── Tamara return page handler ────────────────────────────────────────────
+    (async function checkTamaraReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const tamaraOrderId = params.get('order_id') || params.get('orderId');
+      const isTamaraReturn = params.has('paymentStatus');
+      const pendingOrderId = localStorage.getItem('pendingOrderId');
+
+      if (!isTamaraReturn || !pendingOrderId) return; // not a Tamara return
+
+      const root2 = document.getElementById('root');
+      const email = localStorage.getItem('pendingOrderEmail') || '';
+
+      root2.innerHTML = `<div class="card"><div class="loading"><div class="spinner"></div><p>Waiting for payment confirmation...</p></div></div>`;
+
+      // Poll backend for final status (max 30s)
+      const POLL_INTERVAL = 2500;
+      const POLL_MAX = 12;
+      let attempts = 0;
+
+      const poll = async () => {
+        attempts++;
+        try {
+          const r = await fetch(`${BACKEND}/api/payments/tamara/status/${pendingOrderId}`);
+          if (!r.ok) throw new Error('status fetch failed');
+          const d = await r.json();
+          const ps = d.payment_provider_status || '';
+          const s = d.status || '';
+
+          if (ps === 'tamara_captured' || s === 'issued') {
+            localStorage.removeItem('pendingOrderId');
+            localStorage.removeItem('pendingOrderEmail');
+            renderSuccess(d.order_number || pendingOrderId, email);
+            return;
+          }
+          if (ps === 'tamara_cancelled' || ps === 'tamara_failed' || ps === 'tamara_expired' || s === 'cancelled' || s === 'issue_failed') {
+            localStorage.removeItem('pendingOrderId');
+            localStorage.removeItem('pendingOrderEmail');
+            root2.innerHTML = `<div class="card"><div class="error-box">Payment was not completed. Please try again or choose a different payment method.</div><a class="btn-back" href="/widget-demo.html">← Back to Search</a></div>`;
+            return;
+          }
+          // Still processing
+          if (ps === 'tamara_approved' || ps === 'tamara_authorised' || ps === 'tamara_capture_pending') {
+            root2.innerHTML = `<div class="card"><div class="loading"><div class="spinner"></div><p>${ps === 'tamara_approved' ? 'Payment approved, finalising your booking...' : ps === 'tamara_authorised' ? 'Your ticket is being issued...' : 'Finalising...'}</p></div></div>`;
+          }
+        } catch (_) {}
+
+        if (attempts < POLL_MAX) {
+          setTimeout(poll, POLL_INTERVAL);
+        } else {
+          // Timeout — show pending message
+          root2.innerHTML = `<div class="card"><div class="success-box"><div class="success-icon">⏳</div><div class="success-title">Payment Received</div><div class="success-sub">Your ticket is being processed. You'll receive a confirmation email shortly.</div><div class="order-ref">Order: ${pendingOrderId}</div><a class="btn-back" href="/widget-demo.html">← Search Another Flight</a></div></div>`;
+          localStorage.removeItem('pendingOrderId');
+          localStorage.removeItem('pendingOrderEmail');
+        }
+      };
+
+      setTimeout(poll, POLL_INTERVAL);
+    })();
+
+    let _token = null, _offer = null, _pax = null, _sessionData = null;
+    let _totalPrice = 0, _basePrice = 0, _taxes = 0, _baggagePrice = 0, _currency = 'SAR', _markupAmount = 0;
+    let _pricedOffer = null, _offerPriceData = null, _offerPriceConfirmed = false, _offerPriceChanged = false, _offerPriceOriginalTotal = 0;
+    let _paymentQuote = null, _paymentQuoteStatus = 'idle', _paymentQuoteLookupTimer = null, _paymentQuoteRequestSeq = 0;
+
+    (async function () {
+      // Skip main flow if this is a Tamara return page
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('paymentStatus') || params.has('payment_result') || (params.has('order_id') && localStorage.getItem('pendingOrderId'))) return;
+
+      // Read offer & passenger from localStorage
+      const offerRaw = localStorage.getItem('selectedOffer');
+      const paxRaw = localStorage.getItem('passengerData');
+      if (!offerRaw || !paxRaw) {
+        renderError('No booking data found. Please return to search and select a flight.');
+        return;
+      }
+      try { _offer = JSON.parse(offerRaw); _pax = JSON.parse(paxRaw); }
+      catch { renderError('Failed to read booking data.'); return; }
+
+      const baggagePrices = { none: 0, '20kg': 500, '30kg': 750 };
+      _baggagePrice = baggagePrices[_pax.baggage] || 0;
+      _basePrice = (_offer.price || {}).total || _offer.total_price || 0;
+      _taxes = (_offer.price || {}).taxes || 0;
+      _markupAmount = (_offer.price || {}).markup_amount || 0;
+      _totalPrice = _basePrice + _baggagePrice;
+      _currency = (_offer.price || {}).currency || 'SAR';
+
+      // Step 1: Get widget session (includes payment_methods)
+      try {
+        const sessResp = await fetch(`${BACKEND}/api/widget/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agency_key: AGENCY_KEY, origin_host: SITE_ORIGIN_HOST })
+        });
+        if (!sessResp.ok) {
+          const errData = await sessResp.json().catch(() => ({}));
+          renderError(`Session error: ${errData?.error?.message || sessResp.status}`);
+          return;
+        }
+        _sessionData = await sessResp.json();
+        _token = _sessionData.widget_token;
+      } catch (e) {
+        renderError(`Cannot connect to booking server: ${e.message}`);
+        return;
+      }
+
+      const paymentMethods = _sessionData?.agency?.settings?.payment_methods || ['online'];
+
+      // Load Tamara config
+      let _tamaraEnabled = false;
+      let _tamaraPublicKey = '';
+      try {
+        const tcResp = await fetch(`${BACKEND}/api/payments/tamara/config`);
+        if (tcResp.ok) {
+          const tc = await tcResp.json();
+          _tamaraEnabled = tc.enabled && _currency === 'SAR';
+          _tamaraPublicKey = tc.public_key || '';
+        }
+      } catch (_) {}
+
+      // Inject Tamara widget script if enabled
+      if (_tamaraEnabled && _tamaraPublicKey) {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.tamara.co/widget-v2/tamara-widget.js';
+        s.setAttribute('data-public-key', _tamaraPublicKey);
+        s.defer = true;
+        document.head.appendChild(s);
+      }
+
+      // Step 2: Show flight summary + payment method selector
+      const orig = (_offer.origin || '???').toUpperCase();
+      const dest = (_offer.destination || '???').toUpperCase();
+      const total = Number(_totalPrice).toLocaleString('en-US');
+      _paymentQuote = null;
+      _paymentQuoteStatus = 'idle';
+
+      // Build methods including Tamara if eligible
+      const allMethods = [...paymentMethods];
+      if (_tamaraEnabled && !allMethods.includes('tamara')) allMethods.push('tamara');
+
+      const methodsHtml = allMethods.length > 1
+        ? `<div class="section-label" style="margin-top:20px">How would you like to pay?</div>
+           <div class="method-selector" id="method-selector">
+             ${allMethods.map((m, i) => {
+               const icons = { online: '💳', cash: '💵', invoice: '📄', tamara: '' };
+               const names = { online: 'Online Payment', cash: 'Cash at Office', invoice: 'Bank Invoice', tamara: 'Pay with Tamara' };
+               const descs = { online: 'Pay now by card', cash: 'Visit our office', invoice: 'Bank transfer', tamara: 'Instalments · Buy now pay later' };
+               const tamaraLogoHtml = m === 'tamara'
+                 ? `<img src="https://cdn.tamara.co/assets/svg/tamara-logo-badge-en.svg" alt="Tamara" style="height:22px;margin-bottom:2px;" />`
+                 : '';
+               return `<div class="method-card${i===0?' selected':''}" data-method="${m}" onclick="selectMethod('${m}')">
+                 <div class="method-icon">${m === 'tamara' ? tamaraLogoHtml : (icons[m]||'💰')}</div>
+                 <div class="method-name">${names[m]||m}</div>
+                 <div class="method-desc">${descs[m]||''}</div>
+               </div>`;
+             }).join('')}
+           </div>`
+        : '';
+      const dryRunNoticeHtml = DRY_RUN_MODE
+        ? `<div class="test-card-hint" style="background:#eef2ff;border-color:#c7d2fe;color:#3730a3">
+             <strong>Dry Run Mode</strong>
+             Payment may complete normally, but automatic DRCT ticket issuance will be held for this test order.
+           </div>`
+        : '';
+
+      root.innerHTML = `
+        <div class="card">
+          <div class="step-indicator">
+            <span class="step done">✓ Flight Selected</span>
+            <span class="sep">›</span>
+            <span class="step active">💳 Payment</span>
+          </div>
+          <h2>Complete Your Booking</h2>
+          <div class="flight-summary">
+            <div class="airport">
+              <div class="airport-code">${orig}</div>
+              <div class="airport-date">${fmt(_offer.departure_time)}</div>
+              <div class="airport-time">${fmtTime(_offer.departure_time)}</div>
+            </div>
+            <div class="arrow">✈<span class="airline">${_offer.airline_name||_offer.airline_code||''} ${_offer.flight_number||''}</span></div>
+            <div class="airport" style="text-align:center">
+              <div class="airport-code">${dest}</div>
+              <div class="airport-date">${fmt(_offer.arrival_time)}</div>
+              <div class="airport-time">${fmtTime(_offer.arrival_time)}</div>
+            </div>
+          </div>
+          ${(_offer.return_departure_time || _offer.return_origin) ? `
+          <div style="display:flex;align-items:center;gap:6px;margin:-12px 0 12px;padding:0 4px">
+            <div style="flex:1;height:1px;background:#e2e8f0"></div>
+            <span style="font-size:11px;font-weight:600;color:#64748b;letter-spacing:.05em;white-space:nowrap">RETURN FLIGHT</span>
+            <div style="flex:1;height:1px;background:#e2e8f0"></div>
+          </div>
+          <div class="flight-summary">
+            <div class="airport">
+              <div class="airport-code">${(_offer.return_origin||dest).toUpperCase()}</div>
+              <div class="airport-date">${fmt(_offer.return_departure_time)}</div>
+              <div class="airport-time">${fmtTime(_offer.return_departure_time)}</div>
+            </div>
+            <div class="arrow">✈<span class="airline">${_offer.airline_name||_offer.airline_code||''}</span></div>
+            <div class="airport" style="text-align:center">
+              <div class="airport-code">${(_offer.return_destination||orig).toUpperCase()}</div>
+              <div class="airport-date">${fmt(_offer.return_arrival_time)}</div>
+              <div class="airport-time">${fmtTime(_offer.return_arrival_time)}</div>
+            </div>
+          </div>` : ''}
+          ${ENABLE_CARD_FEE_PREVIEW ? `
+          <div class="price-breakdown">
+            <h3>Review your total</h3>
+            <p class="price-breakdown-note">Any applicable card processing fee is calculated only after secure card verification and is shown to the customer before payment confirmation.</p>
+            ${renderBreakdownRows(null)}
+          </div>
+          ` : `
+          <div class="total-row">
+            <span class="total-label">Total</span>
+            <span class="total-amount">${total} ${_currency}</span>
+          </div>
+          `}
+          ${dryRunNoticeHtml}
+          ${methodsHtml}
+          <button class="btn-continue" onclick="proceedWithMethod()">Continue →</button>
+        </div>`;
+    })();
+
+    let _selectedMethod = 'online';
+    function selectMethod(m) {
+      _selectedMethod = m;
+      document.querySelectorAll('.method-card').forEach(c => c.classList.toggle('selected', c.dataset.method === m));
+    }
+
+    async function proceedWithMethod() {
+      const continueBtn = document.querySelector('.btn-continue');
+      if (continueBtn) { continueBtn.disabled = true; continueBtn.textContent = 'Creating booking...'; }
+
+      const shouldConfirmOfferPrice = ENABLE_OFFER_PRICE_FLOW
+        && !DRY_RUN_MODE
+        && (_selectedMethod === 'online' || _selectedMethod === 'tamara');
+
+      if (shouldConfirmOfferPrice && !_offerPriceConfirmed) {
+        if (continueBtn) continueBtn.textContent = 'Confirming final fare...';
+        const priceConfirmed = await confirmOfferPrice();
+        if (!priceConfirmed) {
+          if (continueBtn) {
+            continueBtn.disabled = false;
+            continueBtn.textContent = 'Continue →';
+          }
+          return;
+        }
+        if (continueBtn) continueBtn.textContent = 'Creating booking...';
+      }
+
+      // Create order with selected payment_method
+      let orderId = null, orderNumber = null;
+      try {
+        const orderResp = await fetch(`${BACKEND}/api/widget/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${_token}`,
+            'Idempotency-Key': `wgt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+          },
+          body: JSON.stringify({
+            payment_method: _selectedMethod,
+            contacts: { email: _pax.email, phone: _pax.phone },
+            offer: buildWidgetOrderOffer(),
+            priced_offer: _pricedOffer,
+            offer_price_data: _offerPriceData,
+            passengers: buildWidgetPassengerPayload(),
+            pricing: buildWidgetPricingPayload(),
+            metadata: { origin_host: SITE_ORIGIN_HOST, source: 'widget_demo', dry_run_issue: DRY_RUN_MODE, dry_run_reason: DRY_RUN_MODE ? 'booking_page_runtime_mode' : null }
+          })
+        });
+        if (!orderResp.ok) {
+          const errData = await orderResp.json().catch(() => ({}));
+          renderError(`Order creation failed: ${errData?.error?.message || orderResp.status}`);
+          return;
+        }
+        const orderData = await orderResp.json();
+        orderId = orderData?.order?.id || orderData?.id;
+        orderNumber = orderData?.order?.order_number || orderData?.order_number || orderId;
+        const orderPricing = orderData?.order || {};
+        if (Number.isFinite(Number(orderPricing.base_price))) _basePrice = Number(orderPricing.base_price);
+        if (Number.isFinite(Number(orderPricing.taxes))) _taxes = Number(orderPricing.taxes);
+        if (Number.isFinite(Number(orderPricing.baggage_price))) _baggagePrice = Number(orderPricing.baggage_price);
+        if (Number.isFinite(Number(orderPricing.markup_amount))) _markupAmount = Number(orderPricing.markup_amount);
+        if (Number.isFinite(Number(orderPricing.total_price))) _totalPrice = Number(orderPricing.total_price);
+        if (orderPricing.currency) _currency = String(orderPricing.currency).toUpperCase();
+      } catch (e) {
+        renderError(`Order error: ${e.message}`);
+        return;
+      }
+
+      const total = Number(_totalPrice).toLocaleString('en-US');
+      _paymentQuote = null;
+      _paymentQuoteStatus = 'idle';
+
+      if (_selectedMethod === 'cash') {
+        renderCashSuccess(orderNumber, _pax.email);
+        localStorage.removeItem('selectedOffer'); localStorage.removeItem('passengerData');
+        return;
+      }
+
+      if (_selectedMethod === 'invoice') {
+        const bank = _sessionData?.agency?.settings?.bank_details || {};
+        renderInvoiceSuccess(orderNumber, _pax.email, bank, total, _currency);
+        localStorage.removeItem('selectedOffer'); localStorage.removeItem('passengerData');
+        return;
+      }
+
+      if (_selectedMethod === 'tamara') {
+        root.innerHTML = `<div class="card"><div class="loading"><div class="spinner"></div><p>Redirecting to Tamara...</p></div></div>`;
+        try {
+          const lang = typeof getLang === 'function' ? getLang() : 'en';
+          const tResp = await fetch(`${BACKEND}/api/payments/tamara/checkout-session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId, language: lang })
+          });
+          const tData = await tResp.json();
+          if (!tResp.ok) {
+            renderError(`Tamara error: ${tData?.error?.message || tResp.status}`);
+            return;
+          }
+          // Store context for return page
+          localStorage.setItem('pendingOrderId', orderId);
+          localStorage.setItem('pendingOrderEmail', _pax.email);
+          localStorage.removeItem('selectedOffer');
+          localStorage.removeItem('passengerData');
+          window.location.href = tData.checkout_url;
+        } catch (e) {
+          renderError(`Tamara redirect failed: ${e.message}`);
+        }
+        return;
+      }
+
+      // Online payment — show card form
+      root.innerHTML = `
+        <div class="card">
+          <div class="step-indicator">
+            <span class="step done">✓ Booking Created</span>
+            <span class="sep">›</span>
+            <span class="step active">💳 Card Payment</span>
+          </div>
+          <h2>Pay ${total} ${_currency}</h2>
+          ${buildOfferPriceStatusHtml()}
+          ${SHOW_TEST_PAYMENT_CARDS ? `
+          <div class="demo-cards-panel">
+            <div class="dcp-title"><span class="dcp-badge">${DRY_RUN_MODE ? 'Demo' : 'Test'}</span> ${DRY_RUN_MODE ? 'Test the booking flow — no real payment' : 'Use Moyasar test cards for sandbox ticketing'}</div>
+            <div class="dcp-lead">
+              ${DRY_RUN_MODE
+                ? 'This site is in <strong>demo mode</strong>. Click a card below to auto-fill the form, then press Pay to see the full flow end-to-end. You will receive a sample e-ticket PDF by email. <strong>No real money is charged.</strong>'
+                : 'This site is in <strong>test payment mode</strong>. Click a card below to auto-fill the form, then press Pay to run the full booking flow against <strong>DRCT sandbox</strong>. <strong>No real money is charged.</strong>'
+              }
+            </div>
+            <div class="dcp-cards">
+              <div class="dcp-card">
+                <div class="dcp-card-info">
+                  <span class="dcp-card-label">Visa — Success</span>
+                  <span class="dcp-card-number">4111 1111 1111 1111</span>
+                </div>
+                <button type="button" class="dcp-fill-btn" data-fill='{"number":"4111 1111 1111 1111","month":"12","year":"30","cvc":"123","name":"Test User"}'>Use</button>
+              </div>
+              <div class="dcp-card">
+                <div class="dcp-card-info">
+                  <span class="dcp-card-label">Mastercard — Success</span>
+                  <span class="dcp-card-number">5123 4500 0000 0008</span>
+                </div>
+                <button type="button" class="dcp-fill-btn" data-fill='{"number":"5123 4500 0000 0008","month":"12","year":"30","cvc":"123","name":"Test User"}'>Use</button>
+              </div>
+              <div class="dcp-card">
+                <div class="dcp-card-info">
+                  <span class="dcp-card-label">Mada — Success</span>
+                  <span class="dcp-card-number">4464 0000 0000 0007</span>
+                </div>
+                <button type="button" class="dcp-fill-btn" data-fill='{"number":"4464 0000 0000 0007","month":"12","year":"30","cvc":"123","name":"Test User"}'>Use</button>
+              </div>
+            </div>
+            <div class="dcp-warn">
+              <strong>Important:</strong> Do not use Google Pay / Apple Pay buttons — they only accept real cards. Enter the test card details manually using the "Use" buttons above.
+            </div>
+          </div>
+          ` : ''}
+          <div id="pay-error"></div>
+          ${ENABLE_CARD_FEE_PREVIEW ? `
+          <div id="payment-quote-disclaimer">
+            ${getPaymentQuoteDisclaimerHtml()}
+          </div>
+          <div id="card-scheme-chip" class="scheme-chip">${getPaymentQuoteChipText()}</div>
+          <div class="price-breakdown" id="payment-breakdown">
+            <h3>Payment total</h3>
+            ${renderBreakdownRows(null, { includeRefundNote: true })}
+          </div>
+          ` : ''}
+          <div class="form-row single"><div><label>Cardholder Name</label><input id="card-name" type="text" placeholder="Name on card" /></div></div>
+          <div class="form-row single"><div><label>Card Number</label><input id="card-number" class="card-input" type="text" placeholder="1234 5678 9012 3456" maxlength="23" /></div></div>
+          <div class="form-row triple">
+            <div><label>Month</label><input id="card-month" type="text" placeholder="MM" maxlength="2" /></div>
+            <div><label>Year</label><input id="card-year" type="text" placeholder="YY" maxlength="4" /></div>
+            <div><label>CVV</label><input id="card-cvc" type="text" placeholder="***" maxlength="4" /></div>
+          </div>
+          <div class="total-row"><span class="total-label">Total to pay</span><span class="total-amount" id="final-payable-amount">${ENABLE_CARD_FEE_PREVIEW ? getPaymentQuoteTotalText() : `${total} ${_currency}`}</span></div>
+          <button class="btn-pay" id="pay-btn" onclick="submitPayment('${orderId}', '${orderNumber}', '${_pax.email}')" ${ENABLE_CARD_FEE_PREVIEW ? 'disabled' : ''}>${ENABLE_CARD_FEE_PREVIEW ? getPaymentQuoteButtonText() : `Pay ${total} ${_currency}`}</button>
+          <div class="payment-security-badge">
+            <span class="badge-lock">
+              <svg width="13" height="15" viewBox="0 0 13 15" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="6" width="11" height="8" rx="2" fill="#94a3b8"/><path d="M3.5 6V4.5a3 3 0 0 1 6 0V6" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/></svg>
+              SSL Secured
+            </span>
+            <span class="badge-powered">
+              Powered by
+              <a href="https://moyasar.com" target="_blank" rel="noopener" style="color:#2563eb;font-weight:700;font-size:13px;text-decoration:none;margin-left:3px;">moyasar</a>
+            </span>
+            <span class="card-brands">
+              <!-- Mastercard -->
+              <svg class="card-brand" viewBox="0 0 48 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="48" height="30" rx="4" fill="#fff" stroke="#e2e8f0"/>
+                <circle cx="18" cy="15" r="9" fill="#EB001B"/>
+                <circle cx="30" cy="15" r="9" fill="#F79E1B"/>
+                <path d="M24 8.29a9 9 0 0 0 0 13.42 9 9 0 0 0 0-13.42z" fill="#FF5F00"/>
+              </svg>
+              <!-- Visa -->
+              <svg class="card-brand" viewBox="0 0 48 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="48" height="30" rx="4" fill="#1A1F71"/>
+                <text x="24" y="21" text-anchor="middle" font-size="13" font-weight="900" fill="#fff" font-family="Arial,sans-serif" letter-spacing="-0.5">VISA</text>
+              </svg>
+              <!-- mada -->
+              <span class="card-brand card-brand-mada" aria-label="mada">
+                <img src="/images/payments/mada-badge.png" alt="mada" />
+              </span>
+            </span>
+          </div>
+        </div>`;
+      document.getElementById('card-number').addEventListener('input', function() {
+        let v = this.value.replace(/\D/g, '').slice(0, 19);
+        this.value = v.replace(/(.{4})/g, '$1 ').trim();
+        if (!ENABLE_CARD_FEE_PREVIEW) return;
+        _paymentQuote = null;
+        _paymentQuoteStatus = 'idle';
+        _paymentQuoteRequestSeq += 1;
+        if (_paymentQuoteLookupTimer) clearTimeout(_paymentQuoteLookupTimer);
+        if (v.length < CARD_LOOKUP_MIN_DIGITS) {
+          updatePaymentQuoteUi();
+          return;
+        }
+        _paymentQuoteLookupTimer = setTimeout(() => requestPaymentQuote(orderId, v), 450);
+      });
+
+      // Demo test-cards: one-click auto-fill (only present when DRY_RUN_MODE renders the panel).
+      document.querySelectorAll('.dcp-fill-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          let data;
+          try { data = JSON.parse(btn.getAttribute('data-fill') || '{}'); }
+          catch (e) { return; }
+          const nameEl   = document.getElementById('card-name');
+          const numberEl = document.getElementById('card-number');
+          const monthEl  = document.getElementById('card-month');
+          const yearEl   = document.getElementById('card-year');
+          const cvcEl    = document.getElementById('card-cvc');
+          if (nameEl)   nameEl.value = data.name || '';
+          if (numberEl) { numberEl.value = data.number || ''; numberEl.dispatchEvent(new Event('input', { bubbles: true })); }
+          if (monthEl)  monthEl.value  = data.month || '';
+          if (yearEl)   yearEl.value   = data.year || '';
+          if (cvcEl)    cvcEl.value    = data.cvc || '';
+          // Visual feedback: brief green flash on the button
+          const originalText = btn.textContent;
+          btn.textContent = '✓ Filled';
+          btn.classList.add('filled');
+          setTimeout(function() {
+            btn.textContent = originalText;
+            btn.classList.remove('filled');
+          }, 1400);
+          if (nameEl) nameEl.focus({ preventScroll: true });
+        });
+      });
+      updatePaymentQuoteUi();
+    }
+
+    function renderCashSuccess(orderNumber, email) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="success-box">
+            <div class="cash-box">
+              <div class="cash-icon">💵</div>
+              <h3>Booking Created — Pay at Office</h3>
+              <p>Please visit our office to complete payment</p>
+            </div>
+            <div class="order-ref">Booking Reference: ${orderNumber}</div>
+            <div class="ticket-note">📧 Your booking confirmation has been sent to <strong>${email}</strong>.<br>The ticket will be issued after cash payment at our office.</div>
+            <a class="btn-back" href="/widget-demo.html">← Search Another Flight</a>
+          </div>
+        </div>`;
+    }
+
+    function renderInvoiceSuccess(orderNumber, email, bank, total, currency) {
+      const rows = [
+        bank.bank_name ? ['Bank', bank.bank_name] : null,
+        bank.iban ? ['IBAN', bank.iban] : null,
+        bank.swift_bic ? ['SWIFT/BIC', bank.swift_bic] : null,
+        bank.bank_account ? ['Account', bank.bank_account] : null,
+        ['Reference', orderNumber],
+        ['Amount', `${total} ${currency}`]
+      ].filter(Boolean);
+      root.innerHTML = `
+        <div class="card">
+          <div class="success-box">
+            <div class="success-icon">📄</div>
+            <div class="success-title">Invoice Created</div>
+            <div class="success-sub">Please transfer the payment to:</div>
+            <div class="invoice-box">
+              <h3>Bank Transfer Details</h3>
+              ${rows.map(([l,v]) => `<div class="invoice-row"><span class="lbl">${l}</span><span class="val">${v}</span></div>`).join('')}
+            </div>
+            <div class="order-ref">Order: ${orderNumber}</div>
+            <div class="ticket-note">📧 Invoice instructions sent to <strong>${email}</strong>.<br>Ticket will be issued after payment confirmation.</div>
+            <a class="btn-back" href="/widget-demo.html">← Search Another Flight</a>
+          </div>
+        </div>`;
+    }
+
+    async function submitPayment(orderId, orderNumber, email) {
+      const btn = document.getElementById('pay-btn');
+      const errDiv = document.getElementById('pay-error');
+      errDiv.innerHTML = '';
+      btn.disabled = true;
+      btn.textContent = getLang() === 'ar' ? 'جارٍ معالجة الدفع...' : 'Processing payment...';
+
+      const name = document.getElementById('card-name').value.trim();
+      const number = document.getElementById('card-number').value.replace(/\s/g, '');
+      const month = document.getElementById('card-month').value.trim();
+      const year = document.getElementById('card-year').value.trim();
+      const cvc = document.getElementById('card-cvc').value.trim();
+
+      if (!name || !number || !month || !year || !cvc) {
+        const lang = getLang();
+        errDiv.innerHTML = `<div class="error-box">${lang === 'ar' ? 'يرجى تعبئة جميع بيانات البطاقة.' : 'Please fill in all card details.'}</div>`;
+        btn.disabled = false;
+        btn.textContent = lang === 'ar' ? 'إعادة المحاولة' : 'Retry Payment';
+        return;
+      }
+
+      if (ENABLE_CARD_FEE_PREVIEW && (!_paymentQuote || _paymentQuoteStatus !== 'ready')) {
+        errDiv.innerHTML = `<div class="error-box">Enter a supported card number and wait for the final payable amount before continuing.</div>`;
+        btn.disabled = false;
+        btn.textContent = getPaymentQuoteButtonText();
+        return;
+      }
+
+      try {
+        const resp = await fetch(`${BACKEND}/api/payments/initiate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId,
+            return_url: DRY_RUN_MODE ? `${PAYMENT_RETURN_URL}?dry_run=1` : PAYMENT_RETURN_URL,
+            card: { name, number, month, year, cvc }
+          })
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          const errCode = data?.error?.code || data?.error?.type || 'DEFAULT';
+          errDiv.innerHTML = `<div class="error-box">${payErrorMsg(errCode)}</div>`;
+          btn.disabled = false;
+          btn.textContent = getLang() === 'ar' ? 'إعادة المحاولة' : 'Retry Payment';
+          return;
+        }
+
+        if (data.status === 'paid') {
+          localStorage.removeItem('selectedOffer');
+          localStorage.removeItem('passengerData');
+          renderSuccess(data.order_number || orderNumber || orderId, email, {
+            dryRunIssue: Boolean(data.dry_run_issue || DRY_RUN_MODE),
+            paymentPreview: ENABLE_CARD_FEE_PREVIEW ? (data.payment_pricing || _paymentQuote) : null
+          });
+          return;
+        }
+
+        if (data.transaction_url) {
+          // 3DS redirect — store enough context to complete the return flow after auth.
+          localStorage.setItem('pendingOrderEmail', email);
+          localStorage.setItem('pendingOrderId', orderId);
+          localStorage.setItem('pendingOrderNumber', orderNumber || orderId);
+          if (ENABLE_CARD_FEE_PREVIEW && _paymentQuote) {
+            localStorage.setItem('pendingPaymentQuote', JSON.stringify(data.payment_pricing || _paymentQuote));
+          }
+          window.location.href = data.transaction_url;
+          return;
+        }
+
+        errDiv.innerHTML = `<div class="error-box">${payErrorMsg('DEFAULT')}</div>`;
+        btn.disabled = false;
+        btn.textContent = getLang() === 'ar' ? 'إعادة المحاولة' : 'Retry Payment';
+      } catch (e) {
+        errDiv.innerHTML = `<div class="error-box">${payErrorMsg('NETWORK_ERROR')}</div>`;
+        btn.disabled = false;
+        btn.textContent = getLang() === 'ar' ? 'إعادة المحاولة' : 'Retry Payment';
+      }
+    }
+  </script>
+</body>
+</html>
