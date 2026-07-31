@@ -22,7 +22,14 @@ import {
   getOrderTicketDocument,
   getProfile,
   getMyAgency,
-  updateMyAgency
+  updateMyAgency,
+  publishMyAgencySite,
+  redeployMyAgencySite,
+  provisionAdminAgency,
+  uploadAgencyLogo,
+  redeployAdminAgencySite,
+  publishAdminAgencySite,
+  sendAdminAgencySetupEmail
 } from '../lib/supabase';
 import { drctApi } from '../lib/drctApi';
 
@@ -79,34 +86,82 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [agencyEditId, setAgencyEditId] = useState(null);
   const [agencyEditForm, setAgencyEditForm] = useState({
     name: '',
+    name_ar: '',
     domain: '',
     contact_email: '',
     contact_phone: '',
+    contact_phone2: '',
+    whatsapp_phone: '',
     is_active: true,
     contact_person_name: '',
+    supervisor_name: '',
+    supervisor_email: '',
     bank_name: '',
     bank_account: '',
     iban: '',
     swift_bic: '',
     sama_code: '',
     widget_allowed_domains: '',
-    payment_methods: ['online']
+    payment_methods: ['online'],
+    logo_url: '',
+    brand_color: '#1a3c8e',
+    accent_color: '#2468c4',
+    about_en: '',
+    about_ar: '',
+    working_hours: '',
+    working_hours_ar: '',
+    license_number: '',
+    iata_number: '',
+    founded_year: '',
+    google_maps_url: '',
+    instagram: '',
+    twitter: '',
+    snapchat: '',
+    facebook: '',
+    services: ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
   });
+  const [editLogoUploading, setEditLogoUploading] = useState(false);
   const [agencyForm, setAgencyForm] = useState({
     name: '',
+    name_ar: '',
     domain: '',
     contact_email: '',
     contact_phone: '',
+    contact_phone2: '',
     contact_person_name: '',
     country: 'SA',
+    brand_color: '#1a3c8e',
+    accent_color: '#2468c4',
     bank_name: '',
     bank_account: '',
     iban: '',
     swift_bic: '',
     sama_code: '',
     widget_allowed_domains: '',
-    payment_methods: ['online']
+    payment_methods: ['online'],
+    commission_model: 'fixed',
+    commission_fixed_amount: 0,
+    commission_rate: 0,
+    logo_url: '',
+    about_en: '',
+    about_ar: '',
+    working_hours: '',
+    working_hours_ar: '',
+    license_number: '',
+    iata_number: '',
+    founded_year: '',
+    google_maps_url: '',
+    instagram: '',
+    twitter: '',
+    snapchat: '',
+    facebook: '',
+    whatsapp_phone: '',
+    services: ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
   });
+  const [provisionResult, setProvisionResult] = useState(null);
+  const [provisioning, setProvisioning] = useState(false);
+  const [createOnlyLoading, setCreateOnlyLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({
     agency_id: '',
     period_from: '',
@@ -115,10 +170,46 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     manual_total: '',
     statuses: 'confirmed,issued'
   });
+  const CARRIERS = [
+    { code: 'AF', name: 'Air France' }, { code: 'AM', name: 'Aeromexico' }, { code: 'A3', name: 'Aegean Airlines' },
+    { code: 'BG', name: 'Biman Bangladesh' }, { code: 'BJ', name: 'Nouvelair' }, { code: 'BS', name: 'US-Bangla' },
+    { code: 'B4', name: 'ZanAir' }, { code: 'DT', name: 'TAAG Angola' }, { code: 'EK', name: 'Emirates' },
+    { code: 'ET', name: 'Ethiopian Airlines' }, { code: 'EY', name: 'Etihad Airways' }, { code: 'FZ', name: 'flydubai' },
+    { code: 'F3', name: 'Flyadeal' }, { code: 'GA', name: 'Garuda Indonesia' }, { code: 'GF', name: 'Gulf Air' },
+    { code: 'GP', name: 'APG Airlines' }, { code: 'GQ', name: 'Sky Express' }, { code: 'HC', name: 'Air Senegal' },
+    { code: 'HR', name: 'Hahn Air' }, { code: 'J4', name: 'Buffalo Airways' }, { code: 'J9', name: 'Jazeera Airways' },
+    { code: 'KL', name: 'KLM' }, { code: 'LH', name: 'Lufthansa' }, { code: 'LO', name: 'LOT Polish Airlines' },
+    { code: 'LX', name: 'Swiss' }, { code: 'MF', name: 'Xiamen Air' }, { code: 'MH', name: 'Malaysia Airlines' },
+    { code: 'NE', name: 'Nesma Airlines' }, { code: 'NP', name: 'Nile Air' }, { code: 'NX', name: 'Air Macau' },
+    { code: 'OV', name: 'Estonian Air' }, { code: 'PK', name: 'PIA' }, { code: 'PR', name: 'Philippine Airlines' },
+    { code: 'QP', name: 'Akasa Air' }, { code: 'QR', name: 'Qatar Airways' }, { code: 'Q4', name: 'Starbow Airlines' },
+    { code: 'RJ', name: 'Royal Jordanian' }, { code: 'R5', name: 'Jordan Aviation' }, { code: 'SM', name: 'Air Cairo' },
+    { code: 'SQ', name: 'Singapore Airlines' }, { code: 'SV', name: 'Saudia' }, { code: 'TC', name: 'Air Tanzania' },
+    { code: 'TK', name: 'Turkish Airlines' }, { code: 'TP', name: 'TAP Air Portugal' }, { code: 'UJ', name: 'Al Masria' },
+    { code: 'UL', name: 'SriLankan Airlines' }, { code: 'VF', name: 'Valuair' }, { code: 'WB', name: 'RwandAir' },
+    { code: 'WY', name: 'Oman Air' }, { code: 'W2', name: 'Flexflight' }, { code: 'XJ', name: 'Thai AirAsia X' },
+    { code: 'XY', name: 'flynas' }, { code: '5J', name: 'Cebu Pacific' }, { code: '6E', name: 'IndiGo' },
+  ];
+  const SERVICE_OPTIONS = [
+    { key: 'flights_domestic', label: 'Domestic flights' },
+    { key: 'flights_intl', label: 'International flights' },
+    { key: 'hotels', label: 'Hotels' },
+    { key: 'visa', label: 'Visa support' },
+    { key: 'insurance', label: 'Insurance' },
+    { key: 'umrah', label: 'Umrah / Hajj' },
+    { key: 'tours', label: 'Tours & holidays' },
+    { key: 'corporate', label: 'Corporate travel' },
+    { key: 'transfers', label: 'Airport transfers' },
+    { key: 'car_rental', label: 'Car rental' }
+  ];
+
   const [agencySelfForm, setAgencySelfForm] = useState({
     commission_rate: 0,
     commission_model: 'percent',
     commission_fixed_amount: 0,
+    carrier_commission_mode: 'all', // 'all' or 'per_carrier'
+    carrier_commission_all_amount: 0, // used in 'all' mode
+    carrier_commissions: {}, // { SV: 50, EK: 75 } — used in 'per_carrier' mode
     currency: 'SAR',
     bank_name: '',
     bank_account: '',
@@ -126,16 +217,50 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     swift_bic: '',
     sama_code: '',
     contact_person_name: '',
-    widget_allowed_domains: ''
+    widget_allowed_domains: '',
+    name_ar: '',
+    contact_phone2: '',
+    whatsapp_phone: '',
+    brand_color: '#1a3c8e',
+    accent_color: '#2468c4',
+    supervisor_name: '',
+    supervisor_email: '',
+    logo_url: '',
+    about_en: '',
+    about_ar: '',
+    working_hours: '',
+    working_hours_ar: '',
+    license_number: '',
+    iata_number: '',
+    founded_year: '',
+    google_maps_url: '',
+    instagram: '',
+    twitter: '',
+    snapchat: '',
+    facebook: '',
+    services: ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
   });
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
   const [agencySelfLoading, setAgencySelfLoading] = useState(false);
+  const [sitePublishing, setSitePublishing] = useState(false);
+  const [siteRedeploying, setSiteRedeploying] = useState(false);
+  const [setupEmailSendingId, setSetupEmailSendingId] = useState(null);
+  const [rowPublishingId, setRowPublishingId] = useState(null);
+  const [rowRedeployingId, setRowRedeployingId] = useState(null);
+  const [draftInviting, setDraftInviting] = useState(false);
   const [widgetDomains, setWidgetDomains] = useState([]);
   const [domainDraft, setDomainDraft] = useState('');
   const [showAddDomain, setShowAddDomain] = useState(false);
   const [domainsDirty, setDomainsDirty] = useState(false);
   const [domainsSaving, setDomainsSaving] = useState(false);
+  const [salesReportFilters, setSalesReportFilters] = useState({
+    date_from: '',
+    date_to: '',
+    agency_id: '',
+    status: ''
+  });
+  const [salesReportLoading, setSalesReportLoading] = useState(false);
   const loadingRef = useRef(false);
   const isAgencyAdminPreview = viewMode === 'agency_admin';
   const isSuperAdminView = !isAgencyAdminPreview;
@@ -264,6 +389,48 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     const list = parseWidgetDomains(raw);
     return list[0] || '';
   };
+
+  const formatDateTime = (value) => {
+    if (!value) return '—';
+    try {
+      return new Date(value).toLocaleString();
+    } catch {
+      return String(value);
+    }
+  };
+
+  const getOnboardingStatusMeta = (status) => {
+    switch (status) {
+      case 'invited':
+        return { label: 'Invite sent', tone: 'bg-blue-50 text-blue-800 border-blue-200' };
+      case 'setup_in_progress':
+        return { label: 'Setup in progress', tone: 'bg-amber-50 text-amber-800 border-amber-200' };
+      case 'ready_to_publish':
+        return { label: 'Ready to publish', tone: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+      case 'published':
+        return { label: 'Published', tone: 'bg-green-50 text-green-800 border-green-200' };
+      default:
+        return { label: 'Draft', tone: 'bg-slate-50 text-slate-700 border-slate-200' };
+    }
+  };
+
+  const getDeployStatusMeta = (status) => {
+    switch (status) {
+      case 'deploying':
+        return { label: 'Deploying', tone: 'bg-blue-50 text-blue-800 border-blue-200' };
+      case 'deployed':
+        return { label: 'Last deploy succeeded', tone: 'bg-green-50 text-green-800 border-green-200' };
+      case 'failed':
+        return { label: 'Last deploy failed', tone: 'bg-red-50 text-red-800 border-red-200' };
+      default:
+        return { label: 'Not deployed yet', tone: 'bg-slate-50 text-slate-700 border-slate-200' };
+    }
+  };
+
+  const selectedAgencyOnboarding = agencySelfMeta?.onboarding_state || null;
+  const selectedAgencyDeploy = agencySelfMeta?.deploy_state || null;
+  const selectedOnboardingMeta = getOnboardingStatusMeta(selectedAgencyOnboarding?.status);
+  const selectedDeployMeta = getDeployStatusMeta(selectedAgencyDeploy?.status);
 
   const getLegsFromOrder = (order) => {
     const raw =
@@ -484,10 +651,28 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const applyAgencyToSelfForm = (agencyData) => {
     const commission = agencyData?.settings?.commission || {};
     const bankDetails = agencyData?.settings?.bank_details || {};
+    const carrierComms = agencyData?.settings?.carrier_commissions || {};
+    const site = agencyData?.settings?.site || {};
+    const carrierCodes = Object.keys(carrierComms);
+    let ccMode = 'all';
+    let ccAllAmount = 0;
+    if (carrierCodes.length > 0) {
+      const values = carrierCodes.map((k) => Number(carrierComms[k]));
+      const allSame = values.every((v) => v === values[0]);
+      if (allSame && carrierCodes.length === CARRIERS.length) {
+        ccMode = 'all';
+        ccAllAmount = values[0];
+      } else {
+        ccMode = 'per_carrier';
+      }
+    }
     setAgencySelfForm({
       commission_rate: agencyData?.commission_rate ?? 0,
       commission_model: commission.model || 'percent',
       commission_fixed_amount: commission.fixed_amount ?? 0,
+      carrier_commission_mode: ccMode,
+      carrier_commission_all_amount: ccAllAmount,
+      carrier_commissions: carrierComms,
       currency: (commission.currency || 'SAR').toUpperCase(),
       bank_name: bankDetails.bank_name || '',
       bank_account: bankDetails.bank_account || '',
@@ -497,7 +682,30 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       contact_person_name: agencyData?.settings?.contact_person?.full_name || '',
       widget_allowed_domains: Array.isArray(agencyData?.settings?.widget_allowed_domains)
         ? agencyData.settings.widget_allowed_domains.join('\n')
-        : ''
+        : '',
+      name_ar: site.name_ar || '',
+      contact_phone2: site.contact_phone2 || '',
+      whatsapp_phone: site.whatsapp_phone || '',
+      brand_color: site.brand_color || '#1a3c8e',
+      accent_color: site.accent_color || '#2468c4',
+      supervisor_name: site.supervisor_name || '',
+      supervisor_email: site.supervisor_email || '',
+      logo_url: site.logo_url || '',
+      about_en: site.about_en || '',
+      about_ar: site.about_ar || '',
+      working_hours: site.working_hours || '',
+      working_hours_ar: site.working_hours_ar || '',
+      license_number: site.license_number || '',
+      iata_number: site.iata_number || '',
+      founded_year: site.founded_year || '',
+      google_maps_url: site.google_maps_url || '',
+      instagram: site.instagram || '',
+      twitter: site.twitter || '',
+      snapchat: site.snapchat || '',
+      facebook: site.facebook || '',
+      services: Array.isArray(site.services) && site.services.length
+        ? site.services
+        : ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
     });
     const domains = Array.isArray(agencyData?.settings?.widget_allowed_domains)
       ? agencyData.settings.widget_allowed_domains
@@ -510,7 +718,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       id: agencyData?.id || null,
       name: agencyData?.name || null,
       domain: agencyData?.domain || null,
-      api_key: agencyData?.api_key || null
+      api_key: agencyData?.api_key || null,
+      contact_email: agencyData?.contact_email || null,
+      onboarding_state: agencyData?.onboarding_state || null,
+      deploy_state: agencyData?.deploy_state || null,
+      site_url: agencyData?.deploy_state?.site_url || agencyData?.settings?.deploy?.site_url || null
     });
   };
 
@@ -660,6 +872,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       return;
     }
     try {
+      setCreateOnlyLoading(true);
       const payload = {
         name: agencyForm.name,
         domain: agencyForm.domain || null,
@@ -698,6 +911,170 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       await Promise.all([loadAdminData(), loadAgencies()]);
     } catch (err) {
       setNotice({ type: 'error', text: `Failed to create agency: ${err.message}` });
+    } finally {
+      setCreateOnlyLoading(false);
+    }
+  };
+
+  const handleCreateAgencyDraftAndInvite = async () => {
+    if (!agencyForm.name || !agencyForm.contact_email || !agencyForm.domain) {
+      setNotice({ type: 'error', text: 'Agency name, subdomain and manager email are required' });
+      return;
+    }
+    try {
+      setDraftInviting(true);
+      setProvisionResult(null);
+      const payload = {
+        name: agencyForm.name,
+        name_ar: agencyForm.name_ar || '',
+        subdomain: agencyForm.domain,
+        contact_email: agencyForm.contact_email,
+        contact_phone: agencyForm.contact_phone || '',
+        contact_phone2: agencyForm.contact_phone2 || '',
+        whatsapp_phone: agencyForm.whatsapp_phone || '',
+        contact_person_name: agencyForm.contact_person_name || '',
+        country: agencyForm.country || 'SA',
+        brand_color: agencyForm.brand_color || '#1a3c8e',
+        accent_color: agencyForm.accent_color || '#2468c4',
+        payment_methods: agencyForm.payment_methods || ['online'],
+        commission_model: agencyForm.commission_model || 'fixed',
+        commission_fixed_amount: Number(agencyForm.commission_fixed_amount) || 0,
+        commission_rate: Number(agencyForm.commission_rate) || 0,
+        bank_details: {
+          bank_name: agencyForm.bank_name || null,
+          iban: agencyForm.iban || null,
+          swift_bic: agencyForm.swift_bic || null,
+          bank_account: agencyForm.bank_account || null,
+          sama_code: agencyForm.sama_code || null
+        },
+        logo_url: agencyForm.logo_url || '',
+        about_en: agencyForm.about_en || '',
+        about_ar: agencyForm.about_ar || '',
+        working_hours: agencyForm.working_hours || '',
+        working_hours_ar: agencyForm.working_hours_ar || '',
+        license_number: agencyForm.license_number || '',
+        iata_number: agencyForm.iata_number || '',
+        founded_year: agencyForm.founded_year || '',
+        google_maps_url: agencyForm.google_maps_url || '',
+        instagram: agencyForm.instagram || '',
+        twitter: agencyForm.twitter || '',
+        snapchat: agencyForm.snapchat || '',
+        facebook: agencyForm.facebook || '',
+        services: agencyForm.services || [],
+        deploy_site: false,
+        send_setup_email: true
+      };
+      const { data, error } = await provisionAdminAgency(payload);
+      if (error) throw new Error(error.message || 'Agency draft setup failed');
+      setProvisionResult(data);
+      setNotice({
+        type: 'success',
+        text: `Agency draft created and setup email sent to ${agencyForm.contact_email}`
+      });
+      setShowCreateAgencyForm(false);
+      await Promise.all([loadAdminData(), loadAgencies()]);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Draft setup failed: ${err.message}` });
+    } finally {
+      setDraftInviting(false);
+    }
+  };
+
+  const handleLogoUpload = async (file) => {
+    if (!file) return;
+    setLogoUploading(true);
+    const { url, error } = await uploadAgencyLogo(file);
+    setLogoUploading(false);
+    if (error) {
+      setNotice({ type: 'error', text: `Logo upload failed: ${error.message}` });
+    } else {
+      setAgencyForm(p => ({ ...p, logo_url: url }));
+      setNotice({ type: 'success', text: 'Logo uploaded successfully' });
+    }
+  };
+
+  const handleLogoUploadForEdit = async (file) => {
+    if (!file) return;
+    setEditLogoUploading(true);
+    const { url, error } = await uploadAgencyLogo(file);
+    setEditLogoUploading(false);
+    if (error) {
+      setNotice({ type: 'error', text: `Logo upload failed: ${error.message}` });
+    } else {
+      setAgencyEditForm(p => ({ ...p, logo_url: url }));
+      setNotice({ type: 'success', text: 'Logo uploaded. Click Save to apply.' });
+    }
+  };
+
+  const handleAgencySelfLogoUpload = async (file) => {
+    if (!file) return;
+    setLogoUploading(true);
+    const { url, error } = await uploadAgencyLogo(file);
+    setLogoUploading(false);
+    if (error) {
+      setNotice({ type: 'error', text: `Logo upload failed: ${error.message}` });
+      return;
+    }
+    setAgencySelfForm((prev) => ({ ...prev, logo_url: url }));
+    setNotice({ type: 'success', text: 'Agency logo uploaded. Save settings to publish it.' });
+  };
+
+  const handleProvisionAgency = async () => {
+    if (!agencyForm.name || !agencyForm.contact_email || !agencyForm.domain) {
+      setNotice({ type: 'error', text: 'Name, subdomain and email are required' });
+      return;
+    }
+    try {
+      setProvisioning(true);
+      setProvisionResult(null);
+      const payload = {
+        name: agencyForm.name,
+        name_ar: agencyForm.name_ar || '',
+        subdomain: agencyForm.domain,
+        contact_email: agencyForm.contact_email,
+        contact_phone: agencyForm.contact_phone || '',
+        contact_phone2: agencyForm.contact_phone2 || '',
+        whatsapp_phone: agencyForm.whatsapp_phone || '',
+        contact_person_name: agencyForm.contact_person_name || '',
+        country: agencyForm.country || 'SA',
+        brand_color: agencyForm.brand_color || '#1a3c8e',
+        accent_color: agencyForm.accent_color || '#2468c4',
+        payment_methods: agencyForm.payment_methods || ['online'],
+        commission_model: agencyForm.commission_model || 'fixed',
+        commission_fixed_amount: Number(agencyForm.commission_fixed_amount) || 0,
+        commission_rate: Number(agencyForm.commission_rate) || 0,
+        bank_details: {
+          bank_name: agencyForm.bank_name || null,
+          iban: agencyForm.iban || null,
+          swift_bic: agencyForm.swift_bic || null,
+          bank_account: agencyForm.bank_account || null,
+          sama_code: agencyForm.sama_code || null
+        },
+        logo_url: agencyForm.logo_url || '',
+        about_en: agencyForm.about_en || '',
+        about_ar: agencyForm.about_ar || '',
+        working_hours: agencyForm.working_hours || '',
+        working_hours_ar: agencyForm.working_hours_ar || '',
+        license_number: agencyForm.license_number || '',
+        iata_number: agencyForm.iata_number || '',
+        founded_year: agencyForm.founded_year || '',
+        google_maps_url: agencyForm.google_maps_url || '',
+        instagram: agencyForm.instagram || '',
+        twitter: agencyForm.twitter || '',
+        snapchat: agencyForm.snapchat || '',
+        facebook: agencyForm.facebook || '',
+        services: agencyForm.services || []
+      };
+      const { data, error } = await provisionAdminAgency(payload);
+      if (error) throw new Error(error.message || 'Provision failed');
+      setProvisionResult(data);
+      setNotice({ type: 'success', text: `Agency created & site deployed: ${data?.site_url || ''}` });
+      setShowCreateAgencyForm(false);
+      await Promise.all([loadAdminData(), loadAgencies()]);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Provision failed: ${err.message}` });
+    } finally {
+      setProvisioning(false);
     }
   };
 
@@ -734,13 +1111,19 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
   const beginEditAgency = (agency) => {
     setAgencyEditId(agency.id);
+    const site = agency?.settings?.site || {};
     setAgencyEditForm({
       name: agency.name || '',
+      name_ar: site.name_ar || '',
       domain: agency.domain || '',
       contact_email: agency.contact_email || '',
       contact_phone: agency.contact_phone || '',
+      contact_phone2: site.contact_phone2 || '',
+      whatsapp_phone: site.whatsapp_phone || '',
       is_active: !!agency.is_active,
       contact_person_name: agency?.settings?.contact_person?.full_name || '',
+      supervisor_name: site.supervisor_name || '',
+      supervisor_email: site.supervisor_email || '',
       bank_name: agency?.settings?.bank_details?.bank_name || '',
       bank_account: agency?.settings?.bank_details?.bank_account || '',
       iban: agency?.settings?.bank_details?.iban || '',
@@ -751,7 +1134,25 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         : '',
       payment_methods: Array.isArray(agency?.settings?.payment_methods) && agency.settings.payment_methods.length
         ? agency.settings.payment_methods
-        : ['online']
+        : ['online'],
+      logo_url: site.logo_url || '',
+      brand_color: site.brand_color || '#1a3c8e',
+      accent_color: site.accent_color || '#2468c4',
+      about_en: site.about_en || '',
+      about_ar: site.about_ar || '',
+      working_hours: site.working_hours || '',
+      working_hours_ar: site.working_hours_ar || '',
+      license_number: site.license_number || '',
+      iata_number: site.iata_number || '',
+      founded_year: site.founded_year || '',
+      google_maps_url: site.google_maps_url || '',
+      instagram: site.instagram || '',
+      twitter: site.twitter || '',
+      snapchat: site.snapchat || '',
+      facebook: site.facebook || '',
+      services: Array.isArray(site.services) && site.services.length
+        ? site.services
+        : ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
     });
   };
 
@@ -759,11 +1160,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     try {
       const payload = {
         name: agencyEditForm.name,
+        name_ar: agencyEditForm.name_ar || '',
         domain: agencyEditForm.domain || null,
         contact_email: agencyEditForm.contact_email,
         contact_phone: agencyEditForm.contact_phone || null,
+        contact_phone2: agencyEditForm.contact_phone2 || '',
+        whatsapp_phone: agencyEditForm.whatsapp_phone || '',
         is_active: !!agencyEditForm.is_active,
         contact_person_name: agencyEditForm.contact_person_name || null,
+        supervisor_name: agencyEditForm.supervisor_name || '',
+        supervisor_email: agencyEditForm.supervisor_email || '',
         bank_details: {
           bank_name: agencyEditForm.bank_name || null,
           bank_account: agencyEditForm.bank_account || null,
@@ -772,7 +1178,23 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           sama_code: agencyEditForm.sama_code || null
         },
         payment_methods: agencyEditForm.payment_methods || ['online'],
-        widget_allowed_domains: parseWidgetDomains(agencyEditForm.widget_allowed_domains)
+        widget_allowed_domains: parseWidgetDomains(agencyEditForm.widget_allowed_domains),
+        logo_url: agencyEditForm.logo_url || '',
+        brand_color: agencyEditForm.brand_color || '#1a3c8e',
+        accent_color: agencyEditForm.accent_color || '#2468c4',
+        about_en: agencyEditForm.about_en || '',
+        about_ar: agencyEditForm.about_ar || '',
+        working_hours: agencyEditForm.working_hours || '',
+        working_hours_ar: agencyEditForm.working_hours_ar || '',
+        license_number: agencyEditForm.license_number || '',
+        iata_number: agencyEditForm.iata_number || '',
+        founded_year: agencyEditForm.founded_year || '',
+        google_maps_url: agencyEditForm.google_maps_url || '',
+        instagram: agencyEditForm.instagram || '',
+        twitter: agencyEditForm.twitter || '',
+        snapchat: agencyEditForm.snapchat || '',
+        facebook: agencyEditForm.facebook || '',
+        services: agencyEditForm.services || []
       };
       const { error } = await updateAdminAgency(agencyId, payload);
       if (error) throw new Error(error.message || 'Agency update failed');
@@ -917,6 +1339,21 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const handleSaveMyAgencySettings = async () => {
     try {
       setAgencySelfLoading(true);
+      // Build carrier_commissions based on mode
+      let carrierCommissionsPayload = {};
+      if (agencySelfForm.carrier_commission_mode === 'all') {
+        const allAmt = Number(agencySelfForm.carrier_commission_all_amount || 0);
+        if (allAmt > 0) {
+          CARRIERS.forEach(({ code }) => { carrierCommissionsPayload[code] = allAmt; });
+        }
+      } else {
+        // per_carrier mode — only include positive values
+        Object.entries(agencySelfForm.carrier_commissions || {}).forEach(([code, val]) => {
+          const v = Number(val);
+          if (v > 0) carrierCommissionsPayload[code] = v;
+        });
+      }
+
       const payload = {
         commission_rate: agencySelfForm.commission_model === 'percent'
           ? Number(agencySelfForm.commission_rate || 0)
@@ -925,6 +1362,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         commission_fixed_amount: agencySelfForm.commission_model === 'fixed'
           ? Number(agencySelfForm.commission_fixed_amount || 0)
           : 0,
+        carrier_commissions: carrierCommissionsPayload,
         currency: agencySelfForm.currency || 'SAR',
         bank_details: {
           bank_name: agencySelfForm.bank_name || null,
@@ -934,7 +1372,28 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           sama_code: agencySelfForm.sama_code || null
         },
         contact_person_name: agencySelfForm.contact_person_name || null,
-        widget_allowed_domains: widgetDomains
+        widget_allowed_domains: widgetDomains,
+        name_ar: agencySelfForm.name_ar || '',
+        contact_phone2: agencySelfForm.contact_phone2 || '',
+        whatsapp_phone: agencySelfForm.whatsapp_phone || '',
+        brand_color: agencySelfForm.brand_color || '#1a3c8e',
+        accent_color: agencySelfForm.accent_color || '#2468c4',
+        supervisor_name: agencySelfForm.supervisor_name || '',
+        supervisor_email: agencySelfForm.supervisor_email || '',
+        logo_url: agencySelfForm.logo_url || '',
+        about_en: agencySelfForm.about_en || '',
+        about_ar: agencySelfForm.about_ar || '',
+        working_hours: agencySelfForm.working_hours || '',
+        working_hours_ar: agencySelfForm.working_hours_ar || '',
+        license_number: agencySelfForm.license_number || '',
+        iata_number: agencySelfForm.iata_number || '',
+        founded_year: agencySelfForm.founded_year || '',
+        google_maps_url: agencySelfForm.google_maps_url || '',
+        instagram: agencySelfForm.instagram || '',
+        twitter: agencySelfForm.twitter || '',
+        snapchat: agencySelfForm.snapchat || '',
+        facebook: agencySelfForm.facebook || '',
+        services: Array.isArray(agencySelfForm.services) ? agencySelfForm.services : []
       };
       let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
       if (isAgencyAdminPreview && !agencyIdForUpdate) {
@@ -961,6 +1420,141 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setNotice({ type: 'error', text: `Failed to save settings: ${err.message}` });
     } finally {
       setAgencySelfLoading(false);
+    }
+  };
+
+  const handleRedeployAgencySite = async () => {
+    try {
+      setSiteRedeploying(true);
+      let result;
+      if (isAgencyAdminPreview && ['admin', 'super_admin'].includes(userProfile?.role)) {
+        let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
+        if (!agencyIdForUpdate) {
+          agencyIdForUpdate = await resolveAgencyIdForAgencyAdmin();
+        }
+        if (!agencyIdForUpdate) {
+          throw new Error('Agency is not linked to this account');
+        }
+        result = await redeployAdminAgencySite(agencyIdForUpdate);
+      } else {
+        result = await redeployMyAgencySite();
+      }
+      if (result?.error) {
+        throw new Error(result.error.message || 'Agency site redeploy failed');
+      }
+      setNotice({
+        type: 'success',
+        text: `Site update started — your live site will refresh in 1–2 minutes.${result?.data?.site_url ? ` URL: ${result.data.site_url}` : ''}`
+      });
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to publish site updates: ${err.message}` });
+    } finally {
+      setSiteRedeploying(false);
+    }
+  };
+
+  const handlePublishAgencySite = async () => {
+    try {
+      setSitePublishing(true);
+      let result;
+      if (isAgencyAdminPreview && ['admin', 'super_admin'].includes(userProfile?.role)) {
+        let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
+        if (!agencyIdForUpdate) {
+          agencyIdForUpdate = await resolveAgencyIdForAgencyAdmin();
+        }
+        if (!agencyIdForUpdate) {
+          throw new Error('Agency is not linked to this account');
+        }
+        result = await publishAdminAgencySite(agencyIdForUpdate);
+      } else {
+        result = await publishMyAgencySite();
+      }
+      if (result?.error) {
+        throw new Error(result.error.message || 'Agency site publish failed');
+      }
+      setNotice({
+        type: 'success',
+        text: `Site publish started — your site will be live in 1–2 minutes.${result?.data?.site_url ? ` URL: ${result.data.site_url}` : ''}`
+      });
+      if (isAgencyAdminPreview) {
+        await Promise.all([loadAdminData(), loadMyAgencySettings()]);
+      } else {
+        await loadMyAgencySettings();
+      }
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to publish agency site: ${err.message}` });
+    } finally {
+      setSitePublishing(false);
+    }
+  };
+
+  const handleSendSetupEmail = async (agencyId) => {
+    if (!agencyId) {
+      setNotice({ type: 'error', text: 'Agency id is missing' });
+      return;
+    }
+    try {
+      setSetupEmailSendingId(agencyId);
+      const { data, error } = await sendAdminAgencySetupEmail(agencyId);
+      if (error) throw new Error(error.message || 'Setup email failed');
+      setNotice({
+        type: 'success',
+        text: `Setup email sent to ${data?.agency?.contact_email || 'agency manager'}`
+      });
+      if (agencySelfMeta?.id === agencyId) {
+        await loadMyAgencySettings();
+      }
+      await Promise.all([loadAdminData(), loadAgencies()]);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to send setup email: ${err.message}` });
+    } finally {
+      setSetupEmailSendingId(null);
+    }
+  };
+
+  const handlePublishAgencyRow = async (agency) => {
+    if (!agency?.id) {
+      setNotice({ type: 'error', text: 'Agency id is missing' });
+      return;
+    }
+    try {
+      setRowPublishingId(agency.id);
+      const result = await publishAdminAgencySite(agency.id);
+      if (result?.error) {
+        throw new Error(result.error.message || 'Initial publish failed');
+      }
+      setNotice({
+        type: 'success',
+        text: `Site publish started — will be live in 1–2 minutes.${result?.data?.site_url ? ` URL: ${result.data.site_url}` : ''}`
+      });
+      await Promise.all([loadAdminData(), loadAgencies()]);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to publish site: ${err.message}` });
+    } finally {
+      setRowPublishingId(null);
+    }
+  };
+
+  const handleRedeployAgencyRow = async (agency) => {
+    if (!agency?.id) {
+      setNotice({ type: 'error', text: 'Agency id is missing' });
+      return;
+    }
+    try {
+      setRowRedeployingId(agency.id);
+      const result = await redeployAdminAgencySite(agency.id);
+      if (result?.error) {
+        throw new Error(result.error.message || 'Republish failed');
+      }
+      setNotice({
+        type: 'success',
+        text: `Site republish started — changes will be live in 1–2 minutes.${result?.data?.site_url ? ` URL: ${result.data.site_url}` : ''}`
+      });
+      await Promise.all([loadAdminData(), loadAgencies()]);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to republish site: ${err.message}` });
+    } finally {
+      setRowRedeployingId(null);
     }
   };
 
@@ -1224,22 +1818,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       return '<!-- Save agency settings first to get the widget key -->';
     }
     const widgetBase = typeof window !== 'undefined' ? window.location.origin : '';
-    const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
-    const n8nBaseAbsolute = rawN8nBase.startsWith('http')
-      ? rawN8nBase
-      : `${widgetBase}${rawN8nBase.startsWith('/') ? '' : '/'}${rawN8nBase}`;
-    const widgetApiUrl = n8nBaseAbsolute.endsWith('/drct')
-      ? n8nBaseAbsolute
-      : `${n8nBaseAbsolute}/drct`;
-    return `<div
-  id="aviaframe-widget"
-  data-aviaframe-widget
-  data-api-url="${widgetApiUrl}"
-  data-brand-name="${agencySelfMeta?.name || 'Aviaframe'}"
-  data-title="Flight Search"
-></div>
+    return `<div id="aviaframe-widget"></div>
 <script
-  src="${widgetBase}/partner-widget/aviaframe-widget.js"
+  src="${widgetBase}/embed.js"
+  data-agency-key="${agencyKey}"
+  data-target-id="aviaframe-widget"
+  data-locale="en"
+  data-theme="light"
+  async
 ></script>`;
   }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfMeta?.name]);
 
@@ -1249,15 +1835,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     if (!widgetBase) return '/widget-preview.html';
     const preview = new URL('/widget-preview.html', widgetBase);
     if (agencyKey) preview.searchParams.set('agency_key', agencyKey);
-    const rawN8nBase = String(import.meta.env.VITE_N8N_BASE_URL || '/api/n8n/webhook-test').replace(/\/+$/, '');
-    const n8nBaseAbsolute = rawN8nBase.startsWith('http')
-      ? rawN8nBase
-      : `${widgetBase}${rawN8nBase.startsWith('/') ? '' : '/'}${rawN8nBase}`;
-    const widgetApiUrl = n8nBaseAbsolute.endsWith('/drct')
-      ? n8nBaseAbsolute
-      : `${n8nBaseAbsolute}/drct`;
-    preview.searchParams.set('api_url', widgetApiUrl);
-        preview.searchParams.set('agency_name', agencySelfMeta?.name || 'Aviaframe');
+    preview.searchParams.set('backend_base', `${widgetBase}/api/backend`);
+    preview.searchParams.set('agency_name', agencySelfMeta?.name || 'Aviaframe');
+    if (agencySelfMeta?.domain) preview.searchParams.set('agency_domain', agencySelfMeta.domain);
+    preview.searchParams.set('preview_mode', '1');
     return preview.toString();
   }, [agencySelfMeta?.api_key, agencySelfMeta?.domain, agencySelfMeta?.name]);
 
@@ -1387,11 +1968,131 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
             <p className="text-sm text-gray-600 mb-3">
               Set commission model: percentage or fixed amount per sold ticket.
             </p>
-            {isAgencyAdminPreview && (
-              <div className="mb-3 text-sm text-gray-600">
-                Agency: <span className="font-semibold text-gray-900">{agencies.find((a) => a.id === (userProfile?.agency_id || agencyPreviewId))?.name || agencies[0]?.name || '—'}</span>
+            {isAgencyAdminPreview && agencies.length > 0 && (
+              <div className="mb-3 flex items-center gap-2">
+                <label className="text-sm text-gray-600 shrink-0">Agency:</label>
+                <select
+                  value={agencyPreviewId || userProfile?.agency_id || agencies[0]?.id || ''}
+                  onChange={(e) => {
+                    const selected = agencies.find((a) => a.id === e.target.value);
+                    if (!selected) return;
+                    setAgencyPreviewId(selected.id);
+                    setUserProfile((p) => p ? { ...p, agency_id: selected.id } : p);
+                    applyAgencyToSelfForm(selected);
+                  }}
+                  className="border rounded px-2 py-1 text-sm font-semibold text-gray-900 flex-1 max-w-xs"
+                >
+                  {agencies.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name} {a.domain ? `(${a.domain})` : ''}</option>
+                  ))}
+                </select>
               </div>
             )}
+            <div className="mb-4 border border-slate-200 rounded-xl bg-gradient-to-br from-slate-50 to-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500 font-semibold">Onboarding</p>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    {agencySelfMeta?.name || 'Agency setup'}
+                  </h3>
+                  <p className="text-sm text-slate-600">
+                    Public site and widget rollout are now tracked step by step.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${selectedOnboardingMeta.tone}`}>
+                    {selectedOnboardingMeta.label}
+                  </span>
+                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${selectedDeployMeta.tone}`}>
+                    {selectedDeployMeta.label}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="font-medium text-slate-900 mb-1">Checklist</div>
+                  <div className="space-y-1">
+                    {(selectedAgencyOnboarding?.checklist?.items || []).map((item) => (
+                      <div key={item.key} className="flex items-start gap-2">
+                        <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${item.done ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {item.done ? '✓' : '•'}
+                        </span>
+                        <div>
+                          <div className="text-slate-900">{item.label}</div>
+                          {!item.done && item.hint && (
+                            <div className="text-xs text-slate-500">{item.hint}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {!(selectedAgencyOnboarding?.checklist?.items || []).length && (
+                      <p className="text-slate-500">Save agency settings to start the onboarding checklist.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                  <div>
+                    <div className="font-medium text-slate-900">Manager access</div>
+                    <div className="text-slate-600">
+                      {agencySelfMeta?.contact_email || 'No manager email yet'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-slate-900">Last setup email</div>
+                    <div className="text-slate-600">
+                      {formatDateTime(selectedAgencyOnboarding?.invite_sent_at)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-slate-900">Last site publish</div>
+                    <div className="text-slate-600">
+                      {formatDateTime(selectedAgencyDeploy?.last_success_at)}
+                    </div>
+                  </div>
+                  {selectedAgencyDeploy?.last_error && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {selectedAgencyDeploy.last_error}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {isAgencyAdminPreview && ['admin', 'super_admin'].includes(userProfile?.role) && agencySelfMeta?.id && (
+                  <button
+                    onClick={() => handleSendSetupEmail(agencySelfMeta.id)}
+                    disabled={setupEmailSendingId === agencySelfMeta.id}
+                    className={`rounded px-3 py-1.5 text-sm ${setupEmailSendingId === agencySelfMeta.id ? 'bg-gray-200 text-gray-500' : 'bg-indigo-600 text-white'}`}
+                  >
+                    {setupEmailSendingId === agencySelfMeta.id ? 'Sending setup email...' : 'Send setup email'}
+                  </button>
+                )}
+                <button
+                  onClick={handlePublishAgencySite}
+                  disabled={sitePublishing || !selectedAgencyOnboarding?.publish_ready}
+                  className={`rounded px-3 py-1.5 text-sm ${sitePublishing || !selectedAgencyOnboarding?.publish_ready ? 'bg-gray-200 text-gray-500' : 'bg-emerald-600 text-white'}`}
+                >
+                  {sitePublishing ? 'Publishing...' : 'Publish site'}
+                </button>
+                <button
+                  onClick={handleRedeployAgencySite}
+                  disabled={siteRedeploying || !agencySelfMeta?.domain}
+                  className={`rounded px-3 py-1.5 text-sm ${siteRedeploying || !agencySelfMeta?.domain ? 'bg-gray-200 text-gray-500' : 'bg-amber-500 text-white'}`}
+                >
+                  {siteRedeploying ? 'Publishing...' : 'Republish current site'}
+                </button>
+                {agencySelfMeta?.domain && (
+                  <button
+                    onClick={() => window.open(`https://${agencySelfMeta.domain}`, '_blank')}
+                    className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700"
+                  >
+                    Open public site
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
               <select
                 value={agencySelfForm.commission_model}
@@ -1430,6 +2131,78 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 <option value="EUR">EUR</option>
                 <option value="USD">USD</option>
               </select>
+
+              {/* Per-carrier commission section */}
+              <div className="md:col-span-3 border border-amber-200 rounded-lg p-3 bg-amber-50/40">
+                <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                  Per-carrier commission <span className="font-normal text-gray-500">(SAR, added on top of global commission)</span>
+                </h3>
+                <div className="flex gap-4 mb-3">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="radio"
+                      name="carrier_commission_mode"
+                      value="all"
+                      checked={agencySelfForm.carrier_commission_mode === 'all'}
+                      onChange={() => setAgencySelfForm((p) => ({ ...p, carrier_commission_mode: 'all' }))}
+                    />
+                    Same for all carriers
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="radio"
+                      name="carrier_commission_mode"
+                      value="per_carrier"
+                      checked={agencySelfForm.carrier_commission_mode === 'per_carrier'}
+                      onChange={() => setAgencySelfForm((p) => ({ ...p, carrier_commission_mode: 'per_carrier' }))}
+                    />
+                    Per carrier
+                  </label>
+                </div>
+
+                {agencySelfForm.carrier_commission_mode === 'all' ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={agencySelfForm.carrier_commission_all_amount}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, carrier_commission_all_amount: e.target.value }))}
+                      placeholder="0"
+                      className="border rounded px-2 py-1 w-36"
+                    />
+                    <span className="text-sm text-gray-600">SAR per ticket (all carriers)</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1 max-h-64 overflow-y-auto pr-1">
+                    {CARRIERS.map(({ code, name }) => (
+                      <div key={code} className="flex items-center gap-1">
+                        <span className="text-xs font-mono text-gray-700 w-7 shrink-0">{code}</span>
+                        <span className="text-xs text-gray-500 truncate flex-1 min-w-0" title={name}>{name}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={agencySelfForm.carrier_commissions[code] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setAgencySelfForm((p) => ({
+                              ...p,
+                              carrier_commissions: {
+                                ...p.carrier_commissions,
+                                [code]: val === '' ? undefined : val
+                              }
+                            }));
+                          }}
+                          placeholder="0"
+                          className="border rounded px-1 py-0.5 w-16 text-xs shrink-0"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <input
                 value={agencySelfForm.contact_person_name}
                 onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_person_name: e.target.value }))}
@@ -1517,6 +2290,171 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   <p className="text-xs text-gray-500">No domains yet. Add at least one agency website domain.</p>
                 )}
               </div>
+              <div className="md:col-span-3 border border-indigo-100 rounded-lg p-4 bg-indigo-50/30">
+                <h3 className="text-sm font-semibold text-indigo-900 mb-3">Branding, support and public site content</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    value={agencySelfForm.name_ar}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, name_ar: e.target.value }))}
+                    placeholder="Arabic agency name"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.contact_phone2}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_phone2: e.target.value }))}
+                    placeholder="Secondary phone"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.whatsapp_phone}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, whatsapp_phone: e.target.value }))}
+                    placeholder="WhatsApp phone"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.supervisor_name}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, supervisor_name: e.target.value }))}
+                    placeholder="Supervisor name"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    type="email"
+                    value={agencySelfForm.supervisor_email}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, supervisor_email: e.target.value }))}
+                    placeholder="Supervisor email"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.logo_url}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, logo_url: e.target.value }))}
+                    placeholder="Logo URL"
+                    className="border rounded px-2 py-1"
+                  />
+                  <label className="border rounded px-3 py-2 text-sm text-gray-700 bg-white cursor-pointer flex items-center justify-between">
+                    <span>{logoUploading ? 'Uploading logo...' : 'Upload logo file'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleAgencySelfLogoUpload(e.target.files?.[0])}
+                    />
+                  </label>
+                  <p className="text-xs text-gray-400">PNG, SVG, or JPG. Max 2 MB. Recommended: square or wide logo on transparent background. After uploading, save settings and click <strong>Republish</strong> to update your live site.</p>
+                  <div className="flex items-center gap-3 border rounded px-3 py-2 bg-white">
+                    <label className="text-sm text-gray-600">Brand</label>
+                    <input
+                      type="color"
+                      value={agencySelfForm.brand_color}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, brand_color: e.target.value }))}
+                      className="w-12 h-8 border rounded"
+                    />
+                    <label className="text-sm text-gray-600 ml-2">Accent</label>
+                    <input
+                      type="color"
+                      value={agencySelfForm.accent_color}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, accent_color: e.target.value }))}
+                      className="w-12 h-8 border rounded"
+                    />
+                  </div>
+                  <input
+                    value={agencySelfForm.license_number}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, license_number: e.target.value }))}
+                    placeholder="License / CR number"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.iata_number}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, iata_number: e.target.value }))}
+                    placeholder="IATA number"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.founded_year}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, founded_year: e.target.value }))}
+                    placeholder="Founded year"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.google_maps_url}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, google_maps_url: e.target.value }))}
+                    placeholder="Google Maps embed URL"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.instagram}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, instagram: e.target.value }))}
+                    placeholder="Instagram URL"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.twitter}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, twitter: e.target.value }))}
+                    placeholder="Twitter / X URL"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.snapchat}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, snapchat: e.target.value }))}
+                    placeholder="Snapchat URL"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.facebook}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, facebook: e.target.value }))}
+                    placeholder="Facebook URL"
+                    className="border rounded px-2 py-1"
+                  />
+                  <input
+                    value={agencySelfForm.working_hours}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, working_hours: e.target.value }))}
+                    placeholder="Working hours (EN)"
+                    className="border rounded px-2 py-1 md:col-span-2"
+                  />
+                  <input
+                    value={agencySelfForm.working_hours_ar}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, working_hours_ar: e.target.value }))}
+                    placeholder="Working hours (AR)"
+                    className="border rounded px-2 py-1 md:col-span-2"
+                  />
+                  <textarea
+                    value={agencySelfForm.about_en}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, about_en: e.target.value }))}
+                    placeholder="About section (EN)"
+                    className="border rounded px-2 py-2 md:col-span-2 min-h-24"
+                  />
+                  <textarea
+                    value={agencySelfForm.about_ar}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, about_ar: e.target.value }))}
+                    placeholder="About section (AR)"
+                    className="border rounded px-2 py-2 md:col-span-2 min-h-24"
+                  />
+                  <div className="md:col-span-2 border rounded px-3 py-3 bg-white">
+                    <div className="text-sm font-medium text-gray-700 mb-2">Services shown on agency landing page</div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {SERVICE_OPTIONS.map((service) => {
+                        const checked = agencySelfForm.services.includes(service.key);
+                        return (
+                          <label key={service.key} className="flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setAgencySelfForm((p) => ({
+                                  ...p,
+                                  services: e.target.checked
+                                    ? [...new Set([...p.services, service.key])]
+                                    : p.services.filter((value) => value !== service.key)
+                                }));
+                              }}
+                            />
+                            {service.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
               <button
                 onClick={handleSaveMyAgencySettings}
                 className="bg-blue-600 text-white rounded px-3 py-1"
@@ -1531,7 +2469,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               <div className="text-xs text-indigo-900/80 mb-3 space-y-1">
                 <p>1) Add your website domains above and save.</p>
                 <p>2) Copy embed code and paste it on the agency website.</p>
-                <p>3) Open preview and verify the widget loads.</p>
+                <p>3) Publish site updates after changing logo, colors or content.</p>
+                <p>4) Open preview and verify the widget loads.</p>
               </div>
               <textarea
                 readOnly
@@ -1552,6 +2491,21 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   Preview
                 </button>
                 <button
+                  onClick={handleRedeployAgencySite}
+                  disabled={siteRedeploying || !agencySelfMeta?.domain}
+                  className={`rounded px-3 py-1 text-sm ${siteRedeploying || !agencySelfMeta?.domain ? 'bg-gray-200 text-gray-500' : 'bg-amber-500 text-white'}`}
+                >
+                  {siteRedeploying ? 'Publishing...' : 'Publish site updates'}
+                </button>
+                {agencySelfMeta?.domain && (
+                  <button
+                    onClick={() => window.open(`https://${agencySelfMeta.domain}`, '_blank')}
+                    className="bg-white border border-amber-300 text-amber-700 rounded px-3 py-1 text-sm"
+                  >
+                    Open public site
+                  </button>
+                )}
+                <button
                   onClick={() => window.open('/widget-docs/INTEGRATION_GUIDE.md', '_blank')}
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
@@ -1564,9 +2518,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   Technical docs
                 </button>
               </div>
-              <p className="text-xs text-gray-600 mt-2">
-                Current widget key: <span className="font-mono">{agencySelfMeta?.api_key || agencySelfMeta?.domain || agencySelfMeta?.id || '—'}</span>
-              </p>
+              <div className="text-xs text-gray-600 mt-2 space-y-1">
+                <p>
+                  Current public widget key: <span className="font-mono">{agencySelfMeta?.api_key || agencySelfMeta?.domain || agencySelfMeta?.id || '—'}</span>
+                </p>
+                {agencySelfMeta?.domain && (
+                  <p>
+                    Public site domain: <span className="font-mono">{agencySelfMeta.domain}</span>
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1593,6 +2554,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               >
                 Tickets
               </button>
+              <button
+                onClick={() => setActiveAdminSection('sales_report')}
+                className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'sales_report' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Sales Report
+              </button>
             </div>
           </div>
         )}
@@ -1614,12 +2581,104 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 </div>
                 {showCreateAgencyForm && (
                   <div className="space-y-2">
-                    <input value={agencyForm.name} onChange={(e) => setAgencyForm((p) => ({ ...p, name: e.target.value }))} placeholder="Name *" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.domain} onChange={(e) => setAgencyForm((p) => ({ ...p, domain: e.target.value }))} placeholder="Domain (subdomain)" className="w-full border rounded px-2 py-1" />
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Basic info</p>
+                    <input value={agencyForm.name} onChange={(e) => setAgencyForm((p) => ({ ...p, name: e.target.value }))} placeholder="Agency name (English) *" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.name_ar} onChange={(e) => setAgencyForm((p) => ({ ...p, name_ar: e.target.value }))} placeholder="Agency name (Arabic) اسم الوكالة" className="w-full border rounded px-2 py-1" dir="rtl" />
+                    <div className="flex gap-2">
+                      <input value={agencyForm.domain} onChange={(e) => setAgencyForm((p) => ({ ...p, domain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'') }))} placeholder="Subdomain * e.g. almalek" className="flex-1 border rounded px-2 py-1" />
+                      <span className="self-center text-gray-400 text-sm">.aviaframe.com</span>
+                    </div>
                     <input value={agencyForm.contact_email} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_email: e.target.value }))} placeholder="Email (agency admin login) *" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.contact_phone} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_phone: e.target.value }))} placeholder="Phone" className="w-full border rounded px-2 py-1" />
-                    <input value={agencyForm.contact_person_name} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_person_name: e.target.value }))} placeholder="Contact person full name" className="w-full border rounded px-2 py-1" />
-                    <p className="text-xs text-gray-500 pt-1 font-semibold">Payment methods</p>
+                    <input value={agencyForm.contact_phone} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_phone: e.target.value }))} placeholder="Phone 1 (WhatsApp) e.g. +966 50 274 7653" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.contact_phone2} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_phone2: e.target.value }))} placeholder="Phone 2 (office)" className="w-full border rounded px-2 py-1" />
+                    <input value={agencyForm.contact_person_name} onChange={(e) => setAgencyForm((p) => ({ ...p, contact_person_name: e.target.value }))} placeholder="Supervisor name" className="w-full border rounded px-2 py-1" />
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Logo</p>
+                    <div className="flex gap-3 items-center flex-wrap">
+                      <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 border rounded px-3 py-1 text-sm transition-colors">
+                        {logoUploading ? 'Uploading...' : '📁 Upload logo (PNG/SVG)'}
+                        <input type="file" accept="image/*" className="hidden" disabled={logoUploading}
+                          onChange={(e) => e.target.files?.[0] && handleLogoUpload(e.target.files[0])} />
+                      </label>
+                      {agencyForm.logo_url && (
+                        <div className="flex items-center gap-2">
+                          <img src={agencyForm.logo_url} alt="logo preview" className="h-10 w-auto object-contain border rounded bg-white p-1" />
+                          <button onClick={() => setAgencyForm(p => ({ ...p, logo_url: '' }))} className="text-red-400 text-xs">✕ Remove</button>
+                        </div>
+                      )}
+                      <input value={agencyForm.logo_url} onChange={(e) => setAgencyForm(p => ({ ...p, logo_url: e.target.value }))} placeholder="Or paste logo URL" className="flex-1 min-w-0 border rounded px-2 py-1 text-sm" />
+                    </div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Brand colors</p>
+                    <div className="flex gap-3 items-center">
+                      <label className="text-sm text-gray-600 flex items-center gap-2">
+                        Header color
+                        <input type="color" value={agencyForm.brand_color} onChange={(e) => setAgencyForm((p) => ({ ...p, brand_color: e.target.value }))} className="w-10 h-8 rounded cursor-pointer border" />
+                        <span className="text-xs text-gray-400">{agencyForm.brand_color}</span>
+                      </label>
+                      <label className="text-sm text-gray-600 flex items-center gap-2">
+                        Accent color
+                        <input type="color" value={agencyForm.accent_color} onChange={(e) => setAgencyForm((p) => ({ ...p, accent_color: e.target.value }))} className="w-10 h-8 rounded cursor-pointer border" />
+                        <span className="text-xs text-gray-400">{agencyForm.accent_color}</span>
+                      </label>
+                    </div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">About (optional)</p>
+                    <textarea value={agencyForm.about_en} onChange={(e) => setAgencyForm(p => ({ ...p, about_en: e.target.value }))} placeholder="About agency (English) — shown on site homepage" className="w-full border rounded px-2 py-1 text-sm min-h-16" />
+                    <textarea value={agencyForm.about_ar} onChange={(e) => setAgencyForm(p => ({ ...p, about_ar: e.target.value }))} placeholder="About agency (Arabic) — نبذة عن الوكالة" className="w-full border rounded px-2 py-1 text-sm min-h-16" dir="rtl" />
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Services (optional — check what the agency offers)</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {[
+                        {key:'flights_domestic',label:'Domestic flights'},
+                        {key:'flights_intl',label:'International flights'},
+                        {key:'hotels',label:'Hotel reservations'},
+                        {key:'visa',label:'Visa assistance'},
+                        {key:'insurance',label:'Travel insurance'},
+                        {key:'umrah',label:'Umrah & Hajj'},
+                        {key:'tours',label:'Tour packages'},
+                        {key:'corporate',label:'Corporate travel'},
+                        {key:'transfers',label:'Airport transfers'},
+                        {key:'car_rental',label:'Car rental'}
+                      ].map(s => (
+                        <label key={s.key} className="flex items-center gap-1 text-sm cursor-pointer">
+                          <input type="checkbox" checked={(agencyForm.services||[]).includes(s.key)}
+                            onChange={e => setAgencyForm(p => ({
+                              ...p,
+                              services: e.target.checked
+                                ? [...(p.services||[]), s.key]
+                                : (p.services||[]).filter(x => x !== s.key)
+                            }))} />
+                          {s.label}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Office info (optional)</p>
+                    <input value={agencyForm.working_hours} onChange={(e) => setAgencyForm(p => ({ ...p, working_hours: e.target.value }))} placeholder="Working hours EN: Sat–Thu 9:00–18:00" className="w-full border rounded px-2 py-1 text-sm" />
+                    <input value={agencyForm.working_hours_ar} onChange={(e) => setAgencyForm(p => ({ ...p, working_hours_ar: e.target.value }))} placeholder="Working hours AR: السبت–الخميس 9:00–18:00" className="w-full border rounded px-2 py-1 text-sm" dir="rtl" />
+                    <input value={agencyForm.google_maps_url} onChange={(e) => setAgencyForm(p => ({ ...p, google_maps_url: e.target.value }))} placeholder="Google Maps embed URL (iframe src=...)" className="w-full border rounded px-2 py-1 text-sm" />
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Trust & credentials (optional)</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <input value={agencyForm.license_number} onChange={(e) => setAgencyForm(p => ({ ...p, license_number: e.target.value }))} placeholder="License / CR #" className="border rounded px-2 py-1 text-sm" />
+                      <input value={agencyForm.iata_number} onChange={(e) => setAgencyForm(p => ({ ...p, iata_number: e.target.value }))} placeholder="IATA #" className="border rounded px-2 py-1 text-sm" />
+                      <input value={agencyForm.founded_year} onChange={(e) => setAgencyForm(p => ({ ...p, founded_year: e.target.value }))} placeholder="Founded year" className="border rounded px-2 py-1 text-sm" />
+                    </div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Social media (optional)</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={agencyForm.instagram} onChange={(e) => setAgencyForm(p => ({ ...p, instagram: e.target.value }))} placeholder="Instagram URL" className="border rounded px-2 py-1 text-sm" />
+                      <input value={agencyForm.twitter} onChange={(e) => setAgencyForm(p => ({ ...p, twitter: e.target.value }))} placeholder="Twitter/X URL" className="border rounded px-2 py-1 text-sm" />
+                      <input value={agencyForm.snapchat} onChange={(e) => setAgencyForm(p => ({ ...p, snapchat: e.target.value }))} placeholder="Snapchat URL" className="border rounded px-2 py-1 text-sm" />
+                      <input value={agencyForm.facebook} onChange={(e) => setAgencyForm(p => ({ ...p, facebook: e.target.value }))} placeholder="Facebook URL" className="border rounded px-2 py-1 text-sm" />
+                      <input value={agencyForm.whatsapp_phone} onChange={(e) => setAgencyForm(p => ({ ...p, whatsapp_phone: e.target.value }))} placeholder="WhatsApp (if different from Phone 1)" className="border rounded px-2 py-1 text-sm col-span-2" />
+                    </div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Commission</p>
+                    <div className="flex gap-2">
+                      <select value={agencyForm.commission_model} onChange={(e) => setAgencyForm((p) => ({ ...p, commission_model: e.target.value }))} className="border rounded px-2 py-1 text-sm">
+                        <option value="fixed">Fixed (SAR)</option>
+                        <option value="percent">Percentage (%)</option>
+                      </select>
+                      {agencyForm.commission_model === 'fixed'
+                        ? <input type="number" value={agencyForm.commission_fixed_amount} onChange={(e) => setAgencyForm((p) => ({ ...p, commission_fixed_amount: e.target.value }))} placeholder="Amount SAR" className="flex-1 border rounded px-2 py-1 text-sm" />
+                        : <input type="number" value={agencyForm.commission_rate} onChange={(e) => setAgencyForm((p) => ({ ...p, commission_rate: e.target.value }))} placeholder="%" className="flex-1 border rounded px-2 py-1 text-sm" />
+                      }
+                    </div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Payment methods</p>
                     <div className="flex gap-3 flex-wrap">
                       {['online', 'cash', 'invoice'].map(m => (
                         <label key={m} className="flex items-center gap-1 text-sm cursor-pointer">
@@ -1645,13 +2704,42 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         <input value={agencyForm.sama_code} onChange={(e) => setAgencyForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} placeholder="SAMA bank code" className="w-full border rounded px-2 py-1" />
                       </>
                     )}
-                    <textarea
-                      value={agencyForm.widget_allowed_domains}
-                      onChange={(e) => setAgencyForm((p) => ({ ...p, widget_allowed_domains: e.target.value }))}
-                      placeholder="Allowed widget domains (one per line), for example:&#10;kiyavia.com&#10;aviatickets.kiyavia.com"
-                      className="w-full border rounded px-2 py-1 min-h-20"
-                    />
-                    <button onClick={handleCreateAgency} className="w-full bg-blue-600 text-white rounded px-3 py-2">Create</button>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={handleCreateAgencyDraftAndInvite}
+                        disabled={draftInviting || provisioning || createOnlyLoading}
+                        className="flex-1 bg-indigo-600 text-white rounded px-3 py-2 font-semibold disabled:opacity-50"
+                      >
+                        {draftInviting ? 'Creating draft...' : 'Send setup flow'}
+                      </button>
+                      <button
+                        onClick={handleProvisionAgency}
+                        disabled={provisioning || draftInviting || createOnlyLoading}
+                        className="flex-1 bg-green-600 text-white rounded px-3 py-2 font-semibold disabled:opacity-50"
+                      >
+                        {provisioning ? 'Creating & deploying...' : '🚀 Create & Deploy Site'}
+                      </button>
+                      <button
+                        onClick={handleCreateAgency}
+                        disabled={createOnlyLoading || draftInviting || provisioning}
+                        className="flex-1 bg-blue-600 text-white rounded px-3 py-2 text-sm disabled:opacity-50"
+                      >
+                        {createOnlyLoading ? 'Creating agency...' : 'Create only (no site)'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Send setup flow creates a draft agency and emails the manager instructions.
+                      Create & Deploy Site publishes the public agency site immediately.
+                      Create only saves the agency record so setup or publish can be done later.
+                    </p>
+                    {provisionResult && (
+                      <div className="bg-green-50 border border-green-200 rounded p-3 text-sm">
+                        <p className="font-semibold text-green-800">✅ Agency created & site deployed!</p>
+                        <p>Site: <a href={provisionResult.site_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">{provisionResult.site_url}</a></p>
+                        <p className="text-xs text-gray-500 mt-1">api_key: {provisionResult.agency?.api_key}</p>
+                        {provisionResult.deploy_error && <p className="text-orange-600 text-xs mt-1">Deploy warning: {provisionResult.deploy_error}</p>}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1758,15 +2846,121 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               {agencies.map((a) => (
                 <div key={a.id} className="border rounded p-3">
                   {agencyEditId === a.id ? (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                      <input value={agencyEditForm.name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Name" />
-                      <input value={agencyEditForm.domain} onChange={(e) => setAgencyEditForm((p) => ({ ...p, domain: e.target.value }))} className="border rounded px-2 py-1" placeholder="Domain" />
-                      <input value={agencyEditForm.contact_email} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_email: e.target.value }))} className="border rounded px-2 py-1" placeholder="Email" />
-                      <input value={agencyEditForm.contact_phone} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_phone: e.target.value }))} className="border rounded px-2 py-1" placeholder="Phone" />
-                      <input value={agencyEditForm.contact_person_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_person_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Contact person full name" />
-                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={agencyEditForm.is_active} onChange={(e) => setAgencyEditForm((p) => ({ ...p, is_active: e.target.checked }))} /> Active</label>
-                      <div className="md:col-span-4">
-                        <p className="text-xs text-gray-500 mb-1 font-semibold">Payment methods</p>
+                    <div className="space-y-4">
+                      {/* Basic info */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Basic info</p>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                          <input value={agencyEditForm.name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Name (EN)" />
+                          <input value={agencyEditForm.name_ar} onChange={(e) => setAgencyEditForm((p) => ({ ...p, name_ar: e.target.value }))} className="border rounded px-2 py-1" placeholder="Name (AR)" dir="rtl" />
+                          <input value={agencyEditForm.domain} onChange={(e) => setAgencyEditForm((p) => ({ ...p, domain: e.target.value }))} className="border rounded px-2 py-1" placeholder="Domain" />
+                          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={agencyEditForm.is_active} onChange={(e) => setAgencyEditForm((p) => ({ ...p, is_active: e.target.checked }))} /> Active</label>
+                        </div>
+                      </div>
+
+                      {/* Contact */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Contact</p>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                          <input value={agencyEditForm.contact_email} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_email: e.target.value }))} className="border rounded px-2 py-1" placeholder="Email" />
+                          <input value={agencyEditForm.contact_phone} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_phone: e.target.value }))} className="border rounded px-2 py-1" placeholder="Phone" />
+                          <input value={agencyEditForm.contact_phone2} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_phone2: e.target.value }))} className="border rounded px-2 py-1" placeholder="Phone 2" />
+                          <input value={agencyEditForm.whatsapp_phone} onChange={(e) => setAgencyEditForm((p) => ({ ...p, whatsapp_phone: e.target.value }))} className="border rounded px-2 py-1" placeholder="WhatsApp" />
+                          <input value={agencyEditForm.contact_person_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, contact_person_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Contact person" />
+                          <input value={agencyEditForm.supervisor_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, supervisor_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Supervisor name" />
+                          <input value={agencyEditForm.supervisor_email} onChange={(e) => setAgencyEditForm((p) => ({ ...p, supervisor_email: e.target.value }))} className="border rounded px-2 py-1" placeholder="Supervisor email" />
+                        </div>
+                      </div>
+
+                      {/* Branding */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Branding</p>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                          <div className="flex items-center gap-2 border rounded px-2 py-1">
+                            <input type="color" value={agencyEditForm.brand_color} onChange={(e) => setAgencyEditForm((p) => ({ ...p, brand_color: e.target.value }))} className="w-7 h-7 rounded border-0 cursor-pointer" />
+                            <span className="text-sm text-gray-600">Brand color</span>
+                            <span className="text-xs text-gray-400 ml-auto">{agencyEditForm.brand_color}</span>
+                          </div>
+                          <div className="flex items-center gap-2 border rounded px-2 py-1">
+                            <input type="color" value={agencyEditForm.accent_color} onChange={(e) => setAgencyEditForm((p) => ({ ...p, accent_color: e.target.value }))} className="w-7 h-7 rounded border-0 cursor-pointer" />
+                            <span className="text-sm text-gray-600">Accent color</span>
+                            <span className="text-xs text-gray-400 ml-auto">{agencyEditForm.accent_color}</span>
+                          </div>
+                          <div className="md:col-span-4">
+                            <div className="flex gap-3 items-center flex-wrap">
+                              <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 border rounded px-3 py-1 text-sm transition-colors">
+                                {editLogoUploading ? 'Uploading...' : '📁 Upload logo (PNG/SVG)'}
+                                <input type="file" accept="image/*" className="hidden" disabled={editLogoUploading}
+                                  onChange={(e) => e.target.files?.[0] && handleLogoUploadForEdit(e.target.files[0])} />
+                              </label>
+                              {agencyEditForm.logo_url && (
+                                <div className="flex items-center gap-2">
+                                  <img src={agencyEditForm.logo_url} alt="logo" className="h-8 w-auto object-contain border rounded bg-white p-1" />
+                                  <button onClick={() => setAgencyEditForm(p => ({ ...p, logo_url: '' }))} className="text-red-400 text-xs">✕</button>
+                                </div>
+                              )}
+                              <input value={agencyEditForm.logo_url} onChange={(e) => setAgencyEditForm(p => ({ ...p, logo_url: e.target.value }))} placeholder="Or paste logo URL" className="flex-1 min-w-0 border rounded px-2 py-1 text-sm" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* About / Description */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">About</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <textarea value={agencyEditForm.about_en} onChange={(e) => setAgencyEditForm((p) => ({ ...p, about_en: e.target.value }))} className="border rounded px-2 py-1 min-h-20" placeholder="About (EN)" />
+                          <textarea value={agencyEditForm.about_ar} onChange={(e) => setAgencyEditForm((p) => ({ ...p, about_ar: e.target.value }))} className="border rounded px-2 py-1 min-h-20" placeholder="About (AR)" dir="rtl" />
+                          <input value={agencyEditForm.working_hours} onChange={(e) => setAgencyEditForm((p) => ({ ...p, working_hours: e.target.value }))} className="border rounded px-2 py-1" placeholder="Working hours (EN)" />
+                          <input value={agencyEditForm.working_hours_ar} onChange={(e) => setAgencyEditForm((p) => ({ ...p, working_hours_ar: e.target.value }))} className="border rounded px-2 py-1" placeholder="Working hours (AR)" dir="rtl" />
+                        </div>
+                      </div>
+
+                      {/* Social & Location */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Social &amp; Location</p>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                          <input value={agencyEditForm.instagram} onChange={(e) => setAgencyEditForm((p) => ({ ...p, instagram: e.target.value }))} className="border rounded px-2 py-1" placeholder="Instagram (handle or URL)" />
+                          <input value={agencyEditForm.twitter} onChange={(e) => setAgencyEditForm((p) => ({ ...p, twitter: e.target.value }))} className="border rounded px-2 py-1" placeholder="X/Twitter (handle or URL)" />
+                          <input value={agencyEditForm.snapchat} onChange={(e) => setAgencyEditForm((p) => ({ ...p, snapchat: e.target.value }))} className="border rounded px-2 py-1" placeholder="Snapchat (handle or URL)" />
+                          <input value={agencyEditForm.facebook} onChange={(e) => setAgencyEditForm((p) => ({ ...p, facebook: e.target.value }))} className="border rounded px-2 py-1" placeholder="Facebook (handle or URL)" />
+                          <input value={agencyEditForm.google_maps_url} onChange={(e) => setAgencyEditForm((p) => ({ ...p, google_maps_url: e.target.value }))} className="border rounded px-2 py-1 md:col-span-4" placeholder="Google Maps URL" />
+                        </div>
+                      </div>
+
+                      {/* Regulatory */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Regulatory</p>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                          <input value={agencyEditForm.license_number} onChange={(e) => setAgencyEditForm((p) => ({ ...p, license_number: e.target.value }))} className="border rounded px-2 py-1" placeholder="License number" />
+                          <input value={agencyEditForm.iata_number} onChange={(e) => setAgencyEditForm((p) => ({ ...p, iata_number: e.target.value }))} className="border rounded px-2 py-1" placeholder="IATA number" />
+                          <input value={agencyEditForm.founded_year} onChange={(e) => setAgencyEditForm((p) => ({ ...p, founded_year: e.target.value }))} className="border rounded px-2 py-1" placeholder="Founded year" type="number" min="1900" max="2099" />
+                        </div>
+                      </div>
+
+                      {/* Services */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Services</p>
+                        <div className="flex flex-wrap gap-3">
+                          {['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate'].map(s => (
+                            <label key={s} className="flex items-center gap-1 text-sm cursor-pointer">
+                              <input type="checkbox" checked={(agencyEditForm.services || []).includes(s)}
+                                onChange={e => setAgencyEditForm(p => ({
+                                  ...p,
+                                  services: e.target.checked
+                                    ? [...(p.services || []).filter(x => x !== s), s]
+                                    : (p.services || []).filter(x => x !== s)
+                                }))}
+                              />
+                              {s.replace(/_/g, ' ')}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Payment methods */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Payment methods</p>
                         <div className="flex gap-4">
                           {['online', 'cash', 'invoice'].map(m => (
                             <label key={m} className="flex items-center gap-1 text-sm cursor-pointer">
@@ -1784,22 +2978,33 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         </div>
                       </div>
                       {(agencyEditForm.payment_methods || []).includes('invoice') && (
-                        <>
-                          <input value={agencyEditForm.bank_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Bank name" />
-                          <input value={agencyEditForm.bank_account} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_account: e.target.value }))} className="border rounded px-2 py-1" placeholder="Account number" />
-                          <input value={agencyEditForm.iban} onChange={(e) => setAgencyEditForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="IBAN (SA...)" />
-                          <input value={agencyEditForm.swift_bic} onChange={(e) => setAgencyEditForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SWIFT/BIC" />
-                          <input value={agencyEditForm.sama_code} onChange={(e) => setAgencyEditForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SAMA bank code" />
-                        </>
+                        <div>
+                          <p className="text-xs text-gray-500 font-semibold mb-1">Bank details</p>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                            <input value={agencyEditForm.bank_name} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_name: e.target.value }))} className="border rounded px-2 py-1" placeholder="Bank name" />
+                            <input value={agencyEditForm.bank_account} onChange={(e) => setAgencyEditForm((p) => ({ ...p, bank_account: e.target.value }))} className="border rounded px-2 py-1" placeholder="Account number" />
+                            <input value={agencyEditForm.iban} onChange={(e) => setAgencyEditForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="IBAN (SA...)" />
+                            <input value={agencyEditForm.swift_bic} onChange={(e) => setAgencyEditForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SWIFT/BIC" />
+                            <input value={agencyEditForm.sama_code} onChange={(e) => setAgencyEditForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))} className="border rounded px-2 py-1" placeholder="SAMA bank code" />
+                          </div>
+                        </div>
                       )}
-                      <textarea
-                        value={agencyEditForm.widget_allowed_domains}
-                        onChange={(e) => setAgencyEditForm((p) => ({ ...p, widget_allowed_domains: e.target.value }))}
-                        className="border rounded px-2 py-1 min-h-20 md:col-span-2"
-                        placeholder="Allowed widget domains (one per line)"
-                      />
-                      <button onClick={() => handleSaveAgency(a.id)} className="bg-green-600 text-white rounded px-3 py-1">Save</button>
-                      <button onClick={() => setAgencyEditId(null)} className="bg-gray-100 rounded px-3 py-1">Cancel</button>
+
+                      {/* Widget domains */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Allowed widget domains</p>
+                        <textarea
+                          value={agencyEditForm.widget_allowed_domains}
+                          onChange={(e) => setAgencyEditForm((p) => ({ ...p, widget_allowed_domains: e.target.value }))}
+                          className="border rounded px-2 py-1 min-h-16 w-full"
+                          placeholder="One domain per line"
+                        />
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => handleSaveAgency(a.id)} className="bg-green-600 text-white rounded px-4 py-1.5 text-sm font-medium">Save changes</button>
+                        <button onClick={() => setAgencyEditId(null)} className="bg-gray-100 rounded px-4 py-1.5 text-sm">Cancel</button>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -1812,9 +3017,47 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         <div>Payment methods: {Array.isArray(a?.settings?.payment_methods) && a.settings.payment_methods.length ? a.settings.payment_methods.join(', ') : 'online'}</div>
                         <div>Widget domains: {Array.isArray(a?.settings?.widget_allowed_domains) && a.settings.widget_allowed_domains.length ? a.settings.widget_allowed_domains.join(', ') : 'not set'}</div>
                         <div>Status: {a.is_active ? 'Active' : 'Inactive'}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getOnboardingStatusMeta(a?.onboarding_state?.status).tone}`}>
+                            {getOnboardingStatusMeta(a?.onboarding_state?.status).label}
+                          </span>
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getDeployStatusMeta(a?.deploy_state?.status).tone}`}>
+                            {getDeployStatusMeta(a?.deploy_state?.status).label}
+                          </span>
+                        </div>
+                        {a?.deploy_state?.last_error && (
+                          <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                            {a.deploy_state.last_error}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button onClick={() => beginEditAgency(a)} className="bg-gray-100 rounded px-3 py-1 text-sm">Open/Edit</button>
+                        <button
+                          onClick={() => handleSendSetupEmail(a.id)}
+                          disabled={setupEmailSendingId === a.id}
+                          className={`rounded px-3 py-1 text-sm ${setupEmailSendingId === a.id ? 'bg-gray-200 text-gray-500' : 'bg-indigo-100 text-indigo-700'}`}
+                        >
+                          {setupEmailSendingId === a.id
+                            ? 'Sending...'
+                            : a?.onboarding_state?.invite_sent_at
+                              ? 'Send setup again'
+                              : 'Send setup'}
+                        </button>
+                        <button
+                          onClick={() => handlePublishAgencyRow(a)}
+                          disabled={rowPublishingId === a.id || !a?.onboarding_state?.publish_ready || a?.deploy_state?.status === 'deployed'}
+                          className={`rounded px-3 py-1 text-sm ${rowPublishingId === a.id || !a?.onboarding_state?.publish_ready || a?.deploy_state?.status === 'deployed' ? 'bg-gray-200 text-gray-500' : 'bg-green-100 text-green-700'}`}
+                        >
+                          {rowPublishingId === a.id ? 'Publishing...' : 'Publish first time'}
+                        </button>
+                        <button
+                          onClick={() => handleRedeployAgencyRow(a)}
+                          disabled={rowRedeployingId === a.id || a?.deploy_state?.status === 'not_deployed'}
+                          className={`rounded px-3 py-1 text-sm ${rowRedeployingId === a.id || a?.deploy_state?.status === 'not_deployed' ? 'bg-gray-200 text-gray-500' : 'bg-amber-100 text-amber-700'}`}
+                        >
+                          {rowRedeployingId === a.id ? 'Republishing...' : 'Republish'}
+                        </button>
                         <button onClick={() => handleToggleAgencyActive(a)} className="bg-yellow-100 rounded px-3 py-1 text-sm">{a.is_active ? 'Suspend' : 'Unsuspend'}</button>
                         <button onClick={() => handleDeleteAgency(a)} className="bg-red-100 text-red-700 rounded px-3 py-1 text-sm">Delete</button>
                       </div>
@@ -1988,6 +3231,104 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               ))}
               {tickets.length === 0 && <p className="text-gray-500">No tickets</p>}
             </div>
+          </div>
+        )}
+
+        {/* Sales Report */}
+        {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'sales_report' && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-green-100">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Sales Report</h2>
+            <p className="text-sm text-gray-500 mb-4">Export all sales across all agencies for a given period.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Date from</label>
+                <input
+                  type="date"
+                  value={salesReportFilters.date_from}
+                  onChange={(e) => setSalesReportFilters((p) => ({ ...p, date_from: e.target.value }))}
+                  className="border rounded px-2 py-1 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Date to</label>
+                <input
+                  type="date"
+                  value={salesReportFilters.date_to}
+                  onChange={(e) => setSalesReportFilters((p) => ({ ...p, date_to: e.target.value }))}
+                  className="border rounded px-2 py-1 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Agency</label>
+                <select
+                  value={salesReportFilters.agency_id}
+                  onChange={(e) => setSalesReportFilters((p) => ({ ...p, agency_id: e.target.value }))}
+                  className="border rounded px-2 py-1 w-full"
+                >
+                  <option value="">All agencies</option>
+                  {agencies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Status</label>
+                <select
+                  value={salesReportFilters.status}
+                  onChange={(e) => setSalesReportFilters((p) => ({ ...p, status: e.target.value }))}
+                  className="border rounded px-2 py-1 w-full"
+                >
+                  <option value="">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="issued">Issued</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {['csv', 'xlsx', 'json', 'txt'].map((fmt) => (
+                <button
+                  key={fmt}
+                  disabled={salesReportLoading}
+                  onClick={async () => {
+                    setSalesReportLoading(true);
+                    try {
+                      const params = new URLSearchParams();
+                      if (salesReportFilters.date_from) params.set('date_from', salesReportFilters.date_from);
+                      if (salesReportFilters.date_to) params.set('date_to', salesReportFilters.date_to);
+                      if (salesReportFilters.agency_id) params.set('agency_id', salesReportFilters.agency_id);
+                      if (salesReportFilters.status) params.set('status', salesReportFilters.status);
+                      params.set('format', fmt);
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const token = session?.access_token;
+                      const resp = await fetch(`/api/backend/admin/reports/sales?${params.toString()}`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                      });
+                      if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        throw new Error(err?.error?.message || `HTTP ${resp.status}`);
+                      }
+                      const blob = await resp.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      const from = salesReportFilters.date_from || 'all';
+                      const to = salesReportFilters.date_to || 'all';
+                      a.download = `sales_report_${from}_${to}.${fmt}`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch (err) {
+                      setNotice({ type: 'error', text: `Export failed: ${err.message}` });
+                    } finally {
+                      setSalesReportLoading(false);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded font-medium text-sm uppercase tracking-wide ${salesReportLoading ? 'bg-gray-200 text-gray-400' : 'bg-green-600 text-white hover:bg-green-700'}`}
+                >
+                  {salesReportLoading ? '...' : fmt}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-3">Exports up to 50,000 rows. All fields included: order details, agency, passenger contacts, pricing, payment, timestamps.</p>
           </div>
         )}
 
