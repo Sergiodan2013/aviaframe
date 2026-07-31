@@ -6,6 +6,7 @@
   <title>Widget Demo — AviaFrame</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/style.css" />
+  <script src="/config.js"></script>
   <style>
     .demo-header {
       background: var(--dark);
@@ -28,6 +29,53 @@
       color: rgba(255,255,255,.65);
       margin: 0 0 8px;
     }
+    .demo-pills {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 24px 0 18px;
+    }
+    .demo-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,.26);
+      background: rgba(15,23,42,.18);
+      color: rgba(255,255,255,.9);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .demo-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .demo-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 14px;
+      text-decoration: none;
+      font-weight: 800;
+      transition: .2s ease;
+    }
+    .demo-btn-primary {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #fff;
+      box-shadow: 0 14px 32px rgba(37, 99, 235, .28);
+    }
+    .demo-btn-secondary {
+      background: rgba(255,255,255,.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.22);
+    }
     .demo-badge {
       display: inline-block;
       background: rgba(37,99,235,.3);
@@ -45,6 +93,34 @@
       margin: -20px auto 60px;
       padding: 0 20px;
     }
+    .demo-context {
+      max-width: 1120px;
+      margin: -10px auto 28px;
+      padding: 0 20px;
+    }
+    .demo-context-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .demo-context-card {
+      background: #fff;
+      border: 1px solid #dbe6f6;
+      border-radius: 18px;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.06);
+      padding: 20px;
+    }
+    .demo-context-card h3 {
+      margin: 0 0 8px;
+      color: #0f172a;
+      font-size: 18px;
+    }
+    .demo-context-card p {
+      margin: 0;
+      color: #475569;
+      line-height: 1.7;
+      font-size: 14px;
+    }
     .demo-note {
       max-width: 720px;
       margin: 0 auto 40px;
@@ -58,6 +134,12 @@
     }
     .demo-note strong { color: #1e293b; }
     .demo-note code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .demo-note-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
     .back-link {
       display: inline-flex;
       align-items: center;
@@ -68,9 +150,46 @@
       margin-bottom: 24px;
     }
     .back-link:hover { color: #fff; }
+    html[dir="rtl"] .demo-actions,
+    html[dir="rtl"] .demo-pills,
+    html[dir="rtl"] .demo-note-actions {
+      direction: rtl;
+    }
+    html[dir="rtl"] .demo-context-card,
+    html[dir="rtl"] .demo-note {
+      text-align: right;
+    }
+    @media (max-width: 900px) {
+      .demo-context-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
+  <script>
+    (function () {
+      var cfg = window.AVIAFRAME_RUNTIME_CONFIG || {};
+      window.__AVIAFRAME_SITE_CONFIG__ = Object.assign(
+        {
+          environment: 'production',
+          backendUrl: 'https://peaceful-amazement-production-629f.up.railway.app',
+          agencyKey: 'ag_eed8b706614bee6a4712686d1026f02b6a862485',
+          portalUrl: 'https://admin.aviaframe.com',
+          defaultDryRunIssue: false,
+          showTestPaymentCards: false,
+          searchIsSandbox: false,
+          searchOriginHost: '',
+          bookingOriginHost: window.location.hostname,
+          siteOriginHost: window.location.hostname,
+          enableCardFeePreview: true,
+          enableOfferPriceFlow: true,
+          paymentReturnUrl: window.location.origin + '/booking.html'
+        },
+        cfg
+      );
+    })();
+  </script>
   <!-- NAV -->
   <nav class="site-nav">
     <div class="site-nav-inner">
@@ -82,10 +201,11 @@
       </a>
       <div class="nav-links">
         <a class="nav-link nav-link-active" href="/widget-demo.html">Widget Demo</a>
-        <a class="nav-link" href="#pricing">Pricing</a>
-        <a class="nav-link" href="mailto:hello@aviaframe.com">Contact</a>
-        <a class="nav-cta" href="mailto:hello@aviaframe.com?subject=I want to start">Get Started</a>
-        <button class="lang-toggle" id="site-lang-trigger" aria-label="Toggle language" onclick="window.__aviaLangToggle&&window.__aviaLangToggle()">
+        <a class="nav-link" href="/partner-integration.html">Integration</a>
+        <a class="nav-link" href="/#pricing">Pricing</a>
+        <a class="nav-link" href="/#contact">Contact</a>
+        <a class="nav-cta" href="/#contact">Get Started</a>
+        <button class="lang-toggle" id="site-lang-trigger" aria-label="Toggle language">
           <span class="lt-opt lt-active" data-l="en">EN</span><span class="lt-sep">|</span><span class="lt-opt" data-l="ar">AR</span>
         </button>
       </div>
@@ -94,10 +214,36 @@
 
   <!-- HERO -->
   <div class="demo-hero">
-    <div class="demo-badge">LIVE DEMO — SANDBOX MODE</div>
-    <h1>Search &amp; Book Flights</h1>
-    <p>This is the actual AviaFrame booking widget — same one your clients will use.</p>
-    <p>Use test card <strong style="color:#93c5fd">4111 1111 1111 1111</strong> · exp any · CVV any</p>
+    <div class="demo-badge" id="demo-environment-badge">DEMO MODE</div>
+    <h1 id="demo-title">Search &amp; Book Flights</h1>
+    <p id="demo-lead-1">This is the actual AviaFrame booking widget — same one your clients will use.</p>
+    <p id="demo-lead-2">Real flights · Real prices · Live payment via Moyasar</p>
+    <div class="demo-pills">
+      <span class="demo-pill" id="demo-pill-1">Public agency key</span>
+      <span class="demo-pill" id="demo-pill-2">Secure widget session</span>
+      <span class="demo-pill" id="demo-pill-3">Embeddable on any agency site</span>
+    </div>
+    <div class="demo-actions">
+      <a class="demo-btn demo-btn-primary" id="demo-integration-cta" href="/partner-integration.html">Open Integration Guide</a>
+      <a class="demo-btn demo-btn-secondary" id="demo-contact-cta" href="/#contact">Talk to Sales</a>
+    </div>
+  </div>
+
+  <div class="demo-context">
+    <div class="demo-context-grid">
+      <div class="demo-context-card">
+        <h3 id="demo-card-1-title">What agencies embed</h3>
+        <p id="demo-card-1-copy">A target container plus a secure loader script. The browser never receives supplier credentials or DRCT secrets.</p>
+      </div>
+      <div class="demo-context-card">
+        <h3 id="demo-card-2-title">How tenant scoping works</h3>
+        <p id="demo-card-2-copy">The public agency key identifies the tenant. The backend validates allowed domains, then issues a short-lived widget session tied to that origin.</p>
+      </div>
+      <div class="demo-context-card">
+        <h3 id="demo-card-3-title">Where to integrate</h3>
+        <p id="demo-card-3-copy">Use this demo to test search UX, then open the integration guide for the exact snippet, onboarding steps, and domain allowlist setup.</p>
+      </div>
+    </div>
   </div>
 
   <!-- WIDGET -->
@@ -108,36 +254,257 @@
       data-api-url="https://peaceful-amazement-production-629f.up.railway.app/webhook/drct/search"
       data-checkout-url="/booking.html"
       data-brand-name="AviaFrame Demo"
+      data-agency-key="ag_eed8b706614bee6a4712686d1026f02b6a862485"
       data-title="Search Flights"
     ></div>
   </div>
 
   <!-- NOTE -->
   <div class="demo-note">
-    <strong>How it works:</strong> Search for a flight → select an offer → fill in passenger details → pay with Moyasar test card.
+    <strong id="demo-note-label">How it works:</strong> <span id="demo-note-copy">Search for a flight → select an offer → fill in passenger details → pay with your card via Moyasar.
     After successful payment, a PDF e-ticket is generated and sent to the email you enter.
-    The order appears in <a href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.
+    The order appears in <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.</span>
     <br/><br/>
-    <strong>To embed on your website:</strong> <code>&lt;script src="https://aviaframe.com/aviaframe-widget.js"&gt;&lt;/script&gt;</code>
+    <strong id="demo-embed-label">To embed on your website:</strong> <span id="demo-embed-copy">use the secure loader with your public agency key. See <a href="/partner-integration.html">Partner Integration</a> for the exact snippet and onboarding steps.</span>
+    <div class="demo-note-actions">
+      <a class="demo-btn demo-btn-primary" id="demo-note-integration" href="/partner-integration.html">Open Integration Guide</a>
+      <a class="demo-btn demo-btn-secondary" id="demo-note-contact" href="/#contact">Contact Sales</a>
+    </div>
   </div>
 
-  <script src="/aviaframe-widget.js"></script>
+  <footer class="site-footer">
+    <div class="footer-wrap">
+      <div class="footer-brand">
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <svg style="width:24px;height:24px;opacity:.85" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#ffffff"/>
+          </svg>
+          <span style="font-size:16px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:-.2px">Avia<span style="font-weight:400;color:rgba(147,197,253,.9)">Frame</span></span>
+        </span>
+        <span id="footer-tagline">White-label flight booking for travel agencies.</span>
+        <span class="footer-legal-name">© 2026 Consolidator Aviatech Limited (شركة توحيد أفياتيك المحدودة)</span>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-platform">Platform</div>
+          <a href="/widget-demo.html" id="footer-link-demo">Widget Demo</a>
+          <a href="/#pricing" id="footer-link-pricing">Pricing</a>
+          <a href="/docs/" id="footer-link-docs">Documentation</a>
+          <a href="/app-preview.html" id="footer-link-portal">Portal Preview</a>
+        </div>
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-contact">Contact</div>
+          <a href="/#contact" id="footer-link-sales">Contact Sales</a>
+          <a href="mailto:sales@aviaframe.com">sales@aviaframe.com</a>
+          <a href="mailto:support@aviaframe.com">support@aviaframe.com</a>
+          <a href="mailto:info.sa@consolodator.aero">info.sa@consolodator.aero</a>
+          <a href="https://wa.me/966567189306">WhatsApp +966 56 718 9306</a>
+        </div>
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-legal">Legal</div>
+          <a href="/legal/terms-and-conditions.html" id="footer-legal-terms">Terms &amp; Conditions</a>
+          <a href="/legal/refund-and-cancellation-policy.html" id="footer-legal-refund">Refund Policy</a>
+          <a href="/legal/privacy-policy.html" id="footer-legal-privacy">Privacy Policy</a>
+          <a href="/legal/contact-information.html" id="footer-legal-contact">Contact Information</a>
+        </div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,.1);margin-top:32px;padding-top:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <a href="https://consolidator.aero" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:10px;text-decoration:none;opacity:.75;transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity='.75'">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="15" stroke="rgba(147,197,253,0.6)" stroke-width="1.5"/>
+            <path d="M8 16 C8 16 10 10 16 10 C22 10 24 16 24 16 C24 16 22 22 16 22 C10 22 8 16 8 16Z" stroke="rgba(147,197,253,0.8)" stroke-width="1.2" fill="none"/>
+            <path d="M16 10 L16 22 M8 16 L24 16" stroke="rgba(147,197,253,0.5)" stroke-width="1"/>
+            <path d="M13 11.5 C13 11.5 14.5 14 14.5 16 C14.5 18 13 20.5 13 20.5 M19 11.5 C19 11.5 17.5 14 17.5 16 C17.5 18 19 20.5 19 20.5" stroke="rgba(147,197,253,0.5)" stroke-width="0.8" fill="none"/>
+          </svg>
+          <span style="font-size:13px;color:rgba(255,255,255,.7);">Part of <strong style="color:rgba(147,197,253,.9);font-weight:600;">Consolidator Aero</strong></span>
+        </a>
+        <span style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.5;">AviaFrame is a product of Consolidator Aviatech — a global air consolidation and travel technology company serving agencies across the Middle East and beyond.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var cfg = window.__AVIAFRAME_SITE_CONFIG__ || {};
+      var widget = document.getElementById('aviaframe-widget');
+      if (widget) {
+        widget.setAttribute('data-api-url', cfg.backendUrl + '/webhook/drct/search');
+        widget.setAttribute('data-agency-key', cfg.agencyKey);
+        var params = new URLSearchParams(window.location.search);
+        var checkoutUrl = '/booking.html';
+        var dryRunParam = params.get('dry_run');
+        if (dryRunParam === '0' || dryRunParam === '1') {
+          checkoutUrl += '?dry_run=' + encodeURIComponent(dryRunParam);
+        } else if (cfg.defaultDryRunIssue) {
+          checkoutUrl += '?dry_run=1';
+        }
+        widget.setAttribute('data-checkout-url', checkoutUrl);
+      }
+      var isTestDemo = Boolean(cfg.defaultDryRunIssue || cfg.showTestPaymentCards);
+      var badge = document.getElementById('demo-environment-badge');
+      if (badge) {
+        badge.textContent = (isTestDemo ? 'TEST DEMO' : 'LIVE DEMO') + ' — ' + String(cfg.environment || 'production').toUpperCase();
+      }
+      var lead2 = document.getElementById('demo-lead-2');
+      if (lead2) {
+        lead2.textContent = isTestDemo
+          ? 'Real flights · Real prices · Test payment via Moyasar'
+          : 'Real flights · Real prices · Live payment via Moyasar';
+      }
+      var portalLink = document.getElementById('demo-portal-link');
+      if (portalLink) {
+        portalLink.href = cfg.portalUrl;
+        portalLink.textContent = cfg.portalUrl.replace(/^https?:\/\//, '');
+      }
+    })();
+  </script>
+  <script src="/aviaframe-widget.js?v=2026-07-31-2"></script>
   <script>
     (function(){
       var btn = document.getElementById('site-lang-trigger');
       if(!btn) return;
-      var orig = window.__aviaLangToggle;
-      window.__aviaLangToggle = function(){
-        if(orig) orig();
-        var cur = btn.querySelector('.lt-active');
-        btn.querySelectorAll('.lt-opt').forEach(function(o){
-          o.classList.toggle('lt-active', o.getAttribute('data-l') !== (cur && cur.getAttribute('data-l')));
-        });
-        // Also flip page direction for demo context
-        var lang = btn.querySelector('.lt-active') ? btn.querySelector('.lt-active').getAttribute('data-l') : 'en';
+      var T = {
+        en: {
+          nav_demo: 'Widget Demo',
+          nav_integration: 'Integration',
+          nav_pricing: 'Pricing',
+          nav_contact: 'Contact',
+          nav_cta: 'Get Started',
+          title: 'Search & Book Flights',
+          lead1: 'This is the actual AviaFrame booking widget — same one your clients will use.',
+          lead2Test: 'Real flights · Real prices · Test payment via Moyasar',
+          lead2Live: 'Real flights · Real prices · Live payment via Moyasar',
+          pill1: 'Public agency key',
+          pill2: 'Secure widget session',
+          pill3: 'Embeddable on any agency site',
+          cta1: 'Open Integration Guide',
+          cta2: 'Talk to Sales',
+          c1t: 'What agencies embed',
+          c1p: 'A target container plus a secure loader script. The browser never receives supplier credentials or DRCT secrets.',
+          c2t: 'How tenant scoping works',
+          c2p: 'The public agency key identifies the tenant. The backend validates allowed domains, then issues a short-lived widget session tied to that origin.',
+          c3t: 'Where to integrate',
+          c3p: 'Use this demo to test search UX, then open the integration guide for the exact snippet, onboarding steps, and domain allowlist setup.',
+          noteLabel: 'How it works:',
+          noteCopyTest: 'Search for a flight → select an offer → fill in passenger details → pay with your card via Moyasar test mode. After successful payment, a PDF e-ticket is generated and sent to the email you enter. The order appears in <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.',
+          noteCopyLive: 'Search for a flight → select an offer → fill in passenger details → pay with your card via Moyasar. After successful payment, a PDF e-ticket is generated and sent to the email you enter. The order appears in <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.',
+          embedLabel: 'To embed on your website:',
+          embedCopy: 'use the secure loader with your public agency key. See <a href="/partner-integration.html">Partner Integration</a> for the exact snippet and onboarding steps.',
+          noteCta1: 'Open Integration Guide',
+          noteCta2: 'Contact Sales'
+        },
+        ar: {
+          nav_demo: 'عرض الويدجت',
+          nav_integration: 'التكامل',
+          nav_pricing: 'الأسعار',
+          nav_contact: 'التواصل',
+          nav_cta: 'ابدأ الآن',
+          title: 'ابحث واحجز رحلات الطيران',
+          lead1: 'هذا هو ويدجت الحجز الحقيقي من AviaFrame — نفس الذي سيستخدمه عملاؤك.',
+          lead2Test: 'رحلات حقيقية · أسعار حقيقية · دفع تجريبي عبر Moyasar',
+          lead2Live: 'رحلات حقيقية · أسعار حقيقية · دفع مباشر عبر Moyasar',
+          pill1: 'مفتاح وكالة عام',
+          pill2: 'جلسة ويدجت آمنة',
+          pill3: 'قابل للتضمين في أي موقع وكالة',
+          cta1: 'افتح دليل التكامل',
+          cta2: 'تحدث إلى المبيعات',
+          c1t: 'ماذا تُضمّن الوكالة',
+          c1p: 'حاوية مستهدفة مع سكربت تحميل آمن. المتصفح لا يستقبل أبداً أسرار الموردين أو بيانات DRCT الحساسة.',
+          c2t: 'كيف يعمل عزل الوكالة',
+          c2p: 'مفتاح الوكالة العام يحدد المستأجر. ثم يتحقق الباك إند من الدومينات المسموح بها ويصدر جلسة قصيرة العمر مرتبطة بذلك الأصل.',
+          c3t: 'أين يتم التكامل',
+          c3p: 'استخدم هذا العرض لاختبار تجربة البحث، ثم افتح دليل التكامل للحصول على الكود الجاهز وخطوات التهيئة وإعداد قائمة الدومينات المسموح بها.',
+          noteLabel: 'كيف يعمل ذلك:',
+          noteCopyTest: 'ابحث عن رحلة ← اختر العرض المناسب ← أدخل بيانات المسافرين ← ادفع ببطاقتك عبر وضع الاختبار في Moyasar. بعد نجاح الدفع يتم إنشاء تذكرة PDF وإرسالها إلى البريد الإلكتروني الذي أدخلته. يظهر الطلب في <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> بحالة <strong>Issued</strong>.',
+          noteCopyLive: 'ابحث عن رحلة ← اختر العرض المناسب ← أدخل بيانات المسافرين ← ادفع ببطاقتك عبر Moyasar. بعد نجاح الدفع يتم إنشاء تذكرة PDF وإرسالها إلى البريد الإلكتروني الذي أدخلته. يظهر الطلب في <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> بحالة <strong>Issued</strong>.',
+          embedLabel: 'للتضمين على موقعك:',
+          embedCopy: 'استخدم أداة التحميل الآمنة مع مفتاح الوكالة العام. راجع <a href="/partner-integration.html">دليل التكامل</a> للاطلاع على الكود الجاهز وخطوات الإعداد.',
+          noteCta1: 'افتح دليل التكامل',
+          noteCta2: 'تواصل مع المبيعات',
+          footer_tagline: 'حجز تذاكر طيران بعلامتك التجارية لوكالات السفر.',
+          footer_col_platform: 'المنصة',
+          footer_col_contact: 'التواصل',
+          footer_col_legal: 'القانونية',
+          footer_lnk_demo: 'عرض الويدجت',
+          footer_lnk_pricing: 'الأسعار',
+          footer_lnk_docs: 'التوثيق',
+          footer_lnk_portal: 'معاينة البوابة',
+          footer_lnk_sales: 'تواصل مع المبيعات',
+          legal_terms: 'الشروط والأحكام',
+          legal_refund: 'سياسة الاسترداد',
+          legal_privacy: 'سياسة الخصوصية',
+          legal_contact_info: 'معلومات الاتصال'
+        }
+      };
+      function setHtml(id, html) {
+        var el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+      }
+      function setText(id, text) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = text;
+      }
+      function applyPageLang(lang) {
+        var t = T[lang] || T.en;
         document.documentElement.lang = lang;
         document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-      };
+        try { localStorage.setItem('aviaframe-lang', lang); } catch(e) {}
+        btn.querySelectorAll('.lt-opt').forEach(function(opt){
+          opt.classList.toggle('lt-active', opt.getAttribute('data-l') === lang);
+        });
+        var navLinks = document.querySelectorAll('.nav-links a');
+        if (navLinks[0]) navLinks[0].textContent = t.nav_demo;
+        if (navLinks[1]) navLinks[1].textContent = t.nav_integration;
+        if (navLinks[2]) navLinks[2].textContent = t.nav_pricing;
+        if (navLinks[3]) navLinks[3].textContent = t.nav_contact;
+        var navCta = document.querySelector('.nav-cta');
+        if (navCta) navCta.textContent = t.nav_cta;
+        setText('demo-title', t.title);
+        setText('demo-lead-1', t.lead1);
+        var runtimeCfg = window.__AVIAFRAME_SITE_CONFIG__ || {};
+        var runtimeIsTestDemo = Boolean(runtimeCfg.defaultDryRunIssue || runtimeCfg.showTestPaymentCards);
+        setText('demo-lead-2', runtimeIsTestDemo ? t.lead2Test : t.lead2Live);
+        setText('demo-pill-1', t.pill1);
+        setText('demo-pill-2', t.pill2);
+        setText('demo-pill-3', t.pill3);
+        setText('demo-integration-cta', t.cta1);
+        setText('demo-contact-cta', t.cta2);
+        setText('demo-card-1-title', t.c1t);
+        setText('demo-card-2-title', t.c2t);
+        setText('demo-card-3-title', t.c3t);
+        setText('demo-card-1-copy', t.c1p);
+        setText('demo-card-2-copy', t.c2p);
+        setText('demo-card-3-copy', t.c3p);
+        setText('demo-note-label', t.noteLabel);
+        setHtml('demo-note-copy', runtimeIsTestDemo ? t.noteCopyTest : t.noteCopyLive);
+        setText('demo-embed-label', t.embedLabel);
+        setHtml('demo-embed-copy', t.embedCopy);
+        setText('demo-note-integration', t.noteCta1);
+        setText('demo-note-contact', t.noteCta2);
+        setText('footer-tagline', t.footer_tagline || T.en.footer_tagline);
+        setText('footer-col-platform', t.footer_col_platform || T.en.footer_col_platform);
+        setText('footer-col-contact', t.footer_col_contact || T.en.footer_col_contact);
+        setText('footer-col-legal', t.footer_col_legal || T.en.footer_col_legal);
+        setText('footer-link-demo', t.footer_lnk_demo || T.en.footer_lnk_demo);
+        setText('footer-link-pricing', t.footer_lnk_pricing || T.en.footer_lnk_pricing);
+        setText('footer-link-docs', t.footer_lnk_docs || T.en.footer_lnk_docs);
+        setText('footer-link-portal', t.footer_lnk_portal || T.en.footer_lnk_portal);
+        setText('footer-link-sales', t.footer_lnk_sales || T.en.footer_lnk_sales);
+        setText('footer-legal-terms', t.legal_terms || T.en.legal_terms);
+        setText('footer-legal-refund', t.legal_refund || T.en.legal_refund);
+        setText('footer-legal-privacy', t.legal_privacy || T.en.legal_privacy);
+        setText('footer-legal-contact', t.legal_contact_info || T.en.legal_contact_info);
+        if (window.AviaframeWidget && window.AviaframeWidget.setLang) {
+          window.AviaframeWidget.setLang(lang);
+        }
+      }
+      var currentLang = 'en';
+      try { currentLang = localStorage.getItem('aviaframe-lang') || localStorage.getItem('aviaframe-widget-lang') || 'en'; } catch(e) {}
+      applyPageLang(currentLang);
+      btn.addEventListener('click', function(){
+        currentLang = currentLang === 'en' ? 'ar' : 'en';
+        applyPageLang(currentLang);
+      });
     })();
   </script>
 </body>
