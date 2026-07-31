@@ -3271,6 +3271,7 @@
         stopsText: ie(o),
         priceTotal: n,
         priceCurrency: r,
+        with_baggage: e.with_baggage === true,
         baggageText:
           e.baggage_text || (e.with_baggage ? "With baggage" : "No baggage"),
         segments: t,
