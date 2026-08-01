@@ -471,35 +471,43 @@ async function deployToNetlify({ subdomain, files }) {
   }
 
   if (!siteId) {
+    // Create site WITHOUT force_ssl — Netlify returns 422 if you set force_ssl
+    // before a certificate has been provisioned for the custom domain.
     const createResp = await axios.post(`${NETLIFY_API}/sites`, {
       name: siteName,
       account_slug: NETLIFY_TEAM_SLUG,
-      custom_domain: customDomain,
-      force_ssl: true
+      custom_domain: customDomain
     }, { headers });
     siteId = createResp.data.id;
     isNewSite = true;
   }
 
-  // Enable force_ssl and trigger SSL provisioning BEFORE deploying files
-  // so the cert is ready (or provisioning) by the time the site goes live
-  try {
-    await axios.put(`${NETLIFY_API}/sites/${siteId}`, { force_ssl: true }, { headers });
-  } catch (_) {}
+  // Trigger SSL cert provisioning (idempotent — safe to call on existing sites too)
   try {
     await axios.post(`${NETLIFY_API}/sites/${siteId}/ssl`, {}, { headers });
   } catch (_) {}
 
-  // For new sites, wait up to 90s for SSL cert to be issued before deploying
+  // For new sites: wait up to 90s for the cert to be issued, THEN enable force_ssl.
+  // For existing sites: just enable force_ssl immediately (cert already issued).
   if (isNewSite) {
     const deadline = Date.now() + 90_000;
+    let sslIssued = false;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 5000));
       try {
         const statusResp = await axios.get(`${NETLIFY_API}/sites/${siteId}`, { headers });
-        if (statusResp.data.ssl === true) break;
+        if (statusResp.data.ssl === true) { sslIssued = true; break; }
       } catch (_) {}
     }
+    if (sslIssued) {
+      try {
+        await axios.put(`${NETLIFY_API}/sites/${siteId}`, { force_ssl: true }, { headers });
+      } catch (_) {}
+    }
+  } else {
+    try {
+      await axios.put(`${NETLIFY_API}/sites/${siteId}`, { force_ssl: true }, { headers });
+    } catch (_) {}
   }
 
   const zip = new JSZip();
