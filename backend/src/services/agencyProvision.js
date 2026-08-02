@@ -14,30 +14,24 @@ const APP_URL = process.env.APP_URL || 'https://admin.aviaframe.com';
 const GODADDY_API_KEY = process.env.GODADDY_API_KEY || '';
 const GODADDY_API_SECRET = process.env.GODADDY_API_SECRET || '';
 const GODADDY_API = 'https://api.godaddy.com/v1';
-function resolveSiteTemplateDir() {
-  const candidates = [
-    path.resolve(__dirname, '../../agency-site-assets'),   // /app/agency-site-assets (Docker)
-    path.resolve(__dirname, '../agency-site-assets'),      // local dev: src/agency-site-assets
-    path.resolve(__dirname, '../../../aviaframe-site'),
-    path.resolve(__dirname, '../../aviaframe-site'),
-    path.resolve(process.cwd(), 'aviaframe-site'),
-    path.resolve(process.cwd(), '../aviaframe-site'),
-    '/app/aviaframe-site'
-  ];
 
-  return candidates.find((candidate) => {
-    try {
-      return fs.existsSync(path.join(candidate, 'booking.html'));
-    } catch (_) {
-      return false;
-    }
-  }) || candidates[0];
-}
+// ── Default content (used when agency hasn't configured their own) ─────────────
+const DEFAULT_DESTINATIONS = [
+  { city: 'Dubai', country: 'UAE', price: '450', emoji: '🏙️', gradient: 'linear-gradient(160deg,#c8a44a 0%,#7a4f10 50%,#3d2007 100%)', image_url: null },
+  { city: 'Istanbul', country: 'Turkey', price: '980', emoji: '🕌', gradient: 'linear-gradient(160deg,#2480c8 0%,#0e5090 50%,#062040 100%)', image_url: null },
+  { city: 'London', country: 'United Kingdom', price: '1,850', emoji: '🎡', gradient: 'linear-gradient(160deg,#5f7280 0%,#2d3f50 50%,#1a2530 100%)', image_url: null },
+  { city: 'Paris', country: 'France', price: '1,920', emoji: '🗼', gradient: 'linear-gradient(160deg,#c87199 0%,#6e3576 50%,#2d1040 100%)', image_url: null },
+  { city: 'Bangkok', country: 'Thailand', price: '1,200', emoji: '🛕', gradient: 'linear-gradient(160deg,#d4a020 0%,#8b4f08 50%,#3d2200 100%)', image_url: null },
+  { city: 'Maldives', country: 'Maldives', price: '2,400', emoji: '🏝️', gradient: 'linear-gradient(160deg,#20c4d8 0%,#087890 50%,#023040 100%)', image_url: null }
+];
 
-const SITE_TEMPLATE_DIR = resolveSiteTemplateDir();
-const DEFAULT_LIVE_MOYASAR_PUBLIC_KEY = process.env.MOYASAR_PUBLIC_KEY
-  || process.env.MOYASAR_PUBLISHABLE_KEY
-  || 'pk_live_iXhEB7xrWqPoh2SMRBt45fA73mVoKKa8EjZt5end';
+const DEFAULT_REVIEWS = [
+  { name: 'Ahmed Al-K.', location: 'Riyadh, KSA', rating: 5, text: 'Excellent service! Found me the best fare and the ticket arrived instantly. Highly recommended.' },
+  { name: 'Sara M.', location: 'Jeddah, KSA', rating: 5, text: 'The WhatsApp support is exceptional. Fast replies, zero hassle. Will always use this agency.' },
+  { name: 'Faisal N.', location: 'Dammam, KSA', rating: 5, text: 'Booked flights for the whole family. Great price, PDF tickets delivered instantly. Perfect.' }
+];
+
+const DEFAULT_AIRLINES = ['Emirates', 'Qatar Airways', 'Turkish Airlines', 'Saudia', 'Etihad Airways', 'British Airways', 'Flynas', 'flydubai', 'Air Arabia', 'KLM'];
 
 const ALL_SERVICES = [
   { key: 'flights_domestic', en: 'Domestic flight bookings', ar: 'حجز رحلات محلية' },
@@ -52,6 +46,59 @@ const ALL_SERVICES = [
   { key: 'car_rental', en: 'Car rental', ar: 'تأجير السيارات' }
 ];
 
+// ── Color helpers ─────────────────────────────────────────────────────────────
+function hexToRgb(hex) {
+  const h = String(hex || '#1a3c8e').replace('#', '');
+  const full = h.length === 3
+    ? h.split('').map(c => c + c).join('')
+    : h.padEnd(6, '0');
+  const r = parseInt(full.slice(0, 2), 16) || 0;
+  const g = parseInt(full.slice(2, 4), 16) || 0;
+  const b = parseInt(full.slice(4, 6), 16) || 0;
+  return `${r},${g},${b}`;
+}
+
+function darkenHex(hex, amount = 40) {
+  const h = String(hex || '#1a3c8e').replace('#', '').padEnd(6, '0');
+  const r = Math.max(0, parseInt(h.slice(0, 2), 16) - amount);
+  const g = Math.max(0, parseInt(h.slice(2, 4), 16) - amount);
+  const b = Math.max(0, parseInt(h.slice(4, 6), 16) - amount);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+function getLuminance(hex) {
+  const h = String(hex || '#ffffff').replace('#', '').padEnd(6, '0');
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+function getContrastColor(hex) {
+  return getLuminance(hex) > 0.5 ? '#0a1628' : '#ffffff';
+}
+
+// ── Site template resolver ────────────────────────────────────────────────────
+function resolveSiteTemplateDir() {
+  const candidates = [
+    path.resolve(__dirname, '../../agency-site-assets'),
+    path.resolve(__dirname, '../agency-site-assets'),
+    path.resolve(__dirname, '../../../aviaframe-site'),
+    path.resolve(__dirname, '../../aviaframe-site'),
+    path.resolve(process.cwd(), 'aviaframe-site'),
+    path.resolve(process.cwd(), '../aviaframe-site'),
+    '/app/aviaframe-site'
+  ];
+  return candidates.find((candidate) => {
+    try { return fs.existsSync(path.join(candidate, 'booking.html')); } catch (_) { return false; }
+  }) || candidates[0];
+}
+
+const SITE_TEMPLATE_DIR = resolveSiteTemplateDir();
+const DEFAULT_LIVE_MOYASAR_PUBLIC_KEY = process.env.MOYASAR_PUBLIC_KEY
+  || process.env.MOYASAR_PUBLISHABLE_KEY
+  || 'pk_live_iXhEB7xrWqPoh2SMRBt45fA73mVoKKa8EjZt5end';
+
+// ── Main template generator ───────────────────────────────────────────────────
 function generateAgencySiteFiles(opts) {
   const {
     agencyName,
@@ -81,24 +128,58 @@ function generateAgencySiteFiles(opts) {
     twitter = '',
     snapchat = '',
     facebook = '',
-    services = []
+    services = [],
+    // New content fields
+    heroTagline = '',
+    heroDescription = '',
+    destinations = [],
+    reviews = [],
+    featuredAirlines = [],
+    heroImageUrl = '',
+    headerBg = '',
+    footerBg = ''
   } = opts;
 
-  // Determine which services to show — use provided list or default to first 8
+  // ── Resolve effective content (agency data or defaults) ─────────────────
+  const effectiveDestinations = (Array.isArray(destinations) && destinations.length > 0) ? destinations : DEFAULT_DESTINATIONS;
+  const effectiveReviews = (Array.isArray(reviews) && reviews.length > 0) ? reviews : DEFAULT_REVIEWS;
+  const effectiveAirlines = (Array.isArray(featuredAirlines) && featuredAirlines.length > 0) ? featuredAirlines : DEFAULT_AIRLINES;
+  const effectiveTagline = heroTagline || 'Book Flights Worldwide at the Best Prices';
+  const effectiveHeroDesc = heroDescription || 'Compare hundreds of airlines. Secure booking. Real travel agents available 24/7.';
+
+  const effectiveAboutEn = aboutEn || `${agencyName} is your trusted travel partner. Our professional team offers flight bookings, hotel reservations, visa assistance, and full travel packages for individuals, families, and corporate clients — with personal service you can count on.`;
+  const effectiveAboutAr = aboutAr || `${agencyNameAr || agencyName} هي شريككم الموثوق في السفر.`;
+
+  // ── Colors ──────────────────────────────────────────────────────────────
+  const brandDark = darkenHex(brandColor, 45);
+  const brandRgb = hexToRgb(brandColor);
+  const accentRgb = hexToRgb(accentColor);
+
+  // ── Header / footer computed colors ─────────────────────────────────────
+  const effectiveHeaderBg = headerBg || 'rgba(255,255,255,0.97)';
+  const effectiveFooterBg = footerBg || brandColor;
+  const headerTextColor = getContrastColor(headerBg || '#ffffff');
+  const headerLogoColor = (headerBg && getLuminance(headerBg) < 0.5) ? '#ffffff' : brandColor;
+  const footerTextColor = getContrastColor(footerBg || brandColor);
+  const footerMuted = footerTextColor === '#ffffff' ? 'rgba(255,255,255,.65)' : 'rgba(10,22,40,.55)';
+  const footerDim = footerTextColor === '#ffffff' ? 'rgba(255,255,255,.45)' : 'rgba(10,22,40,.35)';
+  const footerDivider = footerTextColor === '#ffffff' ? 'rgba(255,255,255,.1)' : 'rgba(10,22,40,.1)';
+
+  // ── Services ────────────────────────────────────────────────────────────
   const defaultServices = ['flights_domestic', 'flights_intl', 'hotels', 'visa', 'insurance', 'umrah', 'tours', 'corporate'];
   const activeServices = services.length > 0 ? services : defaultServices;
   const serviceList = ALL_SERVICES.filter(s => activeServices.includes(s.key));
 
-  const effectiveAboutEn = aboutEn || `${agencyName} is your trusted travel partner. Our professional team offers flight bookings, hotel reservations, visa assistance, and full travel packages for individuals, families, and corporate clients — with personal service you can count on.`;
-  const effectiveAboutAr = aboutAr || `${agencyNameAr || agencyName} هي شريككم الموثوق في السفر. يقدم فريقنا المحترف حجز رحلات وفنادق، ومساعدة في التأشيرة، وباقات سفر كاملة للأفراد والعائلات والشركات.`;
-
+  // ── WhatsApp ────────────────────────────────────────────────────────────
   const waPhone = (whatsappPhone || contactPhone).replace(/\D/g, '');
 
+  // ── Logo ────────────────────────────────────────────────────────────────
+  const logoInitial = (agencyName || 'A').charAt(0).toUpperCase();
   const logoHtml = logoUrl
-    ? `<img class="agency-logo" src="${logoUrl}" alt="${agencyName} logo" />`
-    : '';
+    ? `<img class="av-logo-img" src="${logoUrl}" alt="${agencyName}" />`
+    : `<div class="av-logo-icon-text">${logoInitial}</div>`;
 
-  // Normalize social handle/URL: prepend platform base if no protocol given
+  // ── Social links ────────────────────────────────────────────────────────
   function normalizeSocialUrl(value, baseUrl) {
     if (!value) return '';
     const v = String(value).trim().replace(/^@/, '');
@@ -112,244 +193,594 @@ function generateAgencySiteFiles(opts) {
   const scUrl = normalizeSocialUrl(snapchat, 'https://www.snapchat.com/add');
   const fbUrl = normalizeSocialUrl(facebook, 'https://www.facebook.com');
 
-  const socialHtml = [
-    igUrl ? `<a class="social-link" href="${igUrl}" target="_blank" rel="noreferrer" aria-label="Instagram"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>` : '',
-    twUrl ? `<a class="social-link" href="${twUrl}" target="_blank" rel="noreferrer" aria-label="Twitter/X"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.738l7.724-8.842L1.254 2.25H8.08l4.213 5.57 5.951-5.57zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>` : '',
-    scUrl ? `<a class="social-link" href="${scUrl}" target="_blank" rel="noreferrer" aria-label="Snapchat"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12.166.009C9.68.009 5.824 1.116 4.8 5.496c-.253 1.084-.199 2.21-.172 3.298l-.013.034c-.097.003-.211.005-.344.005-.54 0-1.092-.1-1.64-.297l-.09-.032a.664.664 0 00-.196-.03c-.38 0-.696.264-.696.623 0 .313.228.579.568.647.042.008 1.044.234 1.527 1.066.054.093.107.196.161.309.357.759.44 1.38.266 1.843-.276.726-1.308 1.27-2.2 1.73l-.084.044c-.396.207-.8.42-.996.72a1.33 1.33 0 00-.178.664c0 .447.225.82.564.982.187.09.396.104.6.104.24 0 .475-.043.693-.087l.14-.028a5.8 5.8 0 011.13-.127c.26 0 .505.022.728.065.452.086.822.297 1.132.644.564.63 1.098 1.914 2.95 2.54.282.096.58.168.894.215.073.01.147.033.147.107 0 .086-.09.147-.159.196-.253.178-.742.44-.742.886 0 .406.346.703.78.703.096 0 .196-.016.287-.048.35-.117.77-.184 1.193-.184.434 0 .849.066 1.233.197.35.12.67.183.951.183.503 0 .914-.223.914-.664 0-.414-.427-.66-.677-.845-.076-.055-.163-.123-.163-.207 0-.077.078-.1.154-.111.313-.047.61-.12.89-.215 1.85-.626 2.384-1.91 2.948-2.54.31-.347.681-.558 1.131-.644.224-.043.468-.065.728-.065.387 0 .776.05 1.13.127l.14.028c.218.044.453.087.694.087.204 0 .413-.013.599-.104.34-.162.565-.535.565-.982 0-.234-.06-.46-.178-.664-.196-.3-.6-.513-.996-.72l-.084-.044c-.892-.46-1.924-1.004-2.2-1.73-.174-.463-.091-1.084.266-1.843.054-.113.107-.216.16-.309.484-.832 1.486-1.058 1.528-1.066.34-.068.568-.334.568-.647 0-.36-.316-.623-.697-.623a.664.664 0 00-.195.03l-.09.032c-.549.197-1.1.297-1.64.297-.134 0-.248-.002-.345-.005l-.013-.034c.027-1.088.081-2.214-.172-3.298C18.176 1.116 14.32.009 12.166.009z"/></svg></a>` : '',
-    fbUrl ? `<a class="social-link" href="${fbUrl}" target="_blank" rel="noreferrer" aria-label="Facebook"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>` : ''
-  ].filter(Boolean).join('\n          ');
-
-  const trustHtml = [
-    licenseNumber ? `<div class="trust-item"><span class="trust-label">License / CR:</span> <span>${licenseNumber}</span></div>` : '',
-    iataNumber ? `<div class="trust-item"><span class="trust-label">IATA:</span> <span>${iataNumber}</span></div>` : '',
-    foundedYear ? `<div class="trust-item"><span class="trust-label">Est.</span> <span>${foundedYear}</span></div>` : ''
+  const socialItems = [
+    igUrl ? `<a class="av-social-link" href="${igUrl}" target="_blank" rel="noreferrer" aria-label="Instagram">📸</a>` : '',
+    twUrl ? `<a class="av-social-link" href="${twUrl}" target="_blank" rel="noreferrer" aria-label="Twitter/X">🐦</a>` : '',
+    scUrl ? `<a class="av-social-link" href="${scUrl}" target="_blank" rel="noreferrer" aria-label="Snapchat">👻</a>` : '',
+    fbUrl ? `<a class="av-social-link" href="${fbUrl}" target="_blank" rel="noreferrer" aria-label="Facebook">📘</a>` : ''
   ].filter(Boolean).join('\n');
 
+  // ── Trust badges ────────────────────────────────────────────────────────
+  const trustItems = [
+    licenseNumber ? `<span class="av-trust-badge">License: ${licenseNumber}</span>` : '',
+    iataNumber ? `<span class="av-trust-badge">IATA: ${iataNumber}</span>` : '',
+    foundedYear ? `<span class="av-trust-badge">Est. ${foundedYear}</span>` : '',
+    '<span class="av-trust-badge">Secure Payment</span>',
+    '<span class="av-trust-badge">24/7 Support</span>'
+  ].filter(Boolean).join('\n');
+
+  // ── Destinations HTML ───────────────────────────────────────────────────
+  const destinationsHtml = effectiveDestinations.slice(0, 6).map(d => {
+    const bgStyle = d.image_url
+      ? `background-image:url('${d.image_url}');background-size:cover;background-position:center`
+      : `background:${d.gradient || 'linear-gradient(160deg,#1a3c8e,#0d2355)'}`;
+    return `<div class="av-dest-card">
+        <div class="av-dest-bg" style="${bgStyle}"></div>
+        <div class="av-dest-overlay"></div>
+        <div class="av-dest-icon">${d.emoji || '✈️'}</div>
+        <div class="av-dest-content">
+          <div class="av-dest-city">${d.city || ''}</div>
+          <div class="av-dest-price">${d.country ? d.country + ' · ' : ''}From SAR ${d.price || '—'}</div>
+          <a href="#aviaframe-widget" class="av-dest-btn">Search Flights</a>
+        </div>
+      </div>`;
+  }).join('\n');
+
+  // ── Reviews HTML ─────────────────────────────────────────────────────────
+  const reviewAccentColors = ['var(--av-brand)', 'var(--av-accent)', '#0ea5e9'];
+  const reviewsHtml = effectiveReviews.slice(0, 3).map((r, i) => {
+    const stars = '★'.repeat(Math.max(1, Math.min(5, r.rating || 5)));
+    const initials = (r.name || 'A').split(/[\s.]+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    return `<div class="av-review" style="border-left-color:${reviewAccentColors[i] || 'var(--av-brand)'}${i === 1 ? ';margin-top:18px' : ''}">
+        <div class="av-review-stars">${stars}</div>
+        <div class="av-review-text">"${(r.text || '').replace(/"/g, '&quot;')}"</div>
+        <div class="av-reviewer">
+          <div class="av-reviewer-av">${initials}</div>
+          <div>
+            <div class="av-reviewer-name">${r.name || ''}</div>
+            <div class="av-reviewer-loc">${r.location || ''}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('\n');
+
+  // ── Airlines HTML ─────────────────────────────────────────────────────────
+  const airlinesHtml = effectiveAirlines.slice(0, 12).map(a =>
+    `<div class="av-airline">✈ ${a}</div>`
+  ).join('\n');
+
+  // ── Why choose us (derived from services + hardcoded UX advantages) ──────
+  const whyCards = [
+    { icon: '💰', title: 'Best Price Guarantee', desc: 'We compare 700+ airlines in real time to find you the most competitive fares. Found cheaper? We\'ll match it.' },
+    { icon: '📞', title: '24/7 Live Support', desc: 'Real travel agents available around the clock via phone, WhatsApp, or email — always a human on the other end.' },
+    { icon: '🛡️', title: 'Secure Payments', desc: 'All transactions are SSL-encrypted and processed through PCI-DSS compliant gateways. Your data stays safe.' },
+    { icon: '📋', title: 'Visa Assistance', desc: 'Expert help with travel documentation and visa applications for 50+ countries. We handle the paperwork.' }
+  ];
+  if (activeServices.includes('umrah')) {
+    whyCards[3] = { icon: '🕌', title: 'Umrah Specialists', desc: 'Dedicated Umrah & Hajj department with group and individual packages, premium hotels near Haram.' };
+  }
+  const whyHtml = whyCards.map(c => `<div class="av-why-card">
+        <div class="av-why-icon">${c.icon}</div>
+        <div class="av-why-title">${c.title}</div>
+        <div class="av-why-desc">${c.desc}</div>
+      </div>`).join('\n');
+
+  // ── Services list for contact section ────────────────────────────────────
   const servicesListHtml = serviceList.map(s =>
     `<li><span class="en-text">${s.en}</span><span class="ar-text" style="display:none">${s.ar}</span></li>`
-  ).join('\n          ');
+  ).join('\n');
 
-  const mapsHtml = googleMapsUrl
-    ? `<div class="maps-embed"><iframe src="${googleMapsUrl}" width="100%" height="220" style="border:0;border-radius:10px" allowfullscreen loading="lazy"></iframe></div>`
+  // ── Google Maps embed ────────────────────────────────────────────────────
+  const isValidMapsUrl = googleMapsUrl && /google\.com\/maps/i.test(googleMapsUrl);
+  const mapsHtml = isValidMapsUrl
+    ? `<div class="av-maps-embed"><iframe src="${googleMapsUrl}" width="100%" height="200" style="border:0;border-radius:10px" allowfullscreen loading="lazy"></iframe></div>`
     : '';
 
-  const i18nServicesEn = serviceList.map(s => `'${s.key}': '${s.en}'`).join(', ');
-  const i18nServicesAr = serviceList.map(s => `'${s.key}': '${s.ar}'`).join(', ');
+  // ── FAQ items ────────────────────────────────────────────────────────────
+  const faqItems = [
+    { q: 'Can I cancel my booking?', a: 'Yes. Cancellation policies vary by airline and fare type. Most bookings allow cancellation within 24 hours of purchase for a full refund. Check your ticket details for specific conditions.' },
+    { q: 'How do refunds work?', a: 'Approved refunds are processed within 7–14 business days, depending on your bank and the airline\'s policy. Our team handles the refund claim on your behalf.' },
+    { q: 'Can I change my flight date or route?', a: 'Flight changes are possible for most fares, subject to availability and any difference in fare plus the airline\'s change fee. Contact our support team via WhatsApp for rebooking.' },
+    { q: 'Do prices include taxes and fees?', a: 'Yes. All prices shown include all taxes, airport fees and our service charge. The price you see is the total price you pay — no surprises at checkout.' },
+    { q: 'How can I contact customer support?', a: `We're available 24/7 via WhatsApp${contactPhone ? ', phone (' + contactPhone + ')' : ''}, and email. WhatsApp is the fastest channel — most queries answered within minutes.` }
+  ];
+  const faqHtml = faqItems.map((f, i) => `<div class="av-faq-item${i === 0 ? ' open' : ''}">
+        <div class="av-faq-q" onclick="avToggleFaq(this)">
+          ${f.q}
+          <span class="av-faq-toggle">+</span>
+        </div>
+        <div class="av-faq-a">${f.a}</div>
+      </div>`).join('\n');
 
+  // ── Stats ────────────────────────────────────────────────────────────────
+  const statsHtml = `
+      <div class="av-stat">
+        <div class="av-stat-num">700<span>+</span></div>
+        <div class="av-stat-label">Partner Airlines</div>
+      </div>
+      <div class="av-stat">
+        <div class="av-stat-num">15<span>K+</span></div>
+        <div class="av-stat-label">Happy Travelers</div>
+      </div>
+      <div class="av-stat">
+        <div class="av-stat-num">24<span>/7</span></div>
+        <div class="av-stat-label">Customer Support</div>
+      </div>
+      <div class="av-stat">
+        <div class="av-stat-num">4.9<span>★</span></div>
+        <div class="av-stat-label">Average Rating</div>
+      </div>`;
+
+  // ── HTML template ────────────────────────────────────────────────────────
   const html = `<!doctype html>
 <html lang="${language}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${agencyName} | AviaFrame</title>
+  <title>${agencyName} | Flights &amp; Travel</title>
   <link rel="stylesheet" href="./styles.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
   <style>
-    :root { --brand: ${brandColor}; --accent: ${accentColor}; }
-    .header { background: var(--brand); }
-    .hero { background: linear-gradient(135deg, var(--brand) 0%, var(--accent) 100%); }
-    .btn-primary { background: var(--accent); }
+    :root {
+      --av-brand: ${brandColor};
+      --av-brand-dark: ${brandDark};
+      --av-brand-rgb: ${brandRgb};
+      --av-accent: ${accentColor};
+      --av-accent-rgb: ${accentRgb};
+      --av-header-bg: ${effectiveHeaderBg};
+      --av-header-text: ${headerTextColor};
+      --av-header-logo: ${headerLogoColor};
+      --av-footer-bg: ${effectiveFooterBg};
+    }
   </style>
 </head>
 <body>
-  <header class="header">
-    <div class="lang-switcher">
-      <button class="lang-opt active" data-lang="en" onclick="applyLang('en')">EN</button>
-      <button class="lang-opt" data-lang="ar" onclick="applyLang('ar')">عر</button>
-    </div>
-    <div class="container header-inner">
-      ${logoHtml}
-      <div class="header-text">
-        ${agencyNameAr ? `<div class="brand-arabic">${agencyNameAr}</div>` : ''}
-        <div class="brand-name">${agencyName}</div>
+
+  <!-- LANGUAGE SWITCHER (fixed) -->
+  <div class="av-lang-switcher">
+    <button class="av-lang-btn active" data-lang="en" onclick="avApplyLang('en')">EN</button>
+    <button class="av-lang-btn" data-lang="ar" onclick="avApplyLang('ar')">عر</button>
+  </div>
+
+  <!-- HEADER -->
+  <header class="av-header">
+    <div class="av-header-inner">
+      <a href="/" class="av-logo">
+        <div class="av-logo-icon${logoUrl ? ' av-logo-icon--img' : ''}">${logoHtml}</div>
+        <div class="av-logo-text">
+          ${agencyNameAr ? `<div class="av-logo-ar en-hidden">${agencyNameAr}</div>` : ''}
+          <div class="av-logo-name">${agencyName}</div>
+        </div>
+      </a>
+      <div class="av-header-contacts">
+        ${contactPhone ? `<span class="av-phone-display">${contactPhone}</span>` : ''}
+        ${waPhone ? `<a class="av-wa-btn" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          WhatsApp
+        </a>` : ''}
       </div>
-      ${contactPhone ? `<div class="contact-mini">${contactPhone}${contactPhone2 ? ' · ' + contactPhone2 : ''}</div>` : ''}
     </div>
   </header>
 
-  <section class="widget-first">
-    <div class="container">
-      <div class="widget-main">
-        <h2 class="widget-title">
-          <span class="en-text">Find the Best Flight Deals Now</span>
-          <span class="ar-text" style="display:none">ابحث عن أفضل صفقات الطيران الآن</span>
+  <!-- HERO -->
+  <section class="av-hero"${heroImageUrl ? ` style="background:linear-gradient(rgba(0,0,0,.58),rgba(0,0,0,.42)),url('${heroImageUrl}') center/cover no-repeat"` : ''}>
+    <div class="av-hero-badge">✈ ${subdomain}.aviaframe.com</div>
+    <h1 class="av-hero-h1">${effectiveTagline}</h1>
+    <p class="av-hero-sub">${effectiveHeroDesc}</p>
+    <div class="av-trust-badges">
+      ${trustItems}
+    </div>
+  </section>
+
+  <!-- SEARCH WIDGET -->
+  <div class="av-widget-wrap">
+    <div class="av-widget-card">
+      <div class="av-widget-title">
+        <span class="en-text">Find the Best Flights Now</span>
+        <span class="ar-text" style="display:none">ابحث عن أفضل رحلاتك الآن</span>
+      </div>
+      <div class="av-widget-sub">
+        <span class="en-text">Powered by AviaFrame · 700+ airlines · Instant booking</span>
+        <span class="ar-text" style="display:none">مدعوم من أفيافريم · أكثر من 700 شركة طيران</span>
+      </div>
+      <div
+        id="aviaframe-widget"
+        data-aviaframe-widget
+        data-api-url="${BACKEND_URL}/webhook/drct/search"
+        data-checkout-url="/booking.html"
+        data-agency-key="${apiKey}"
+        data-brand-name="${agencyName}"
+        data-brand-color="${brandColor}"
+        data-accent-color="${accentColor}"
+        data-title="Search Flights"
+        data-primary-color="${accentColor}"
+      ></div>
+    </div>
+  </div>
+
+  <!-- DESTINATIONS -->
+  <section class="av-section">
+    <div class="av-section-inner">
+      <div class="av-section-header">
+        <span class="av-eyebrow">✈ Popular Routes</span>
+        <h2 class="av-section-title">
+          <span class="en-text">Top Destinations</span>
+          <span class="ar-text" style="display:none">الوجهات الأكثر طلباً</span>
         </h2>
-        <p class="widget-subtitle">
-          <span class="en-text">Powered by AviaFrame search. Compare options and book with confidence.</span>
-          <span class="ar-text" style="display:none">مدعوم من بحث أفيافريم. قارن الخيارات واحجز بثقة.</span>
-        </p>
-        <div
-          id="aviaframe-widget"
-          data-aviaframe-widget
-          data-api-url="${BACKEND_URL}/webhook/drct/search"
-          data-checkout-url="/booking.html"
-          data-agency-key="${apiKey}"
-          data-brand-name="${agencyName}"
-          data-brand-color="${brandColor}"
-          data-accent-color="${accentColor}"
-          data-title="Search Flights"
-          data-primary-color="${accentColor}"
-        ></div>
+        <p class="av-section-sub en-text">Handpicked routes with the best fares — updated weekly</p>
+      </div>
+      <div class="av-dest-grid">
+        ${destinationsHtml}
       </div>
     </div>
   </section>
 
-  <section class="hero">
-    <div class="container hero-grid">
-      <article class="hero-card">
-        <span class="badge">${subdomain}.aviaframe.com</span>
-        <h1>
-          <span class="en-text">Reliable Flight Booking &amp; Complete Travel Services</span>
-          <span class="ar-text" style="display:none">حجز رحلات موثوق وخدمات سفر متكاملة</span>
-        </h1>
-        <p class="lead">
-          <span class="en-text">${effectiveAboutEn}</span>
-          <span class="ar-text" style="display:none">${effectiveAboutAr}</span>
-        </p>
-        ${trustHtml ? `<div class="trust-bar">${trustHtml}</div>` : ''}
-      </article>
-      <aside class="hero-card">
-        <h3 class="side-title">
-          <span class="en-text">Our Services</span>
-          <span class="ar-text" style="display:none">خدماتنا</span>
-        </h3>
-        <ul class="clean-list">
-          ${servicesListHtml}
-        </ul>
-      </aside>
+  <!-- WHY CHOOSE US -->
+  <section class="av-section av-why-section">
+    <div class="av-section-inner">
+      <div class="av-section-header">
+        <span class="av-eyebrow">⭐ Why Choose Us</span>
+        <h2 class="av-section-title">
+          <span class="en-text">Travel with Confidence</span>
+          <span class="ar-text" style="display:none">سافر بثقة</span>
+        </h2>
+      </div>
+      <div class="av-why-grid">
+        ${whyHtml}
+      </div>
     </div>
   </section>
 
-  <main class="main">
-    <div class="container main-grid">
-      <article class="info-card">
-        <h2><span class="en-text">Contact</span><span class="ar-text" style="display:none">التواصل</span></h2>
-        <div class="phones">
-          ${waPhone ? `<a class="phone phone-wa" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-            ${contactPhone}
-          </a>` : ''}
-          ${contactPhone2 ? `<div class="phone">📞 ${contactPhone2}</div>` : ''}
-          ${contactEmail ? `<a class="phone phone-email" href="mailto:${contactEmail}">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            ${contactEmail}
-          </a>` : ''}
-        </div>
-        ${address ? `<div class="address">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          ${address}
-        </div>` : ''}
-        ${workingHours ? `<div class="working-hours">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span class="en-text">${workingHours}</span>
-          ${workingHoursAr ? `<span class="ar-text" style="display:none">${workingHoursAr}</span>` : ''}
-        </div>` : ''}
-        ${socialHtml ? `<div class="social-bar">${socialHtml}</div>` : ''}
-      </article>
-
-      ${supervisorName ? `<article class="info-card">
-        <h2><span class="en-text">Office Supervisor</span><span class="ar-text" style="display:none">مشرف المكتب</span></h2>
-        <div class="manager-card">
-          <div class="manager-name">${supervisorName}</div>
-          ${supervisorEmail ? `<div class="manager-contact"><a href="mailto:${supervisorEmail}">${supervisorEmail}</a></div>` : ''}
-        </div>
-      </article>` : ''}
-    </div>
-
-    ${mapsHtml ? `<div class="container" style="margin-top:24px">${mapsHtml}</div>` : ''}
-  </main>
-
-  <footer class="footer">
-    <div class="container footer-inner">
-      <div>
-        <strong>${agencyName}</strong>
-        ${agencyNameAr ? `<br>${agencyNameAr}` : ''}
+  <!-- AIRLINES -->
+  <section class="av-section av-airlines-section">
+    <div class="av-section-inner">
+      <div class="av-section-header" style="margin-bottom:28px">
+        <span class="av-eyebrow">✈ Partner Airlines</span>
+        <h2 class="av-section-title">
+          <span class="en-text">700+ Airlines at Your Fingertips</span>
+          <span class="ar-text" style="display:none">أكثر من 700 شركة طيران</span>
+        </h2>
       </div>
-      ${contactPhone ? `<div>${contactPhone}${contactPhone2 ? ' • ' + contactPhone2 : ''}</div>` : ''}
-      <div class="subdomain-note">Host: ${subdomain}.aviaframe.com</div>
+      <div class="av-airlines-wrap">
+        ${airlinesHtml}
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="av-stats">
+    <div class="av-section-inner">
+      <div class="av-stats-grid">
+        ${statsHtml}
+      </div>
+    </div>
+  </section>
+
+  <!-- REVIEWS -->
+  <section class="av-section av-reviews-section">
+    <div class="av-section-inner">
+      <div class="av-section-header">
+        <span class="av-eyebrow">💬 Testimonials</span>
+        <h2 class="av-section-title">
+          <span class="en-text">What Our Travelers Say</span>
+          <span class="ar-text" style="display:none">ماذا يقول مسافرونا</span>
+        </h2>
+        <div class="av-rating-row">
+          <div class="av-rating-num">4.9</div>
+          <div>
+            <div class="av-rating-stars">★★★★★</div>
+            <div class="av-rating-count">Based on 1,000+ verified bookings</div>
+          </div>
+        </div>
+      </div>
+      <div class="av-reviews-grid">
+        ${reviewsHtml}
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT & ABOUT -->
+  <section class="av-section av-contact-section">
+    <div class="av-section-inner">
+      <div class="av-section-header">
+        <span class="av-eyebrow">📍 Find Us</span>
+        <h2 class="av-section-title">
+          <span class="en-text">Get in Touch</span>
+          <span class="ar-text" style="display:none">تواصل معنا</span>
+        </h2>
+      </div>
+      <div class="av-contact-grid">
+        <div class="av-contact-card">
+          <h3><span class="en-text">Contact Information</span><span class="ar-text" style="display:none">معلومات التواصل</span></h3>
+          <div class="av-phones">
+            ${waPhone ? `<a class="av-phone-link av-phone-wa" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer">
+              <span>💬</span> ${contactPhone}
+            </a>` : contactPhone ? `<div class="av-phone-link"><span>📞</span> ${contactPhone}</div>` : ''}
+            ${contactPhone2 ? `<div class="av-phone-link"><span>📞</span> ${contactPhone2}</div>` : ''}
+            ${contactEmail ? `<a class="av-phone-link" href="mailto:${contactEmail}"><span>✉️</span> ${contactEmail}</a>` : ''}
+          </div>
+          ${address ? `<div class="av-address"><span>📍</span> <span>${address}</span></div>` : ''}
+          ${workingHours ? `<div class="av-working"><span>🕐</span> <span class="en-text">${workingHours}</span>${workingHoursAr ? `<span class="ar-text" style="display:none">${workingHoursAr}</span>` : ''}</div>` : ''}
+          ${socialItems ? `<div class="av-social-bar">${socialItems}</div>` : ''}
+        </div>
+        <div class="av-contact-card">
+          <h3><span class="en-text">About Us</span><span class="ar-text" style="display:none">عنّا</span></h3>
+          <p class="av-about-text">
+            <span class="en-text">${effectiveAboutEn}</span>
+            <span class="ar-text" style="display:none">${effectiveAboutAr}</span>
+          </p>
+          ${serviceList.length > 0 ? `<ul class="av-services-list">${servicesListHtml}</ul>` : ''}
+          ${supervisorName ? `<div class="av-supervisor"><strong>${supervisorName}</strong>${supervisorEmail ? ` · <a href="mailto:${supervisorEmail}">${supervisorEmail}</a>` : ''}</div>` : ''}
+        </div>
+      </div>
+      ${mapsHtml ? `<div style="margin-top:20px">${mapsHtml}</div>` : ''}
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="av-section">
+    <div class="av-section-inner">
+      <div class="av-section-header">
+        <span class="av-eyebrow">❓ Help Center</span>
+        <h2 class="av-section-title">
+          <span class="en-text">Frequently Asked Questions</span>
+          <span class="ar-text" style="display:none">أسئلة شائعة</span>
+        </h2>
+      </div>
+      <div class="av-faq-list">
+        ${faqHtml}
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="av-footer">
+    <div class="av-section-inner">
+      <div class="av-footer-grid">
+        <div class="av-footer-brand">
+          <div class="av-footer-brand-name">${agencyName}${agencyNameAr ? ` · ${agencyNameAr}` : ''}</div>
+          <p class="av-footer-desc">${effectiveAboutEn.slice(0, 120)}...</p>
+          ${socialItems ? `<div class="av-footer-social">${socialItems}</div>` : ''}
+        </div>
+        <div class="av-footer-col">
+          <h4>Services</h4>
+          <ul>
+            <li><a href="#aviaframe-widget">Flight Booking</a></li>
+            ${activeServices.includes('hotels') ? '<li><a href="#">Hotel Reservations</a></li>' : ''}
+            ${activeServices.includes('visa') ? '<li><a href="#">Visa Assistance</a></li>' : ''}
+            ${activeServices.includes('umrah') ? '<li><a href="#">Umrah Packages</a></li>' : ''}
+          </ul>
+        </div>
+        <div class="av-footer-col">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="#">Privacy Policy</a></li>
+            <li><a href="#">Terms &amp; Conditions</a></li>
+            <li><a href="#">Refund Policy</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="av-footer-bottom">
+        <span>© ${new Date().getFullYear()} ${agencyName}. All rights reserved.</span>
+        <span class="av-footer-subdomain">${subdomain}.aviaframe.com</span>
+      </div>
     </div>
   </footer>
 
   <script src="/aviaframe-widget.js"></script>
   <script>
-    var currentLang = localStorage.getItem('aviaframe_lang') || '${language}';
-    function applyLang(lang) {
-      currentLang = lang;
+    // Language switcher
+    var _avLang = localStorage.getItem('aviaframe_lang') || '${language}';
+    function avApplyLang(lang) {
+      _avLang = lang;
       localStorage.setItem('aviaframe_lang', lang);
       document.documentElement.lang = lang;
       document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-      document.querySelectorAll('.en-text').forEach(function(el){ el.style.display = lang==='ar'?'none':''; });
-      document.querySelectorAll('.ar-text').forEach(function(el){ el.style.display = lang==='ar'?'':'none'; });
-      document.querySelectorAll('.lang-opt').forEach(function(btn){
-        var isActive = btn.dataset.lang === lang;
-        btn.style.background = isActive ? 'rgba(255,255,255,0.3)' : 'transparent';
-        btn.style.color = isActive ? '#fff' : 'rgba(255,255,255,0.65)';
-        btn.style.fontWeight = isActive ? '800' : '600';
+      document.querySelectorAll('.en-text,.en-hidden').forEach(function(el){
+        el.style.display = lang === 'ar' ? 'none' : '';
+      });
+      document.querySelectorAll('.ar-text').forEach(function(el){
+        el.style.display = lang === 'ar' ? '' : 'none';
+      });
+      document.querySelectorAll('.av-lang-btn').forEach(function(btn){
+        var active = btn.dataset.lang === lang;
+        btn.classList.toggle('active', active);
       });
     }
-    applyLang(currentLang);
+    avApplyLang(_avLang);
+
+    // FAQ accordion
+    function avToggleFaq(el) {
+      var item = el.closest('.av-faq-item');
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.av-faq-item').forEach(function(i){ i.classList.remove('open'); });
+      if (!isOpen) item.classList.add('open');
+    }
+
+    // Sticky header shadow
+    window.addEventListener('scroll', function() {
+      var header = document.querySelector('.av-header');
+      if (header) header.style.boxShadow = window.scrollY > 10
+        ? '0 4px 20px rgba(0,0,0,0.12)'
+        : '0 2px 8px rgba(0,0,0,0.06)';
+    });
   </script>
 </body>
 </html>`;
 
-  const css = `*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Cairo',sans-serif;background:#f8f9fb;color:#1a1a2e;line-height:1.6}
-.container{max-width:1100px;margin:0 auto;padding:0 20px}
-.header{color:#fff;padding:16px 0}
-.header-inner{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.agency-logo{height:48px;width:auto;object-fit:contain;flex-shrink:0}
-.header-text{display:flex;flex-direction:column;gap:2px}
-.brand-name{font-size:1.1rem;font-weight:700;color:#fff}
-.brand-arabic{font-size:1.2rem;font-weight:800;color:rgba(255,255,255,.9)}
-.contact-mini{font-size:.85rem;color:rgba(255,255,255,.8);margin-inline-start:auto}
-.lang-switcher{position:fixed;top:12px;right:16px;display:flex;gap:6px;z-index:999}
-.lang-opt{border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.82rem;font-family:'Cairo',sans-serif;transition:all .2s;background:transparent;color:rgba(255,255,255,.65);font-weight:600}
-.widget-first{background:#fff;padding:40px 0 20px}
-.widget-main{max-width:800px;margin:0 auto}
-.widget-title{font-size:1.6rem;font-weight:800;color:#1a1a2e;margin-bottom:8px}
-.widget-subtitle{color:#666;margin-bottom:24px}
-.hero{color:#fff;padding:60px 0}
-.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px}
-@media(max-width:700px){.hero-grid{grid-template-columns:1fr}}
-.hero-card{background:rgba(255,255,255,.12);border-radius:16px;padding:28px}
-.badge{display:inline-block;background:rgba(255,255,255,.2);border-radius:20px;padding:4px 14px;font-size:.8rem;margin-bottom:12px}
-h1{font-size:1.7rem;font-weight:800;margin-bottom:16px}
-.lead{font-size:1rem;opacity:.9;line-height:1.7;margin-bottom:16px}
-.trust-bar{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
-.trust-item{font-size:.82rem;opacity:.85;background:rgba(255,255,255,.15);border-radius:6px;padding:3px 10px}
-.trust-label{font-weight:700}
-.side-title{font-size:1.1rem;font-weight:700;margin-bottom:14px}
-.clean-list{list-style:none;display:flex;flex-direction:column;gap:8px}
-.clean-list li::before{content:'✓  ';opacity:.8}
-.main{padding:48px 0}
-.main-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-@media(max-width:700px){.main-grid{grid-template-columns:1fr}}
-.info-card{background:#fff;border-radius:16px;padding:28px;box-shadow:0 2px 12px rgba(0,0,0,.06)}
-.info-card h2{font-size:1.1rem;font-weight:700;margin-bottom:16px;color:#1a1a2e}
-.phones{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
-.phone{display:flex;align-items:center;gap:8px;font-size:.95rem;color:#1a1a2e;text-decoration:none}
-.phone-wa{color:#25d366}
-.phone-email{color:#2468c4}
-.address{display:flex;align-items:flex-start;gap:8px;font-size:.9rem;color:#555;margin-top:10px;line-height:1.5}
-.working-hours{display:flex;align-items:center;gap:8px;font-size:.9rem;color:#555;margin-top:8px}
-.social-bar{display:flex;gap:12px;margin-top:16px}
-.social-link{color:#666;transition:color .2s}
-.social-link:hover{color:#1a3c8e}
-.maps-embed{margin-top:8px}
-.manager-card{background:#f8f9fb;border-radius:10px;padding:16px}
-.manager-name{font-size:1rem;font-weight:700;margin-bottom:4px}
-.manager-contact a{color:#2468c4;font-size:.9rem;text-decoration:none}
-.footer{background:#1a1a2e;color:#ccc;padding:28px 0;margin-top:48px}
-.footer-inner{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;font-size:.88rem}
-.footer-inner strong{color:#fff}
-.subdomain-note{margin-inline-start:auto;opacity:.5;font-size:.78rem}
-[dir=rtl] .contact-mini{margin-inline-start:0;margin-inline-end:auto}
-[dir=rtl] .lang-switcher{right:auto;left:16px}`;
+  // ── CSS ───────────────────────────────────────────────────────────────────
+  const css = `/* Agency site — generated by AviaFrame */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,'SF Pro Display','Segoe UI',system-ui,sans-serif;font-size:16px;color:#0a1628;background:#fff;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{text-decoration:none;color:inherit}
+
+/* Lang switcher */
+.av-lang-switcher{position:fixed;top:14px;right:16px;z-index:200;display:flex;gap:4px}
+.av-lang-btn{border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;background:transparent;color:rgba(255,255,255,.7);font-weight:600;transition:all .2s}
+.av-lang-btn.active{background:rgba(255,255,255,.25);color:#fff;border-color:rgba(255,255,255,.6)}
+[dir=rtl] .av-lang-switcher{right:auto;left:16px}
+
+/* Header */
+.av-header{position:sticky;top:0;z-index:100;background:var(--av-header-bg);backdrop-filter:blur(12px);border-bottom:1px solid rgba(var(--av-brand-rgb),.12);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.av-header-inner{max-width:1240px;margin:0 auto;padding:0 24px;height:68px;display:flex;align-items:center;gap:24px}
+.av-logo{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.av-logo-icon{height:48px;min-width:48px;border-radius:10px;background:var(--av-brand);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.av-logo-icon.av-logo-icon--img{background:transparent;border-radius:0;min-width:0;height:48px}
+.av-logo-img{height:48px;width:auto;max-width:220px;object-fit:contain;display:block}
+.av-logo-icon-text{font-size:20px;font-weight:800;color:#fff}
+.av-logo-name{font-size:17px;font-weight:700;color:var(--av-header-logo);letter-spacing:-0.3px}
+.av-logo-ar{font-size:15px;font-weight:700;color:var(--av-header-logo)}
+.av-header-contacts{margin-left:auto;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.av-phone-display{font-size:14px;font-weight:600;color:var(--av-header-text)}
+.av-wa-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:99px;background:#25D366;color:#fff;font-size:13px;font-weight:600;transition:opacity .2s}
+.av-wa-btn:hover{opacity:.88}
+[dir=rtl] .av-header-contacts{margin-left:0;margin-right:auto}
+
+/* Hero */
+.av-hero{position:relative;overflow:hidden;min-height:380px;background:radial-gradient(ellipse 90% 50% at 50% 110%,rgba(var(--av-accent-rgb),.4) 0%,transparent 65%),linear-gradient(175deg,var(--av-brand-dark) 0%,var(--av-brand) 50%,color-mix(in srgb,var(--av-brand) 80%,#fff 20%) 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:52px 24px 82px}
+.av-hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:99px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);font-size:13px;font-weight:500;margin-bottom:22px}
+.av-hero-h1{font-size:clamp(1.8rem,5vw,3.2rem);font-weight:800;color:#fff;line-height:1.1;letter-spacing:-1.5px;margin-bottom:14px;max-width:680px;text-wrap:balance}
+.av-hero-sub{font-size:1.05rem;color:rgba(255,255,255,.75);max-width:480px;margin-bottom:24px;line-height:1.7}
+.av-trust-badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.av-trust-badge{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:99px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.9);font-size:12px;font-weight:500}
+
+/* Widget wrapper */
+.av-widget-wrap{max-width:1100px;width:100%;margin:-44px auto 0;padding:0 24px;position:relative;z-index:10}
+.av-widget-card{background:#fff;border-radius:16px;box-shadow:0 16px 48px rgba(var(--av-brand-rgb),.16),0 4px 16px rgba(var(--av-brand-rgb),.08);padding:16px 22px 22px}
+.av-widget-title{font-size:15px;font-weight:700;color:#0a1628;margin-bottom:3px}
+.av-widget-sub{font-size:12px;color:#5a6b8a;margin-bottom:14px}
+
+/* Sections */
+.av-section{padding:52px 24px}
+.av-section-inner{max-width:1200px;margin:0 auto}
+.av-section-header{text-align:center;margin-bottom:32px}
+.av-eyebrow{font-size:12px;font-weight:700;color:var(--av-accent);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:inline-block;padding-bottom:4px;border-bottom:2px solid var(--av-accent)}
+.av-section-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:800;color:var(--av-brand);letter-spacing:-0.8px;line-height:1.2}
+.av-section-sub{font-size:1rem;color:#5a6b8a;margin-top:8px}
+
+/* Destinations */
+.av-dest-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+.av-dest-card{border-radius:14px;overflow:hidden;cursor:pointer;position:relative;aspect-ratio:3/4;transition:transform .22s,box-shadow .22s;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.av-dest-card:hover{transform:translateY(-5px);box-shadow:0 16px 48px rgba(0,0,0,.16)}
+.av-dest-bg{position:absolute;inset:0;background-size:cover;background-position:center}
+.av-dest-bg::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 20px,rgba(255,255,255,.02) 20px,rgba(255,255,255,.02) 40px)}
+.av-dest-overlay{position:absolute;inset:0;background:rgba(var(--av-brand-rgb),.12);opacity:0;transition:opacity .22s}
+.av-dest-card:hover .av-dest-overlay{opacity:1}
+.av-dest-content{position:absolute;bottom:0;left:0;right:0;padding:14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.72))}
+.av-dest-city{font-size:14px;font-weight:700;color:#fff;margin-bottom:2px}
+.av-dest-price{font-size:11px;color:rgba(255,255,255,.8);margin-bottom:6px}
+.av-dest-btn{display:block;padding:5px 0;background:rgba(var(--av-accent-rgb),.92);color:#fff;border-radius:6px;font-size:11px;font-weight:700;text-align:center}
+.av-dest-card:hover .av-dest-btn{background:var(--av-accent)}
+.av-dest-icon{position:absolute;top:10px;right:10px;font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
+
+/* Why */
+.av-why-section{background:#f4f7fc}
+.av-why-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.av-why-card{background:#fff;border-radius:14px;padding:26px 22px;box-shadow:0 2px 12px rgba(var(--av-brand-rgb),.06);border:1px solid rgba(var(--av-brand-rgb),.1);transition:transform .22s,box-shadow .22s;position:relative;overflow:hidden}
+.av-why-card:hover{transform:translateY(-4px);box-shadow:0 8px 28px rgba(var(--av-brand-rgb),.12)}
+.av-why-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--av-accent);transform:scaleX(0);transform-origin:left;transition:transform .3s}
+.av-why-card:hover::after{transform:scaleX(1)}
+.av-why-icon{width:46px;height:46px;border-radius:12px;margin-bottom:16px;background:rgba(var(--av-brand-rgb),.08);display:flex;align-items:center;justify-content:center;font-size:20px}
+.av-why-title{font-size:15px;font-weight:700;color:var(--av-brand);margin-bottom:8px}
+.av-why-desc{font-size:13px;color:#5a6b8a;line-height:1.6}
+
+/* Airlines */
+.av-airlines-section{padding-top:40px;padding-bottom:40px}
+.av-airlines-wrap{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.av-airline{padding:11px 22px;border-radius:99px;border:1.5px solid rgba(var(--av-brand-rgb),.15);background:#fff;font-size:13px;font-weight:700;color:#5a6b8a;cursor:pointer;transition:all .22s;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.av-airline:hover{color:var(--av-brand);border-color:var(--av-brand);box-shadow:0 6px 20px rgba(var(--av-brand-rgb),.1);transform:translateY(-2px)}
+
+/* Stats */
+.av-stats{background:var(--av-brand);position:relative;overflow:hidden}
+.av-stats::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 20% 50%,rgba(255,255,255,.08) 0%,transparent 60%),radial-gradient(circle at 80% 50%,rgba(var(--av-accent-rgb),.12) 0%,transparent 60%)}
+.av-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);position:relative}
+.av-stat{text-align:center;padding:36px 16px;border-right:1px solid rgba(255,255,255,.1)}
+.av-stat:last-child{border-right:none}
+.av-stat-num{font-size:clamp(2rem,5vw,3.2rem);font-weight:900;color:#fff;line-height:1;letter-spacing:-2px;margin-bottom:6px}
+.av-stat-num span{color:var(--av-accent)}
+.av-stat-label{font-size:13px;color:rgba(255,255,255,.55);font-weight:500}
+
+/* Reviews */
+.av-reviews-section{background:#f4f7fc}
+.av-rating-row{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:36px}
+.av-rating-num{font-size:2.8rem;font-weight:900;color:var(--av-brand);line-height:1}
+.av-rating-stars{font-size:22px;color:#f59e0b;letter-spacing:2px}
+.av-rating-count{font-size:13px;color:#5a6b8a}
+.av-reviews-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.av-review{background:#fff;border-radius:14px;padding:22px;box-shadow:0 2px 12px rgba(var(--av-brand-rgb),.06);border:1px solid rgba(var(--av-brand-rgb),.1);border-left:4px solid var(--av-brand);transition:transform .22s,box-shadow .22s}
+.av-review:hover{transform:translateY(-4px);box-shadow:0 8px 28px rgba(var(--av-brand-rgb),.12)}
+.av-review-stars{font-size:13px;color:#f59e0b;margin-bottom:10px}
+.av-review-text{font-size:13px;color:#0a1628;line-height:1.7;margin-bottom:14px;font-style:italic}
+.av-reviewer{display:flex;align-items:center;gap:8px}
+.av-reviewer-av{width:34px;height:34px;border-radius:50%;background:rgba(var(--av-brand-rgb),.1);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--av-brand);flex-shrink:0}
+.av-reviewer-name{font-size:13px;font-weight:700;color:var(--av-brand)}
+.av-reviewer-loc{font-size:11px;color:#5a6b8a}
+
+/* Contact */
+.av-contact-section{background:#f4f7fc}
+.av-contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.av-contact-card{background:#fff;border-radius:14px;padding:24px;box-shadow:0 2px 12px rgba(var(--av-brand-rgb),.06);border:1px solid rgba(var(--av-brand-rgb),.1)}
+.av-contact-card h3{font-size:16px;font-weight:700;color:var(--av-brand);margin-bottom:16px}
+.av-phones{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.av-phone-link{display:flex;align-items:center;gap:8px;font-size:14px;color:#0a1628}
+.av-phone-wa{color:#25D366}
+.av-address{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#5a6b8a;margin-top:8px}
+.av-working{display:flex;align-items:center;gap:8px;font-size:13px;color:#5a6b8a;margin-top:8px}
+.av-social-bar{display:flex;gap:10px;margin-top:14px}
+.av-social-link{font-size:18px;transition:opacity .2s}
+.av-social-link:hover{opacity:.7}
+.av-about-text{font-size:14px;color:#5a6b8a;line-height:1.7;margin-bottom:14px}
+.av-services-list{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13px;color:#5a6b8a}
+.av-services-list li::before{content:'✓  ';color:var(--av-brand);font-weight:700}
+.av-supervisor{margin-top:14px;font-size:13px;color:#5a6b8a}
+.av-supervisor a{color:var(--av-brand)}
+.av-maps-embed{margin-top:16px}
+
+/* FAQ */
+.av-faq-list{max-width:740px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.av-faq-item{border-radius:8px;border:1.5px solid rgba(var(--av-brand-rgb),.12);background:#fff;overflow:hidden}
+.av-faq-q{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;cursor:pointer;gap:16px;font-size:14px;font-weight:600;color:var(--av-brand);user-select:none;transition:background .2s}
+.av-faq-q:hover{background:#f4f7fc}
+.av-faq-toggle{width:24px;height:24px;border-radius:50%;background:rgba(var(--av-brand-rgb),.08);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:300;color:var(--av-brand);flex-shrink:0;transition:all .22s;line-height:1}
+.av-faq-item.open .av-faq-toggle{background:var(--av-brand);color:#fff;transform:rotate(45deg)}
+.av-faq-a{max-height:0;overflow:hidden;transition:max-height .35s cubic-bezier(0,1,0,1),padding .25s;padding:0 18px;font-size:14px;color:#5a6b8a;line-height:1.7}
+.av-faq-item.open .av-faq-a{max-height:300px;padding:0 18px 16px;transition:max-height .45s cubic-bezier(.5,0,1,0),padding .25s}
+
+/* Footer */
+.av-footer{background:var(--av-footer-bg);color:${footerMuted};padding:52px 24px 22px}
+.av-footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:36px;margin-bottom:32px}
+.av-footer-brand-name{font-size:17px;font-weight:700;color:${footerTextColor};margin-bottom:10px}
+.av-footer-desc{font-size:13px;line-height:1.7;margin-bottom:16px}
+.av-footer-social{display:flex;gap:10px}
+.av-footer-col h4{font-size:11px;font-weight:700;color:${footerTextColor};text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px}
+.av-footer-col ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+.av-footer-col ul li a{font-size:13px;color:${footerDim};transition:color .2s}
+.av-footer-col ul li a:hover{color:${footerTextColor}}
+.av-footer-bottom{border-top:1px solid ${footerDivider};padding-top:16px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:${footerDim}}
+
+/* Responsive */
+@media(max-width:1100px){.av-dest-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.av-why-grid{grid-template-columns:repeat(2,1fr)}.av-footer-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:680px){
+  .av-dest-grid{grid-template-columns:repeat(2,1fr)}
+  .av-reviews-grid{grid-template-columns:1fr}
+  .av-review:nth-child(2){margin-top:0!important}
+  .av-stats-grid{grid-template-columns:repeat(2,1fr)}
+  .av-stat:nth-child(2){border-right:none}
+  .av-stat:nth-child(3){border-top:1px solid rgba(255,255,255,.1)}
+  .av-contact-grid{grid-template-columns:1fr}
+  .av-footer-grid{grid-template-columns:1fr}
+  .av-footer-bottom{flex-direction:column;gap:8px;text-align:center}
+  .av-phone-display{display:none}
+}
+/* RTL */
+[dir=rtl] .av-header-contacts{margin-left:0;margin-right:auto}
+[dir=rtl] .av-footer-bottom{flex-direction:row-reverse}`;
 
   return { html, css };
 }
 
+// ── Asset helpers ─────────────────────────────────────────────────────────────
 function readTemplateAsset(relativePath, encoding = null) {
   const assetPath = path.join(SITE_TEMPLATE_DIR, relativePath);
   if (!fs.existsSync(assetPath)) {
@@ -377,7 +808,6 @@ function buildAgencyRuntimeConfig({ apiKey, subdomain }) {
     enableOfferPriceFlow: true,
     paymentReturnUrl: `${siteUrl}/booking.html`
   };
-
   return `(() => {
   window.AVIAFRAME_RUNTIME_CONFIG = Object.assign(
     ${JSON.stringify(runtimeConfig, null, 2)},
@@ -388,7 +818,6 @@ function buildAgencyRuntimeConfig({ apiKey, subdomain }) {
 
 function normalizeLandingHtml(html, { apiKey, assetVersion }) {
   if (!html) return '';
-
   let next = String(html);
   next = next.replace(/data-api-url="[^"]*"/g, `data-api-url="${BACKEND_URL}/webhook/drct/search"`);
   next = next.replace(/data-checkout-url="[^"]*"/g, 'data-checkout-url="/booking.html"');
@@ -408,8 +837,11 @@ function buildAgencyDeployFiles({ subdomain, apiKey, landingHtml, landingCss }) 
   const normalizedLandingHtml = normalizeLandingHtml(landingHtml, { apiKey, assetVersion });
   const normalizedLandingCss = String(landingCss || '');
 
+  const page404Html = `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="refresh" content="3;url=/"><title>Page Not Found</title><style>body{font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f4f7fc;color:#0a1628;text-align:center}h1{font-size:2rem;font-weight:800;margin-bottom:8px}p{color:#5a6b8a;margin-bottom:24px}a{display:inline-block;padding:10px 24px;background:#1a3c8e;color:#fff;border-radius:8px;text-decoration:none;font-weight:600}</style></head><body><h1>Page Not Found</h1><p>Redirecting you to the home page...</p><a href="/">Go Home</a></body></html>`;
+
   return {
     'index.html': normalizedLandingHtml,
+    '404.html': page404Html,
     'widget-demo.html': normalizedLandingHtml,
     'styles.css': normalizedLandingCss,
     'booking.html': readTemplateAsset('booking.html', 'utf8'),
@@ -428,7 +860,6 @@ async function fetchExistingAgencySiteFiles(domain) {
     axios.get(baseUrl, { responseType: 'text' }),
     axios.get(`${baseUrl}/styles.css`, { responseType: 'text' })
   ]);
-
   return {
     html: String(htmlResp.data || ''),
     css: String(cssResp.data || '')
@@ -511,8 +942,8 @@ async function deployToNetlify({ subdomain, files }) {
   }
 
   const zip = new JSZip();
-  for (const [path, content] of Object.entries(files)) {
-    zip.file(path, content);
+  for (const [filePath, content] of Object.entries(files)) {
+    zip.file(filePath, content);
   }
   const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
 
@@ -581,9 +1012,6 @@ async function deleteNetlifySite({ subdomain }) {
   };
 }
 
-/**
- * Add CNAME record to GoDaddy DNS: subdomain.aviaframe.com → netlify-site.netlify.app
- */
 async function addGodaddyCname({ subdomain, netlifyAppName }) {
   if (!GODADDY_API_KEY || !GODADDY_API_SECRET) {
     console.warn('[dns] GODADDY_API_KEY not configured, skipping CNAME creation');
@@ -596,7 +1024,6 @@ async function addGodaddyCname({ subdomain, netlifyAppName }) {
     'Content-Type': 'application/json'
   };
 
-  // Check if record already exists
   try {
     const check = await axios.get(
       `${GODADDY_API}/domains/${AVIAFRAME_DOMAIN}/records/CNAME/${subdomain}`,

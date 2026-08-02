@@ -27,6 +27,7 @@ import {
   redeployMyAgencySite,
   provisionAdminAgency,
   uploadAgencyLogo,
+  uploadAgencyMedia,
   redeployAdminAgencySite,
   publishAdminAgencySite,
   sendAdminAgencySetupEmail
@@ -103,6 +104,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     sama_code: '',
     widget_allowed_domains: '',
     payment_methods: ['online'],
+    commission_model: 'fixed',
+    commission_fixed_amount: 0,
+    commission_rate: 0,
     logo_url: '',
     brand_color: '#1a3c8e',
     accent_color: '#2468c4',
@@ -118,9 +122,18 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     twitter: '',
     snapchat: '',
     facebook: '',
-    services: ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
+    services: ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate'],
+    hero_tagline: '',
+    hero_description: '',
+    destinations: [],
+    reviews: [],
+    featured_airlines: [],
+    hero_image_url: '',
+    header_bg: '',
+    footer_bg: ''
   });
   const [editLogoUploading, setEditLogoUploading] = useState(false);
+  const [editMediaUploading, setEditMediaUploading] = useState(false);
   const [agencyForm, setAgencyForm] = useState({
     name: '',
     name_ar: '',
@@ -238,7 +251,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     twitter: '',
     snapchat: '',
     facebook: '',
-    services: ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
+    services: ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate'],
+    hero_tagline: '',
+    hero_description: '',
+    destinations: [],
+    reviews: [],
+    featured_airlines: [],
+    hero_image_url: '',
+    header_bg: '',
+    footer_bg: ''
   });
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
@@ -705,7 +726,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       facebook: site.facebook || '',
       services: Array.isArray(site.services) && site.services.length
         ? site.services
-        : ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
+        : ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate'],
+      hero_tagline: site.hero_tagline || '',
+      hero_description: site.hero_description || '',
+      destinations: Array.isArray(site.destinations) ? site.destinations : [],
+      reviews: Array.isArray(site.reviews) ? site.reviews : [],
+      featured_airlines: Array.isArray(site.featured_airlines) ? site.featured_airlines : [],
+      hero_image_url: site.hero_image_url || '',
+      header_bg: site.header_bg || '',
+      footer_bg: site.footer_bg || ''
     });
     const domains = Array.isArray(agencyData?.settings?.widget_allowed_domains)
       ? agencyData.settings.widget_allowed_domains
@@ -1135,6 +1164,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       payment_methods: Array.isArray(agency?.settings?.payment_methods) && agency.settings.payment_methods.length
         ? agency.settings.payment_methods
         : ['online'],
+      commission_model: agency?.settings?.commission?.model || 'fixed',
+      commission_fixed_amount: agency?.settings?.commission?.fixed_amount ?? 0,
+      commission_rate: agency?.commission_rate ?? 0,
       logo_url: site.logo_url || '',
       brand_color: site.brand_color || '#1a3c8e',
       accent_color: site.accent_color || '#2468c4',
@@ -1152,7 +1184,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       facebook: site.facebook || '',
       services: Array.isArray(site.services) && site.services.length
         ? site.services
-        : ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate']
+        : ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate'],
+      hero_tagline: site.hero_tagline || '',
+      hero_description: site.hero_description || '',
+      destinations: Array.isArray(site.destinations) ? site.destinations : [],
+      reviews: Array.isArray(site.reviews) ? site.reviews : [],
+      featured_airlines: Array.isArray(site.featured_airlines) ? site.featured_airlines : [],
+      hero_image_url: site.hero_image_url || '',
+      header_bg: site.header_bg || '',
+      footer_bg: site.footer_bg || ''
     });
   };
 
@@ -1178,6 +1218,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           sama_code: agencyEditForm.sama_code || null
         },
         payment_methods: agencyEditForm.payment_methods || ['online'],
+        commission_model: agencyEditForm.commission_model || 'fixed',
+        commission_fixed_amount: Number(agencyEditForm.commission_fixed_amount) || 0,
+        commission_rate: Number(agencyEditForm.commission_rate) || 0,
         widget_allowed_domains: parseWidgetDomains(agencyEditForm.widget_allowed_domains),
         logo_url: agencyEditForm.logo_url || '',
         brand_color: agencyEditForm.brand_color || '#1a3c8e',
@@ -1194,7 +1237,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         twitter: agencyEditForm.twitter || '',
         snapchat: agencyEditForm.snapchat || '',
         facebook: agencyEditForm.facebook || '',
-        services: agencyEditForm.services || []
+        services: agencyEditForm.services || [],
+        hero_tagline: agencyEditForm.hero_tagline || '',
+        hero_description: agencyEditForm.hero_description || '',
+        destinations: agencyEditForm.destinations || [],
+        reviews: agencyEditForm.reviews || [],
+        featured_airlines: agencyEditForm.featured_airlines || [],
+        hero_image_url: agencyEditForm.hero_image_url || '',
+        header_bg: agencyEditForm.header_bg || '',
+        footer_bg: agencyEditForm.footer_bg || ''
       };
       const { error } = await updateAdminAgency(agencyId, payload);
       if (error) throw new Error(error.message || 'Agency update failed');
@@ -1393,7 +1444,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         twitter: agencySelfForm.twitter || '',
         snapchat: agencySelfForm.snapchat || '',
         facebook: agencySelfForm.facebook || '',
-        services: Array.isArray(agencySelfForm.services) ? agencySelfForm.services : []
+        services: Array.isArray(agencySelfForm.services) ? agencySelfForm.services : [],
+        hero_tagline: agencySelfForm.hero_tagline || '',
+        hero_description: agencySelfForm.hero_description || '',
+        destinations: agencySelfForm.destinations || [],
+        reviews: agencySelfForm.reviews || [],
+        featured_airlines: agencySelfForm.featured_airlines || [],
+        hero_image_url: agencySelfForm.hero_image_url || '',
+        header_bg: agencySelfForm.header_bg || '',
+        footer_bg: agencySelfForm.footer_bg || ''
       };
       let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
       if (isAgencyAdminPreview && !agencyIdForUpdate) {
@@ -2339,7 +2398,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                       onChange={(e) => handleAgencySelfLogoUpload(e.target.files?.[0])}
                     />
                   </label>
-                  <p className="text-xs text-gray-400">PNG, SVG, or JPG. Max 2 MB. Recommended: square or wide logo on transparent background. After uploading, save settings and click <strong>Republish</strong> to update your live site.</p>
+                  <p className="text-xs text-gray-400">PNG, SVG, or JPG. Max 2 MB. Recommended size: min 200px height, 2:1–4:1 aspect ratio (e.g. 400×100px), transparent background. After uploading, save settings and click <strong>Republish</strong> to update your live site.</p>
                   <div className="flex items-center gap-3 border rounded px-3 py-2 bg-white">
                     <label className="text-sm text-gray-600">Brand</label>
                     <input
@@ -2455,6 +2514,72 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   </div>
                 </div>
               </div>
+              {/* Self: Header / Footer colors */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500 font-semibold mb-1">Header background color</p>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={agencySelfForm.header_bg || '#ffffff'}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, header_bg: e.target.value }))}
+                      className="h-8 w-10 rounded border cursor-pointer" />
+                    <input value={agencySelfForm.header_bg || ''}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, header_bg: e.target.value }))}
+                      className="border rounded px-2 py-1 text-sm flex-1" placeholder="#ffffff (default white)" />
+                    {agencySelfForm.header_bg && (
+                      <button onClick={() => setAgencySelfForm((p) => ({ ...p, header_bg: '' }))}
+                        className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-semibold mb-1">Footer background color</p>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={agencySelfForm.footer_bg || agencySelfForm.brand_color || '#1a3c8e'}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, footer_bg: e.target.value }))}
+                      className="h-8 w-10 rounded border cursor-pointer" />
+                    <input value={agencySelfForm.footer_bg || ''}
+                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, footer_bg: e.target.value }))}
+                      className="border rounded px-2 py-1 text-sm flex-1" placeholder="default = brand color" />
+                    {agencySelfForm.footer_bg && (
+                      <button onClick={() => setAgencySelfForm((p) => ({ ...p, footer_bg: '' }))}
+                        className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Self: Hero */}
+              <div>
+                <p className="text-xs text-gray-500 font-semibold mb-1">Hero — headline, sub-text &amp; background image</p>
+                <div className="space-y-2">
+                  <input value={agencySelfForm.hero_tagline || ''}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, hero_tagline: e.target.value }))}
+                    className="border rounded px-2 py-1 w-full text-sm"
+                    placeholder="Hero headline (leave blank for default)" />
+                  <textarea value={agencySelfForm.hero_description || ''}
+                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, hero_description: e.target.value }))}
+                    className="border rounded px-2 py-1 w-full text-sm min-h-14"
+                    placeholder="Hero sub-text (leave blank for default)" />
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Hero background image (leave blank for brand color gradient). Recommended: 1920×600px min, JPG/WebP, under 2 MB.</p>
+                    <div className="flex gap-2">
+                      <input value={agencySelfForm.hero_image_url || ''}
+                        onChange={(e) => setAgencySelfForm((p) => ({ ...p, hero_image_url: e.target.value }))}
+                        className="border rounded px-2 py-1 text-sm flex-1"
+                        placeholder="https://... image URL" />
+                      {agencySelfForm.hero_image_url && (
+                        <button onClick={() => setAgencySelfForm((p) => ({ ...p, hero_image_url: '' }))}
+                          className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
+                      )}
+                    </div>
+                    {agencySelfForm.hero_image_url && (
+                      <img src={agencySelfForm.hero_image_url} alt="hero preview"
+                        className="mt-2 h-20 w-full object-cover rounded border" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <button
                 onClick={handleSaveMyAgencySettings}
                 className="bg-blue-600 text-white rounded px-3 py-1"
@@ -2901,6 +3026,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                               )}
                               <input value={agencyEditForm.logo_url} onChange={(e) => setAgencyEditForm(p => ({ ...p, logo_url: e.target.value }))} placeholder="Or paste logo URL" className="flex-1 min-w-0 border rounded px-2 py-1 text-sm" />
                             </div>
+                            <p className="text-xs text-gray-400 mt-1">Recommended: PNG/SVG, transparent background, 2:1–4:1 ratio (e.g. 400×100px), min 200px height.</p>
                           </div>
                         </div>
                       </div>
@@ -2924,7 +3050,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                           <input value={agencyEditForm.twitter} onChange={(e) => setAgencyEditForm((p) => ({ ...p, twitter: e.target.value }))} className="border rounded px-2 py-1" placeholder="X/Twitter (handle or URL)" />
                           <input value={agencyEditForm.snapchat} onChange={(e) => setAgencyEditForm((p) => ({ ...p, snapchat: e.target.value }))} className="border rounded px-2 py-1" placeholder="Snapchat (handle or URL)" />
                           <input value={agencyEditForm.facebook} onChange={(e) => setAgencyEditForm((p) => ({ ...p, facebook: e.target.value }))} className="border rounded px-2 py-1" placeholder="Facebook (handle or URL)" />
-                          <input value={agencyEditForm.google_maps_url} onChange={(e) => setAgencyEditForm((p) => ({ ...p, google_maps_url: e.target.value }))} className="border rounded px-2 py-1 md:col-span-4" placeholder="Google Maps URL" />
+                          <input value={agencyEditForm.google_maps_url} onChange={(e) => setAgencyEditForm((p) => ({ ...p, google_maps_url: e.target.value }))} className="border rounded px-2 py-1 md:col-span-3" placeholder="Google Maps embed URL (must contain google.com/maps)" />
+                          <span className="text-xs text-gray-400 self-center">Use Share → Embed map URL from Google Maps</span>
                         </div>
                       </div>
 
@@ -2955,6 +3082,366 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                               {s.replace(/_/g, ' ')}
                             </label>
                           ))}
+                        </div>
+                      </div>
+
+                      {/* Header / Footer colors */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500 font-semibold mb-1">Header background color</p>
+                          <div className="flex items-center gap-2">
+                            <input type="color" value={agencyEditForm.header_bg || '#ffffff'}
+                              onChange={(e) => setAgencyEditForm((p) => ({ ...p, header_bg: e.target.value }))}
+                              className="h-8 w-10 rounded border cursor-pointer" />
+                            <input value={agencyEditForm.header_bg || ''}
+                              onChange={(e) => setAgencyEditForm((p) => ({ ...p, header_bg: e.target.value }))}
+                              className="border rounded px-2 py-1 text-sm flex-1" placeholder="#ffffff (default white)" />
+                            {agencyEditForm.header_bg && (
+                              <button onClick={() => setAgencyEditForm((p) => ({ ...p, header_bg: '' }))}
+                                className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 font-semibold mb-1">Footer background color</p>
+                          <div className="flex items-center gap-2">
+                            <input type="color" value={agencyEditForm.footer_bg || agencyEditForm.brand_color || '#1a3c8e'}
+                              onChange={(e) => setAgencyEditForm((p) => ({ ...p, footer_bg: e.target.value }))}
+                              className="h-8 w-10 rounded border cursor-pointer" />
+                            <input value={agencyEditForm.footer_bg || ''}
+                              onChange={(e) => setAgencyEditForm((p) => ({ ...p, footer_bg: e.target.value }))}
+                              className="border rounded px-2 py-1 text-sm flex-1" placeholder="default = brand color" />
+                            {agencyEditForm.footer_bg && (
+                              <button onClick={() => setAgencyEditForm((p) => ({ ...p, footer_bg: '' }))}
+                                className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Hero tagline */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Hero — headline &amp; tagline</p>
+                        <div className="space-y-2">
+                          <input
+                            value={agencyEditForm.hero_tagline}
+                            onChange={(e) => setAgencyEditForm((p) => ({ ...p, hero_tagline: e.target.value }))}
+                            className="border rounded px-2 py-1 w-full text-sm"
+                            placeholder="Hero headline (leave blank for default)"
+                          />
+                          <textarea
+                            value={agencyEditForm.hero_description}
+                            onChange={(e) => setAgencyEditForm((p) => ({ ...p, hero_description: e.target.value }))}
+                            className="border rounded px-2 py-1 w-full text-sm min-h-14"
+                            placeholder="Hero sub-text (leave blank for default)"
+                          />
+                          <div>
+                            <p className="text-xs text-gray-400 mb-1">Hero background image URL (leave blank to use brand color gradient). Recommended: 1920×600px min, JPG/WebP, under 2 MB.</p>
+                            <div className="flex gap-2">
+                              <input value={agencyEditForm.hero_image_url || ''}
+                                onChange={(e) => setAgencyEditForm((p) => ({ ...p, hero_image_url: e.target.value }))}
+                                className="border rounded px-2 py-1 text-sm flex-1"
+                                placeholder="https://... or upload below" />
+                              <label className="cursor-pointer">
+                                <span className="px-3 py-1 bg-gray-100 border rounded text-sm hover:bg-gray-200 inline-block">
+                                  {editMediaUploading ? '...' : 'Upload'}
+                                </span>
+                                <input type="file" accept="image/*" className="hidden"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    setEditMediaUploading(true);
+                                    const { url, error } = await uploadAgencyMedia(file, openAgencyId);
+                                    setEditMediaUploading(false);
+                                    if (url) setAgencyEditForm((p) => ({ ...p, hero_image_url: url }));
+                                    else alert(error?.message || 'Upload failed');
+                                  }} />
+                              </label>
+                              {agencyEditForm.hero_image_url && (
+                                <button onClick={() => setAgencyEditForm((p) => ({ ...p, hero_image_url: '' }))}
+                                  className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
+                              )}
+                            </div>
+                            {agencyEditForm.hero_image_url && (
+                              <img src={agencyEditForm.hero_image_url} alt="hero preview"
+                                className="mt-2 h-20 w-full object-cover rounded border" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Destinations */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">
+                          Destinations — shown on public site ({(agencyEditForm.destinations || []).length > 0 ? 'custom' : 'using defaults'})
+                        </p>
+                        <div className="space-y-2">
+                          {(agencyEditForm.destinations || []).map((dest, di) => (
+                            <div key={di} className="border rounded p-2 bg-gray-50 grid grid-cols-2 md:grid-cols-5 gap-2 items-start">
+                              <input
+                                value={dest.city || ''}
+                                onChange={(e) => setAgencyEditForm((p) => {
+                                  const next = [...(p.destinations || [])];
+                                  next[di] = { ...next[di], city: e.target.value };
+                                  return { ...p, destinations: next };
+                                })}
+                                className="border rounded px-2 py-1 text-sm"
+                                placeholder="City"
+                              />
+                              <input
+                                value={dest.country || ''}
+                                onChange={(e) => setAgencyEditForm((p) => {
+                                  const next = [...(p.destinations || [])];
+                                  next[di] = { ...next[di], country: e.target.value };
+                                  return { ...p, destinations: next };
+                                })}
+                                className="border rounded px-2 py-1 text-sm"
+                                placeholder="Country"
+                              />
+                              <input
+                                value={dest.price || ''}
+                                onChange={(e) => setAgencyEditForm((p) => {
+                                  const next = [...(p.destinations || [])];
+                                  next[di] = { ...next[di], price: e.target.value };
+                                  return { ...p, destinations: next };
+                                })}
+                                className="border rounded px-2 py-1 text-sm"
+                                placeholder="Price (SAR)"
+                              />
+                              <div className="flex gap-1 items-center">
+                                <input
+                                  value={dest.image_url || ''}
+                                  onChange={(e) => setAgencyEditForm((p) => {
+                                    const next = [...(p.destinations || [])];
+                                    next[di] = { ...next[di], image_url: e.target.value || null };
+                                    return { ...p, destinations: next };
+                                  })}
+                                  className="border rounded px-2 py-1 text-xs flex-1 min-w-0"
+                                  placeholder="Photo URL"
+                                />
+                                <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 border rounded px-2 py-1 text-xs whitespace-nowrap">
+                                  {editMediaUploading ? '…' : '📁'}
+                                  <input type="file" accept="image/*" className="hidden" disabled={editMediaUploading}
+                                    onChange={async (e) => {
+                                      const f = e.target.files?.[0];
+                                      if (!f) return;
+                                      setEditMediaUploading(true);
+                                      const { url, error: uploadErr } = await uploadAgencyMedia(f, a.id);
+                                      setEditMediaUploading(false);
+                                      if (uploadErr) { setNotice({ type: 'error', text: `Image upload failed: ${uploadErr.message}` }); return; }
+                                      setAgencyEditForm((p) => {
+                                        const next = [...(p.destinations || [])];
+                                        next[di] = { ...next[di], image_url: url };
+                                        return { ...p, destinations: next };
+                                      });
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                              <button
+                                onClick={() => setAgencyEditForm((p) => ({
+                                  ...p,
+                                  destinations: (p.destinations || []).filter((_, i) => i !== di)
+                                }))}
+                                className="text-red-400 text-xs self-center"
+                              >
+                                ✕ Remove
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setAgencyEditForm((p) => ({
+                              ...p,
+                              destinations: [...(p.destinations || []), { city: '', country: '', price: '', image_url: null }]
+                            }))}
+                            className="text-blue-600 text-xs border border-blue-200 rounded px-3 py-1 hover:bg-blue-50"
+                          >
+                            + Add destination
+                          </button>
+                          {(agencyEditForm.destinations || []).length > 0 && (
+                            <button
+                              onClick={() => setAgencyEditForm((p) => ({ ...p, destinations: [] }))}
+                              className="text-gray-400 text-xs border rounded px-3 py-1 hover:bg-gray-50 ml-2"
+                            >
+                              ✕ Clear (use defaults)
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Reviews */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">
+                          Reviews ({(agencyEditForm.reviews || []).length > 0 ? 'custom' : 'using defaults'})
+                        </p>
+                        <div className="space-y-2">
+                          {(agencyEditForm.reviews || []).map((rev, ri) => (
+                            <div key={ri} className="border rounded p-2 bg-gray-50 space-y-1">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                <input
+                                  value={rev.name || ''}
+                                  onChange={(e) => setAgencyEditForm((p) => {
+                                    const next = [...(p.reviews || [])];
+                                    next[ri] = { ...next[ri], name: e.target.value };
+                                    return { ...p, reviews: next };
+                                  })}
+                                  className="border rounded px-2 py-1 text-sm"
+                                  placeholder="Reviewer name"
+                                />
+                                <input
+                                  value={rev.location || ''}
+                                  onChange={(e) => setAgencyEditForm((p) => {
+                                    const next = [...(p.reviews || [])];
+                                    next[ri] = { ...next[ri], location: e.target.value };
+                                    return { ...p, reviews: next };
+                                  })}
+                                  className="border rounded px-2 py-1 text-sm"
+                                  placeholder="Location (e.g. Riyadh, KSA)"
+                                />
+                                <select
+                                  value={rev.rating || 5}
+                                  onChange={(e) => setAgencyEditForm((p) => {
+                                    const next = [...(p.reviews || [])];
+                                    next[ri] = { ...next[ri], rating: Number(e.target.value) };
+                                    return { ...p, reviews: next };
+                                  })}
+                                  className="border rounded px-2 py-1 text-sm"
+                                >
+                                  {[5,4,3,2,1].map(r => <option key={r} value={r}>{r} stars</option>)}
+                                </select>
+                              </div>
+                              <textarea
+                                value={rev.text || ''}
+                                onChange={(e) => setAgencyEditForm((p) => {
+                                  const next = [...(p.reviews || [])];
+                                  next[ri] = { ...next[ri], text: e.target.value };
+                                  return { ...p, reviews: next };
+                                })}
+                                className="border rounded px-2 py-1 text-sm w-full min-h-14"
+                                placeholder="Review text"
+                              />
+                              <button
+                                onClick={() => setAgencyEditForm((p) => ({
+                                  ...p,
+                                  reviews: (p.reviews || []).filter((_, i) => i !== ri)
+                                }))}
+                                className="text-red-400 text-xs"
+                              >
+                                ✕ Remove
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setAgencyEditForm((p) => ({
+                              ...p,
+                              reviews: [...(p.reviews || []), { name: '', location: '', rating: 5, text: '' }]
+                            }))}
+                            className="text-blue-600 text-xs border border-blue-200 rounded px-3 py-1 hover:bg-blue-50"
+                          >
+                            + Add review
+                          </button>
+                          {(agencyEditForm.reviews || []).length > 0 && (
+                            <button
+                              onClick={() => setAgencyEditForm((p) => ({ ...p, reviews: [] }))}
+                              className="text-gray-400 text-xs border rounded px-3 py-1 hover:bg-gray-50 ml-2"
+                            >
+                              ✕ Clear (use defaults)
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Featured Airlines */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">
+                          Featured airlines ({(agencyEditForm.featured_airlines || []).length > 0 ? 'custom' : 'using defaults'})
+                        </p>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {(agencyEditForm.featured_airlines || []).map((airline, ai) => (
+                            <div key={ai} className="flex items-center gap-1 border rounded px-2 py-1 bg-gray-50">
+                              <input
+                                value={airline}
+                                onChange={(e) => setAgencyEditForm((p) => {
+                                  const next = [...(p.featured_airlines || [])];
+                                  next[ai] = e.target.value;
+                                  return { ...p, featured_airlines: next };
+                                })}
+                                className="text-sm bg-transparent border-0 outline-none w-28"
+                                placeholder="Airline name"
+                              />
+                              <button
+                                onClick={() => setAgencyEditForm((p) => ({
+                                  ...p,
+                                  featured_airlines: (p.featured_airlines || []).filter((_, i) => i !== ai)
+                                }))}
+                                className="text-red-400 text-xs"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setAgencyEditForm((p) => ({
+                              ...p,
+                              featured_airlines: [...(p.featured_airlines || []), '']
+                            }))}
+                            className="text-blue-600 text-xs border border-blue-200 rounded px-3 py-1 hover:bg-blue-50"
+                          >
+                            + Add airline
+                          </button>
+                          {(agencyEditForm.featured_airlines || []).length > 0 && (
+                            <button
+                              onClick={() => setAgencyEditForm((p) => ({ ...p, featured_airlines: [] }))}
+                              className="text-gray-400 text-xs border rounded px-3 py-1 hover:bg-gray-50"
+                            >
+                              ✕ Clear (use defaults)
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Commission */}
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">Commission model</p>
+                        <div className="flex gap-2 items-center flex-wrap">
+                          <select
+                            value={agencyEditForm.commission_model}
+                            onChange={(e) => setAgencyEditForm((p) => ({ ...p, commission_model: e.target.value }))}
+                            className="border rounded px-2 py-1 text-sm"
+                          >
+                            <option value="fixed">Fixed amount (SAR per ticket)</option>
+                            <option value="percent">Percentage (% of fare)</option>
+                          </select>
+                          {agencyEditForm.commission_model === 'fixed' ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number" min="0" step="1"
+                                value={agencyEditForm.commission_fixed_amount}
+                                onChange={(e) => setAgencyEditForm((p) => ({ ...p, commission_fixed_amount: e.target.value }))}
+                                className="border rounded px-2 py-1 text-sm w-28"
+                                placeholder="Amount SAR"
+                              />
+                              <span className="text-xs text-gray-400">SAR</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number" min="0" max="100" step="0.5"
+                                value={agencyEditForm.commission_rate}
+                                onChange={(e) => setAgencyEditForm((p) => ({ ...p, commission_rate: e.target.value }))}
+                                className="border rounded px-2 py-1 text-sm w-24"
+                                placeholder="%"
+                              />
+                              <span className="text-xs text-gray-400">%</span>
+                            </div>
+                          )}
+                          <span className="text-xs text-gray-400">
+                            {agencyEditForm.commission_model === 'fixed'
+                              ? `Added to every ticket price (e.g. SAR ${agencyEditForm.commission_fixed_amount || 0} flat)`
+                              : `Added as % of fare (e.g. ${agencyEditForm.commission_rate || 0}% markup)`}
+                          </span>
                         </div>
                       </div>
 

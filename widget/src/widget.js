@@ -2067,6 +2067,29 @@
       color: #6b7280;
     }
 
+    .aviaframe-more-wrap {
+      display: flex;
+      justify-content: center;
+      padding: 24px 0 8px;
+    }
+
+    .aviaframe-more-btn {
+      padding: 10px 32px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #374151;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .aviaframe-more-btn:hover {
+      background: #f3f4f6;
+      border-color: #9ca3af;
+    }
+
     @media (max-width: 980px) {
       .aviaframe-quick-grid {
         grid-template-columns: 1fr 1fr;
@@ -3483,6 +3506,7 @@
           selectedAirlines: new Set(),
           selectedId: null,
           expandedIds: new Set(),
+          visibleCount: 20,
         },
         s = (a) =>
           t.quickFilter === "nonstop"
@@ -3701,8 +3725,11 @@
             ? `<div class="aviaframe-selected-title">Selected flight</div>${E(v, "selected")}`
             : "";
           const p = u.filter((w) => w.id !== t.selectedId);
+          const _visible = p.slice(0, t.visibleCount);
+          const _hasMore = p.length > t.visibleCount;
+          const _moreLabel = (_wLang || 'en') === 'ar' ? 'المزيد' : 'More';
           (($.innerHTML = p.length
-            ? p.map((w) => E(w)).join("")
+            ? _visible.map((w) => E(w)).join("") + (_hasMore ? `<div class="aviaframe-more-wrap"><button type="button" class="aviaframe-more-btn" id="aviaframe-more-btn">${_moreLabel}</button></div>` : "")
             : '<div class="aviaframe-no-results">No offers found for current sort/filter settings.</div>'),
             r
               .querySelectorAll(".aviaframe-select-button[data-select-id]")
@@ -3726,7 +3753,7 @@
               }),
             r.querySelectorAll("[data-quick]").forEach((w) => {
               w.addEventListener("click", () => {
-                ((t.quickFilter = w.getAttribute("data-quick")), k());
+                ((t.quickFilter = w.getAttribute("data-quick")), (t.visibleCount = 20), k());
               });
             }),
             r.querySelectorAll("[data-airline]").forEach((w) => {
@@ -3735,13 +3762,22 @@
                 (t.selectedAirlines.has(T)
                   ? t.selectedAirlines.delete(T)
                   : t.selectedAirlines.add(T),
+                  (t.visibleCount = 20),
                   k());
               });
             }));
+          const _moreBtn = $.querySelector("#aviaframe-more-btn");
+          if (_moreBtn) {
+            _moreBtn.addEventListener("click", () => {
+              t.visibleCount += 20;
+              k();
+            });
+          }
         };
       (r.querySelectorAll("[data-sort]").forEach((a) => {
         a.addEventListener("click", () => {
           ((t.sort = a.getAttribute("data-sort")),
+            (t.visibleCount = 20),
             r
               .querySelectorAll("[data-sort]")
               .forEach((l) => l.classList.remove("active")),
