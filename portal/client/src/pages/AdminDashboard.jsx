@@ -28,6 +28,8 @@ import {
   provisionAdminAgency,
   uploadAgencyLogo,
   uploadAgencyMedia,
+  uploadToDestinationLibrary,
+  listDestinationLibrary,
   redeployAdminAgencySite,
   publishAdminAgencySite,
   sendAdminAgencySetupEmail
@@ -282,6 +284,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     status: ''
   });
   const [salesReportLoading, setSalesReportLoading] = useState(false);
+  const [destLibrary, setDestLibrary] = useState({ images: [], loading: false, openFor: null });
   const loadingRef = useRef(false);
   const isAgencyAdminPreview = viewMode === 'agency_admin';
   const isSuperAdminView = !isAgencyAdminPreview;
@@ -2580,6 +2583,67 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 </div>
               </div>
 
+              {/* Self: Destinations */}
+              <div>
+                <p className="text-xs text-gray-500 font-semibold mb-1">
+                  Top Destinations ({(agencySelfForm.destinations || []).length > 0 ? 'custom' : 'using defaults'})
+                </p>
+                <div className="space-y-2">
+                  {(agencySelfForm.destinations || []).map((dest, di) => (
+                    <div key={di} className="border rounded p-2 bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-2 items-start">
+                      <input value={dest.city || ''} onChange={(e) => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],city:e.target.value}; return {...p,destinations:n}; })} className="border rounded px-2 py-1 text-sm" placeholder="City" />
+                      <input value={dest.country || ''} onChange={(e) => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],country:e.target.value}; return {...p,destinations:n}; })} className="border rounded px-2 py-1 text-sm" placeholder="Country" />
+                      <input value={dest.price || ''} onChange={(e) => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],price:e.target.value}; return {...p,destinations:n}; })} className="border rounded px-2 py-1 text-sm" placeholder="Price (SAR)" />
+                      <div className="flex flex-col gap-1">
+                        <div className="flex gap-1 items-center">
+                          {dest.image_url ? <img src={dest.image_url} alt="" className="h-7 w-10 object-cover rounded border flex-shrink-0" /> : <div className="h-7 w-10 bg-gray-200 rounded border flex-shrink-0 flex items-center justify-center text-gray-400 text-xs">—</div>}
+                          <input value={dest.image_url || ''} onChange={(e) => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],image_url:e.target.value||null}; return {...p,destinations:n}; })} className="border rounded px-2 py-1 text-xs flex-1 min-w-0" placeholder="Photo URL" />
+                        </div>
+                        <div className="flex gap-1">
+                          <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 border rounded px-2 py-1 text-xs whitespace-nowrap">
+                            ↑ Upload
+                            <input type="file" accept="image/*" className="hidden"
+                              onChange={async (e) => {
+                                const f = e.target.files?.[0]; if (!f) return;
+                                const { url, error: uploadErr } = await uploadToDestinationLibrary(f);
+                                if (uploadErr) { setNotice({ type: 'error', text: `Upload failed: ${uploadErr.message}` }); return; }
+                                setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],image_url:url}; return {...p,destinations:n}; });
+                                setDestLibrary(prev => ({ ...prev, images: [{ url, name: url.split('/').pop() }, ...prev.images] }));
+                              }} />
+                          </label>
+                          <button type="button" className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded px-2 py-1 text-xs text-indigo-700 whitespace-nowrap"
+                            onClick={async () => {
+                              if (destLibrary.openFor === `self-${di}`) { setDestLibrary(prev => ({ ...prev, openFor: null })); return; }
+                              setDestLibrary(prev => ({ ...prev, openFor: `self-${di}`, loading: true }));
+                              const { images } = await listDestinationLibrary();
+                              setDestLibrary(prev => ({ ...prev, images, loading: false }));
+                            }}>📷 Library</button>
+                          {dest.image_url && <button type="button" className="text-gray-400 hover:text-gray-600 text-xs px-1"
+                            onClick={() => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],image_url:null}; return {...p,destinations:n}; })}>✕</button>}
+                        </div>
+                        {destLibrary.openFor === `self-${di}` && (
+                          <div className="border rounded bg-white p-2 mt-1">
+                            {destLibrary.loading ? <p className="text-xs text-gray-400 py-2 text-center">Loading…</p>
+                              : destLibrary.images.length === 0 ? <p className="text-xs text-gray-400 py-2 text-center">Library empty. Upload first.</p>
+                              : <div className="grid grid-cols-5 gap-1 max-h-32 overflow-y-auto">
+                                  {destLibrary.images.map((img, ii) => (
+                                    <img key={ii} src={img.url} alt="" className={`h-12 w-full object-cover rounded cursor-pointer border-2 ${dest.image_url === img.url ? 'border-indigo-500' : 'border-transparent hover:border-indigo-300'}`}
+                                      onClick={() => { setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],image_url:img.url}; return {...p,destinations:n}; }); setDestLibrary(prev => ({ ...prev, openFor: null })); }} />
+                                  ))}
+                                </div>}
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => setAgencySelfForm((p) => ({ ...p, destinations: (p.destinations||[]).filter((_,i)=>i!==di) }))} className="text-red-400 text-xs self-center col-span-2 md:col-span-1">✕ Remove</button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <button onClick={() => setAgencySelfForm((p) => ({ ...p, destinations: [...(p.destinations||[]), { city:'', country:'', price:'', image_url:null }] }))} className="text-blue-600 text-xs border border-blue-200 rounded px-3 py-1 hover:bg-blue-50">+ Add destination</button>
+                    {(agencySelfForm.destinations||[]).length > 0 && <button onClick={() => setAgencySelfForm((p) => ({ ...p, destinations: [] }))} className="text-gray-400 text-xs border rounded px-3 py-1 hover:bg-gray-50">✕ Clear (use defaults)</button>}
+                  </div>
+                </div>
+              </div>
+
               <button
                 onClick={handleSaveMyAgencySettings}
                 className="bg-blue-600 text-white rounded px-3 py-1"
@@ -3208,35 +3272,91 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                                 className="border rounded px-2 py-1 text-sm"
                                 placeholder="Price (SAR)"
                               />
-                              <div className="flex gap-1 items-center">
-                                <input
-                                  value={dest.image_url || ''}
-                                  onChange={(e) => setAgencyEditForm((p) => {
-                                    const next = [...(p.destinations || [])];
-                                    next[di] = { ...next[di], image_url: e.target.value || null };
-                                    return { ...p, destinations: next };
-                                  })}
-                                  className="border rounded px-2 py-1 text-xs flex-1 min-w-0"
-                                  placeholder="Photo URL"
-                                />
-                                <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 border rounded px-2 py-1 text-xs whitespace-nowrap">
-                                  {editMediaUploading ? '…' : '📁'}
-                                  <input type="file" accept="image/*" className="hidden" disabled={editMediaUploading}
-                                    onChange={async (e) => {
-                                      const f = e.target.files?.[0];
-                                      if (!f) return;
-                                      setEditMediaUploading(true);
-                                      const { url, error: uploadErr } = await uploadAgencyMedia(f, a.id);
-                                      setEditMediaUploading(false);
-                                      if (uploadErr) { setNotice({ type: 'error', text: `Image upload failed: ${uploadErr.message}` }); return; }
-                                      setAgencyEditForm((p) => {
-                                        const next = [...(p.destinations || [])];
-                                        next[di] = { ...next[di], image_url: url };
-                                        return { ...p, destinations: next };
-                                      });
-                                    }}
+                              <div className="flex flex-col gap-1">
+                                <div className="flex gap-1 items-center">
+                                  {dest.image_url
+                                    ? <img src={dest.image_url} alt="" className="h-7 w-10 object-cover rounded border flex-shrink-0" />
+                                    : <div className="h-7 w-10 bg-gray-200 rounded border flex-shrink-0 flex items-center justify-center text-gray-400 text-xs">—</div>
+                                  }
+                                  <input
+                                    value={dest.image_url || ''}
+                                    onChange={(e) => setAgencyEditForm((p) => {
+                                      const next = [...(p.destinations || [])];
+                                      next[di] = { ...next[di], image_url: e.target.value || null };
+                                      return { ...p, destinations: next };
+                                    })}
+                                    className="border rounded px-2 py-1 text-xs flex-1 min-w-0"
+                                    placeholder="Photo URL"
                                   />
-                                </label>
+                                </div>
+                                <div className="flex gap-1">
+                                  <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 border rounded px-2 py-1 text-xs whitespace-nowrap">
+                                    {editMediaUploading ? '…' : '↑ Upload'}
+                                    <input type="file" accept="image/*" className="hidden" disabled={editMediaUploading}
+                                      onChange={async (e) => {
+                                        const f = e.target.files?.[0];
+                                        if (!f) return;
+                                        setEditMediaUploading(true);
+                                        const { url, error: uploadErr } = await uploadToDestinationLibrary(f);
+                                        setEditMediaUploading(false);
+                                        if (uploadErr) { setNotice({ type: 'error', text: `Upload failed: ${uploadErr.message}` }); return; }
+                                        setAgencyEditForm((p) => {
+                                          const next = [...(p.destinations || [])];
+                                          next[di] = { ...next[di], image_url: url };
+                                          return { ...p, destinations: next };
+                                        });
+                                        setDestLibrary(prev => ({ ...prev, images: [{ url, name: url.split('/').pop() }, ...prev.images] }));
+                                      }}
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded px-2 py-1 text-xs text-indigo-700 whitespace-nowrap"
+                                    onClick={async () => {
+                                      if (destLibrary.openFor === `edit-${di}`) {
+                                        setDestLibrary(prev => ({ ...prev, openFor: null }));
+                                        return;
+                                      }
+                                      setDestLibrary(prev => ({ ...prev, openFor: `edit-${di}`, loading: true }));
+                                      const { images } = await listDestinationLibrary();
+                                      setDestLibrary(prev => ({ ...prev, images, loading: false }));
+                                    }}
+                                  >
+                                    📷 Library
+                                  </button>
+                                  {dest.image_url && (
+                                    <button type="button" className="text-gray-400 hover:text-gray-600 text-xs px-1"
+                                      onClick={() => setAgencyEditForm((p) => {
+                                        const next = [...(p.destinations || [])];
+                                        next[di] = { ...next[di], image_url: null };
+                                        return { ...p, destinations: next };
+                                      })}>✕</button>
+                                  )}
+                                </div>
+                                {destLibrary.openFor === `edit-${di}` && (
+                                  <div className="border rounded bg-white p-2 mt-1">
+                                    {destLibrary.loading
+                                      ? <p className="text-xs text-gray-400 py-2 text-center">Loading library…</p>
+                                      : destLibrary.images.length === 0
+                                        ? <p className="text-xs text-gray-400 py-2 text-center">Library is empty. Upload an image first.</p>
+                                        : <div className="grid grid-cols-5 gap-1 max-h-32 overflow-y-auto">
+                                            {destLibrary.images.map((img, ii) => (
+                                              <img key={ii} src={img.url} alt=""
+                                                className={`h-12 w-full object-cover rounded cursor-pointer border-2 ${dest.image_url === img.url ? 'border-indigo-500' : 'border-transparent hover:border-indigo-300'}`}
+                                                onClick={() => {
+                                                  setAgencyEditForm((p) => {
+                                                    const next = [...(p.destinations || [])];
+                                                    next[di] = { ...next[di], image_url: img.url };
+                                                    return { ...p, destinations: next };
+                                                  });
+                                                  setDestLibrary(prev => ({ ...prev, openFor: null }));
+                                                }}
+                                              />
+                                            ))}
+                                          </div>
+                                    }
+                                  </div>
+                                )}
                               </div>
                               <button
                                 onClick={() => setAgencyEditForm((p) => ({

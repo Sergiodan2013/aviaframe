@@ -822,6 +822,114 @@ export const createAdminAgency = async (payload) => {
   return { data: inserted.data || null, error: null };
 };
 
+export const provisionAdminAgency = async (payload) => {
+  const { data, error } = await backendApiRequest('/admin/agencies/provision', {
+    method: 'POST',
+    body: payload
+  });
+  return { data: data || null, error };
+};
+
+export const uploadAgencyLogo = async (file) => {
+  try {
+    const headers = await getBackendAuthHeaders();
+    const formData = new FormData();
+    formData.append('file', file);
+    const base = String(backendApiBaseUrl || '/api/backend').replace(/\/+$/, '');
+    // Try the agency-scoped endpoint first (accessible to agency managers);
+    // fall back to the admin endpoint for super_admin users.
+    let resp = await fetch(`${base}/agency/me/upload/logo`, {
+      method: 'POST',
+      headers: { Authorization: headers.Authorization },
+      body: formData
+    });
+    if (resp.status === 404) {
+      const formData2 = new FormData();
+      formData2.append('file', file);
+      resp = await fetch(`${base}/admin/upload/logo`, {
+        method: 'POST',
+        headers: { Authorization: headers.Authorization },
+        body: formData2
+      });
+    }
+    const json = await resp.json();
+    if (!resp.ok) return { url: null, error: json?.error || { message: 'Upload failed' } };
+    return { url: json.url || null, error: null };
+  } catch (err) {
+    return { url: null, error: { message: err?.message || 'Upload failed' } };
+  }
+};
+
+export const uploadAgencyMedia = async (file, agencyId) => {
+  try {
+    const headers = await getBackendAuthHeaders();
+    const formData = new FormData();
+    formData.append('file', file);
+    if (agencyId) formData.append('agency_id', agencyId);
+    const base = String(backendApiBaseUrl || '/api/backend').replace(/\/+$/, '');
+    const resp = await fetch(`${base}/admin/upload/media`, {
+      method: 'POST',
+      headers: { Authorization: headers.Authorization },
+      body: formData
+    });
+    const json = await resp.json();
+    if (!resp.ok) return { url: null, error: json?.error || { message: 'Upload failed' } };
+    return { url: json.url || null, error: null };
+  } catch (err) {
+    return { url: null, error: { message: err?.message || 'Upload failed' } };
+  }
+};
+
+export const uploadToDestinationLibrary = async (file) => uploadAgencyMedia(file, null);
+
+export const listDestinationLibrary = async () => {
+  try {
+    const headers = await getBackendAuthHeaders();
+    const base = String(backendApiBaseUrl || '/api/backend').replace(/\/+$/, '');
+    const resp = await fetch(`${base}/admin/upload/library`, { headers });
+    const json = await resp.json();
+    if (!resp.ok) return { images: [], error: json?.error || { message: 'List failed' } };
+    return { images: json.images || [], error: null };
+  } catch (err) {
+    return { images: [], error: { message: err?.message || 'List failed' } };
+  }
+};
+
+const buildAgencySiteSettingsPatch = (payload = {}) => {
+  const nextSite = {};
+  const assign = (payloadKey, siteKey = payloadKey, fallback = '') => {
+    if (Object.prototype.hasOwnProperty.call(payload, payloadKey)) {
+      nextSite[siteKey] = payload[payloadKey] || fallback;
+    }
+  };
+
+  assign('name_ar');
+  assign('contact_phone2');
+  assign('whatsapp_phone');
+  assign('brand_color', 'brand_color', '#1a3c8e');
+  assign('accent_color', 'accent_color', '#2468c4');
+  assign('supervisor_name');
+  assign('supervisor_email');
+  assign('logo_url');
+  assign('about_en');
+  assign('about_ar');
+  assign('working_hours');
+  assign('working_hours_ar');
+  assign('license_number');
+  assign('iata_number');
+  assign('founded_year');
+  assign('google_maps_url');
+  assign('instagram');
+  assign('twitter');
+  assign('snapchat');
+  assign('facebook');
+  if (Object.prototype.hasOwnProperty.call(payload, 'services')) {
+    nextSite.services = Array.isArray(payload.services) ? payload.services : [];
+  }
+
+  return nextSite;
+};
+
 export const updateAdminAgency = async (agencyId, payload) => {
   const backend = await backendApiRequest(`/admin/agencies/${agencyId}`, {
     method: 'PATCH',
@@ -844,6 +952,20 @@ export const updateAdminAgency = async (agencyId, payload) => {
   }
   if (Object.prototype.hasOwnProperty.call(payload || {}, 'contact_person_name')) {
     nextSettings.contact_person = { full_name: payload.contact_person_name || null };
+  }
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'carrier_commissions')) {
+    const cleaned = {};
+    if (payload?.carrier_commissions && typeof payload.carrier_commissions === 'object') {
+      Object.entries(payload.carrier_commissions).forEach(([code, amount]) => {
+        const normalizedAmount = Number(amount);
+        if (normalizedAmount > 0) cleaned[String(code || '').toUpperCase()] = normalizedAmount;
+      });
+    }
+    nextSettings.carrier_commissions = cleaned;
+  }
+  const nextSite = buildAgencySiteSettingsPatch(payload || {});
+  if (Object.keys(nextSite).length > 0) {
+    nextSettings.site = nextSite;
   }
   if (Object.prototype.hasOwnProperty.call(payload || {}, 'commission_model') ||
       Object.prototype.hasOwnProperty.call(payload || {}, 'commission_fixed_amount') ||
@@ -889,6 +1011,10 @@ export const updateAdminAgency = async (agencyId, payload) => {
         ...(currentSettings?.bank_details || {}),
         ...(nextSettings?.bank_details || {})
       },
+      site: {
+        ...(currentSettings?.site || {}),
+        ...(nextSettings?.site || {})
+      },
       contact_person: {
         ...(currentSettings?.contact_person || {}),
         ...(nextSettings?.contact_person || {})
@@ -918,35 +1044,40 @@ export const updateAdminAgency = async (agencyId, payload) => {
   return { data: fallback.data, error: null };
 };
 
+export const redeployAdminAgencySite = async (agencyId) => {
+  const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}/redeploy-site`, {
+    method: 'POST'
+  });
+  return { data: data || null, error };
+};
+
+export const sendAdminAgencySetupEmail = async (agencyId) => {
+  const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}/send-setup-email`, {
+    method: 'POST'
+  });
+  return { data: data || null, error };
+};
+
+export const publishAdminAgencySite = async (agencyId) => {
+  const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}/publish-site`, {
+    method: 'POST'
+  });
+  return { data: data || null, error };
+};
+
 export const deleteAdminAgency = async (agencyId) => {
   const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}`, {
     method: 'DELETE'
   });
-  if (!error) {
-    return { data: data?.agency || null, error: null };
-  }
-
-  // Fallback for frontend-only deploys without /api/backend proxy.
-  const fallback = await supabase
-    .from('agencies')
-    .delete()
-    .eq('id', agencyId)
-    .select('id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at')
-    .maybeSingle();
-
-  if (fallback.error) {
-    return { data: null, error: fallback.error };
-  }
-  if (!fallback.data) {
+  if (error) {
     return {
       data: null,
       error: {
-        message: 'Agency delete was not applied. Check permissions (admin role) and agency id.'
+        message: error.message || 'Agency delete requires backend cleanup and could not be completed.'
       }
     };
   }
-
-  return { data: fallback.data, error: null };
+  return { data: data?.agency || null, error: null };
 };
 
 export const getAdminOrdersReport = async (params = {}) => {
@@ -1083,6 +1214,20 @@ export const updateMyAgency = async (payload) => {
     body: payload
   });
   return { data: data?.agency || null, error };
+};
+
+export const redeployMyAgencySite = async () => {
+  const { data, error } = await backendApiRequest('/agency/me/redeploy-site', {
+    method: 'POST'
+  });
+  return { data: data || null, error };
+};
+
+export const publishMyAgencySite = async () => {
+  const { data, error } = await backendApiRequest('/agency/me/publish-site', {
+    method: 'POST'
+  });
+  return { data: data || null, error };
 };
 
 export const generateAdminInvoicePdf = async (invoiceId) => {

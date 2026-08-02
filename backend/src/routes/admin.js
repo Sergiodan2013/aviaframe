@@ -88,7 +88,15 @@ function buildGeneratedAgencySite({ agency, cleanSubdomain }) {
     twitter: siteSettings.twitter || '',
     snapchat: siteSettings.snapchat || '',
     facebook: siteSettings.facebook || '',
-    services: Array.isArray(siteSettings.services) ? siteSettings.services : []
+    services: Array.isArray(siteSettings.services) ? siteSettings.services : [],
+    heroTagline: siteSettings.hero_tagline || '',
+    heroDescription: siteSettings.hero_description || '',
+    destinations: Array.isArray(siteSettings.destinations) ? siteSettings.destinations : [],
+    reviews: Array.isArray(siteSettings.reviews) ? siteSettings.reviews : [],
+    featuredAirlines: Array.isArray(siteSettings.featured_airlines) ? siteSettings.featured_airlines : [],
+    heroImageUrl: siteSettings.hero_image_url || '',
+    headerBg: siteSettings.header_bg || '',
+    footerBg: siteSettings.footer_bg || ''
   });
 }
 
@@ -734,7 +742,15 @@ router.patch('/agencies/:agencyId', async (req, res) => {
     twitter,
     snapchat,
     facebook,
-    services
+    services,
+    hero_tagline: heroTagline,
+    hero_description: heroDescription,
+    destinations,
+    reviews,
+    featured_airlines: featuredAirlines,
+    hero_image_url: heroImageUrl,
+    header_bg: headerBg,
+    footer_bg: footerBg
   } = req.body || {};
 
   try {
@@ -817,6 +833,14 @@ router.patch('/agencies/:agencyId', async (req, res) => {
     if (services !== undefined) {
       settings.site.services = Array.isArray(services) ? services : [];
     }
+    if (heroTagline !== undefined) settings.site.hero_tagline = heroTagline || '';
+    if (heroDescription !== undefined) settings.site.hero_description = heroDescription || '';
+    if (destinations !== undefined) settings.site.destinations = Array.isArray(destinations) ? destinations : [];
+    if (reviews !== undefined) settings.site.reviews = Array.isArray(reviews) ? reviews : [];
+    if (featuredAirlines !== undefined) settings.site.featured_airlines = Array.isArray(featuredAirlines) ? featuredAirlines : [];
+    if (heroImageUrl !== undefined) settings.site.hero_image_url = heroImageUrl || '';
+    if (headerBg !== undefined) settings.site.header_bg = headerBg || '';
+    if (footerBg !== undefined) settings.site.footer_bg = footerBg || '';
 
     const patch = {
       updated_at: new Date().toISOString()
@@ -1524,6 +1548,61 @@ router.post('/upload/logo', upload.single('file'), async (req, res) => {
   }
 });
 
+// POST /api/admin/upload/media — upload destination/hero images to Supabase Storage
+router.post('/upload/media', upload.single('file'), async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: { code: 'NO_FILE', message: 'No file uploaded' } });
+
+  const { agency_id: agencyId } = req.body || {};
+  const ext = file.mimetype.split('/')[1]?.replace('jpeg', 'jpg').replace('svg+xml', 'svg') || 'jpg';
+  const folder = agencyId ? `media/${agencyId}` : 'media/shared';
+  const filename = `${folder}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+
+  try {
+    const { error } = await supabase.storage
+      .from('agency-assets')
+      .upload(filename, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (error) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: error.message } });
+
+    const { data: urlData } = supabase.storage.from('agency-assets').getPublicUrl(filename);
+    return res.json({ url: urlData.publicUrl });
+  } catch (err) {
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// GET /api/admin/upload/library — list shared destination images
+router.get('/upload/library', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureAdmin(auth, res)) return;
+
+  try {
+    const { data: files, error } = await supabase.storage
+      .from('agency-assets')
+      .list('media/shared', { limit: 200, sortBy: { column: 'created_at', order: 'desc' } });
+
+    if (error) return res.status(500).json({ error: { code: 'LIST_FAILED', message: error.message } });
+
+    const urls = (files || [])
+      .filter(f => f.name && !f.name.startsWith('.'))
+      .map(f => ({
+        name: f.name,
+        url: supabase.storage.from('agency-assets').getPublicUrl(`media/shared/${f.name}`).data.publicUrl,
+        created_at: f.created_at,
+      }));
+
+    return res.json({ images: urls });
+  } catch (err) {
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
 // POST /api/admin/agencies/provision — create agency record + deploy Netlify site
 router.post('/agencies/provision', async (req, res) => {
   const auth = await resolveAuthContext(req);
@@ -1563,6 +1642,14 @@ router.post('/agencies/provision', async (req, res) => {
     snapchat = '',
     facebook = '',
     services = [],
+    hero_tagline: heroTagline = '',
+    hero_description: heroDescription = '',
+    destinations: provisionDestinations = [],
+    reviews: provisionReviews = [],
+    featured_airlines: provisionFeaturedAirlines = [],
+    hero_image_url: provisionHeroImageUrl = '',
+    header_bg: provisionHeaderBg = '',
+    footer_bg: provisionFooterBg = '',
     deploy_site: deploySite = true,
     send_setup_email: sendSetupEmail = false
   } = req.body || {};
@@ -1622,7 +1709,15 @@ router.post('/agencies/provision', async (req, res) => {
       twitter,
       snapchat,
       facebook,
-      services: Array.isArray(services) ? services : []
+      services: Array.isArray(services) ? services : [],
+      hero_tagline: heroTagline || '',
+      hero_description: heroDescription || '',
+      destinations: Array.isArray(provisionDestinations) ? provisionDestinations : [],
+      reviews: Array.isArray(provisionReviews) ? provisionReviews : [],
+      featured_airlines: Array.isArray(provisionFeaturedAirlines) ? provisionFeaturedAirlines : [],
+      hero_image_url: provisionHeroImageUrl || '',
+      header_bg: provisionHeaderBg || '',
+      footer_bg: provisionFooterBg || ''
     }
   };
   settings = applyAgencyOnboardingState({
