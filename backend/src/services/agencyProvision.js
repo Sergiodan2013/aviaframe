@@ -907,11 +907,19 @@ async function deployToNetlify({ subdomain, files }) {
     const createResp = await axios.post(`${NETLIFY_API}/sites`, {
       name: siteName,
       account_slug: NETLIFY_TEAM_SLUG,
-      custom_domain: customDomain
+      custom_domain: customDomain,
+      processing_settings: { html: { pretty_urls: false } }
     }, { headers });
     siteId = createResp.data.id;
     isNewSite = true;
   }
+
+  // Ensure pretty_urls is disabled — prevents Netlify from rewriting /booking.html → /booking/
+  try {
+    await axios.patch(`${NETLIFY_API}/sites/${siteId}`, {
+      processing_settings: { html: { pretty_urls: false } }
+    }, { headers });
+  } catch (_) {}
 
   // Trigger SSL cert provisioning (idempotent — safe to call on existing sites too)
   try {
