@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --forceExit
+
+      - name: Check widget copies are in sync
+        run: |
+          sha_src=$(sha1sum aviaframe-site/aviaframe-widget.js | cut -c1-40)
+          sha_be1=$(sha1sum backend/agency-site-assets/aviaframe-widget.js | cut -c1-40)
+          sha_be2=$(sha1sum backend/src/agency-site-assets/aviaframe-widget.js | cut -c1-40)
+
+          echo "aviaframe-site:                       $sha_src"
+          echo "backend/agency-site-assets:           $sha_be1"
+          echo "backend/src/agency-site-assets:       $sha_be2"
+
+          if [ "$sha_src" != "$sha_be1" ] || [ "$sha_src" != "$sha_be2" ]; then
+            echo "❌ Widget copies are OUT OF SYNC. Run backend/scripts/sync-widget.sh and commit."
+            exit 1
+          fi
+          echo "✅ All 3 widget copies are in sync"
+
+      - name: Verify widget contains baggage filter
+        run: |
+          if ! grep -q 'with_baggage:e.with_baggage===!0' aviaframe-site/aviaframe-widget.js; then
+            echo "❌ Widget is missing with_baggage normalizer — baggage filter will be broken!"
+            exit 1
+          fi
+          echo "✅ Widget baggage normalizer present"

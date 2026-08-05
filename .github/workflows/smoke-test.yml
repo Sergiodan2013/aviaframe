@@ -1,0 +1,24 @@
+name: Smoke Tests
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # every 6 hours
+  workflow_dispatch:          # manual run from GitHub UI
+
+jobs:
+  smoke:
+    name: Production Smoke Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run smoke tests
+        run: node backend/scripts/smoke-test.js
+        env:
+          BACKEND_URL: https://peaceful-amazement-production-629f.up.railway.app
