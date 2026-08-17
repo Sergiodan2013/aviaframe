@@ -38,38 +38,6 @@ const TEST_DATA = {
       { type: 'ADT' }
     ]
   },
-  order_create: {
-    offer_id: 'test-offer-12345',
-    passengers: [
-      {
-        first_name: 'Ivan',
-        last_name: 'Testov',
-        middle_name: 'Ivanovich',
-        date_of_birth: '1990-01-01',
-        gender: 'M',
-        document: {
-          type: 'passport',  // lowercase
-          number: '1234567890',
-          expiry_date: '2030-01-01',
-          issuing_country: 'RU'  // Changed from citizenship to issuing_country
-        }
-      }
-    ],
-    contacts: {
-      email: 'test@example.com',
-      phone: '+79001234567'
-    },
-    payment_method: 'CARD'
-  },
-  order_issue: {
-    order_id: 'test-order-67890',
-    payment_confirmation: 'payment-ref-test-123'
-  },
-  order_cancel: {
-    order_id: 'test-order-67890',
-    reason: 'USER_REQUEST',
-    refund_requested: true
-  }
 };
 
 // Colors for console output
@@ -260,44 +228,6 @@ async function runAllTests() {
   );
   results.tests.push({ name: 'Price', ...priceResult });
   if (priceResult.success) results.passed++;
-  else results.failed++;
-
-  // Test 3: Order Create workflow
-  results.total++;
-  const createResult = await testWorkflow(
-    'DRCT Order Create',
-    '/drct/order/create',
-    TEST_DATA.order_create,
-    ['order_id', 'status', 'price', 'passengers'],
-    { 'Idempotency-Key': `test-create-${Date.now()}` }
-  );
-  results.tests.push({ name: 'Order Create', ...createResult });
-  if (createResult.success) results.passed++;
-  else results.failed++;
-
-  // Test 4: Order Issue workflow
-  results.total++;
-  const issueResult = await testWorkflow(
-    'DRCT Order Issue',
-    '/drct/order/issue',
-    TEST_DATA.order_issue,
-    ['order_id', 'status', 'tickets'],
-    { 'Idempotency-Key': `test-issue-${Date.now()}` }
-  );
-  results.tests.push({ name: 'Order Issue', ...issueResult });
-  if (issueResult.success) results.passed++;
-  else results.failed++;
-
-  // Test 5: Order Cancel workflow
-  results.total++;
-  const cancelResult = await testWorkflow(
-    'DRCT Order Cancel',
-    '/drct/order/cancel',
-    TEST_DATA.order_cancel,
-    ['order_id', 'status', 'cancelled_at']
-  );
-  results.tests.push({ name: 'Order Cancel', ...cancelResult });
-  if (cancelResult.success) results.passed++;
   else results.failed++;
 
   // Summary

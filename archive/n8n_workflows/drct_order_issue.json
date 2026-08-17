@@ -28,7 +28,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://sandbox-api.drct.aero/orders/{{ $json.order_id }}/issue",
+        "url": "=https://api.drct.aero/orders/{{ $json.order_id }}/issue",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendHeaders": true,

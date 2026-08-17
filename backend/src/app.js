@@ -6,19 +6,26 @@ try {
   // In managed runtimes like Railway, env vars are injected directly.
 }
 const express = require('express');
-const axios = require('axios');
 const { config } = require('./config');
 const logger = require('./lib/logger');
 const pinoHttp = require('pino-http');
 const { client, httpDuration } = require('./lib/metrics');
 const { requireInternalToken } = require('./middleware/auth');
+const { createMemoryRateLimiter, hasValidInternalToken } = require('./middleware/requestGuards');
 const drctDirectClient = require('./services/drctDirectClient');
 const { filterBookableOffers } = require('./utils/offerFilters');
 
 const app = express();
 const SANDBOX_WIDGET_HOSTS = new Set(['sandbox.aviaframe.com', 'aviaframe.com', 'www.aviaframe.com']);
+const ENABLE_LIVE_BOOKABLE_FILTER = process.env.ENABLE_LIVE_BOOKABLE_FILTER === 'true';
 const SEARCH_PROXY_MAX_PAIRS = Number(process.env.SEARCH_PROXY_MAX_PAIRS || 25);
 const SEARCH_PROXY_CONCURRENCY = Number(process.env.SEARCH_PROXY_CONCURRENCY || 5);
+const searchProxyRateLimiter = createMemoryRateLimiter({
+  bucket: 'search-proxy',
+  max: config.searchProxyRateLimitMax,
+  windowMs: config.publicRateLimitWindowMs,
+  skip: hasValidInternalToken,
+});
 
 function normalizeHost(value) {
   if (!value) return '';
@@ -107,12 +114,12 @@ function isAllowedCorsOrigin(origin) {
     const { hostname } = new URL(origin);
     if (!hostname) return false;
 
+    const trustedFrontendHosts = Array.isArray(config.trustedFrontendHosts)
+      ? new Set(config.trustedFrontendHosts)
+      : new Set(['aviaframe.com', 'www.aviaframe.com', 'admin.aviaframe.com', 'sandbox.aviaframe.com', 'testenvavia.netlify.app', 'localhost', '127.0.0.1']);
+
     return (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === 'aviaframe.com' ||
-      hostname === 'www.aviaframe.com' ||
-      hostname.endsWith('.netlify.app') ||
+      trustedFrontendHosts.has(hostname) ||
       hostname.endsWith('.aviaframe.com')
     );
   } catch (_) {
@@ -175,6 +182,7 @@ app.use('/', require('./routes/widget'));
 app.use('/', require('./routes/orders'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/admin/internal-qa', require('./routes/internalQa'));
+app.use('/api/agency/reports', require('./routes/agency-reports'));
 app.use('/api/agency', require('./routes/agency'));
 app.use('/api', require('./routes/notifications'));
 app.use('/api', require('./routes/webhooks'));
@@ -184,11 +192,8 @@ app.use('/api', require('./routes/documents'));
 app.use('/', require('./routes/payments'));
 app.use('/api/payments', require('./routes/tamara'));
 
-// n8n webhook proxy — MUST be before 404 handler
-const N8N_BASE_URL = (process.env.N8N_WEBHOOK_URL || '').replace(/\/+$/, '');
-
 // ─── Search proxy with markup application ────────────────────────────────────
-app.post('/webhook/drct/search', express.json({ limit: '10mb' }), async (req, res) => {
+app.post('/webhook/drct/search', express.json({ limit: '10mb' }), searchProxyRateLimiter, async (req, res) => {
   const requestHost = getRequestOriginHost(req);
   const useSandboxSearch = shouldUseDrctSandboxForHost(requestHost);
   const originCodes = normalizeCodeList(req.body?.origin);
@@ -338,7 +343,7 @@ app.post('/webhook/drct/search', express.json({ limit: '10mb' }), async (req, re
     responseStatus = searchResponse.responseStatus;
   }
 
-  if (!useSandboxSearch && Array.isArray(result?.offers) && result.offers.length > 0) {
+  if (ENABLE_LIVE_BOOKABLE_FILTER && !useSandboxSearch && Array.isArray(result?.offers) && result.offers.length > 0) {
     const filtered = filterBookableOffers(result.offers);
     if (filtered.dropped > 0) {
       logger.warn({
@@ -427,126 +432,6 @@ async function executeSearchProxyRequest(payload, { useSandboxSearch = false, re
     };
   }
 }
-
-function hasMeaningfulCreatePayload(payload) {
-  return Boolean(
-    payload
-    && typeof payload === 'object'
-    && !Array.isArray(payload)
-    && typeof payload.order_id === 'string'
-    && payload.order_id.trim()
-  );
-}
-
-function hasMeaningfulIssuePayload(payload) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
-  if (typeof payload.pnr === 'string' && payload.pnr.trim()) return true;
-  if (typeof payload.booking_reference === 'string' && payload.booking_reference.trim()) return true;
-  if (Array.isArray(payload.tickets) && payload.tickets.length > 0) return true;
-  return false;
-}
-
-async function maybeHandleDrctProxyFallback({ req, res, targetPath, upstreamStatus, upstreamData }) {
-  if (targetPath === '/drct/order/create') {
-    const shouldFallback = upstreamStatus >= 500 || (upstreamStatus >= 200 && upstreamStatus < 300 && !hasMeaningfulCreatePayload(upstreamData));
-    if (!shouldFallback) return false;
-
-    logger.warn({
-      upstreamStatus,
-      has_order_id: Boolean(upstreamData?.order_id),
-    }, 'n8n-proxy falling back to direct DRCT order create');
-
-    try {
-      const fallbackData = await drctDirectClient.createOrder(req.body, {
-        idempotencyKey: req.headers['idempotency-key'] || req.headers['Idempotency-Key'] || null,
-      });
-      res.status(201).json(fallbackData);
-      return true;
-    } catch (error) {
-      logger.error({
-        err: error.message,
-        code: error.code || null,
-        statusCode: error.statusCode || null,
-      }, 'direct DRCT order create fallback failed');
-      return false;
-    }
-  }
-
-  if (targetPath === '/drct/order/issue') {
-    const shouldFallback = upstreamStatus >= 500 || (upstreamStatus >= 200 && upstreamStatus < 300 && !hasMeaningfulIssuePayload(upstreamData));
-    if (!shouldFallback) return false;
-
-    logger.warn({
-      upstreamStatus,
-      has_pnr: Boolean(upstreamData?.pnr),
-      ticket_count: Array.isArray(upstreamData?.tickets) ? upstreamData.tickets.length : 0,
-    }, 'n8n-proxy falling back to direct DRCT order issue');
-
-    try {
-      const fallbackData = await drctDirectClient.issueOrder(req.body, {
-        idempotencyKey: req.headers['idempotency-key'] || req.headers['Idempotency-Key'] || null,
-      });
-      res.status(200).json(fallbackData);
-      return true;
-    } catch (error) {
-      logger.error({
-        err: error.message,
-        code: error.code || null,
-        statusCode: error.statusCode || null,
-      }, 'direct DRCT order issue fallback failed');
-      return false;
-    }
-  }
-
-  return false;
-}
-
-app.all('/webhook/*', express.json({ limit: '10mb' }), async (req, res) => {
-  if (!N8N_BASE_URL) {
-    return res.status(503).json({ error: { code: 'N8N_NOT_CONFIGURED', message: 'N8N_WEBHOOK_URL is not configured on the server' } });
-  }
-  const targetPath = req.path.replace(/^\/webhook/, '');
-  const targetUrl = `${N8N_BASE_URL}${targetPath}`;
-  try {
-    const response = await axios({
-      method: req.method,
-      url: targetUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        ...Object.fromEntries(
-          Object.entries(req.headers).filter(([k]) =>
-            ['idempotency-key', 'x-correlation-id', 'x-tenant-id'].includes(k.toLowerCase())
-          )
-        )
-      },
-      data: req.body,
-      timeout: 55000,
-      validateStatus: () => true
-    });
-    if (await maybeHandleDrctProxyFallback({
-      req,
-      res,
-      targetPath,
-      upstreamStatus: response.status,
-      upstreamData: response.data,
-    })) {
-      return;
-    }
-    res.status(response.status).json(response.data);
-  } catch (err) {
-    if (await maybeHandleDrctProxyFallback({
-      req,
-      res,
-      targetPath,
-      upstreamStatus: err.response?.status || 502,
-      upstreamData: err.response?.data || null,
-    })) {
-      return;
-    }
-    logger.error({ err: err.message, path: req.path }, 'n8n-proxy error');
-    res.status(502).json({ error: { code: 'N8N_PROXY_ERROR', message: err.message } });
-  }
-});
 
 // 404 handler
 app.use((req, res) => {

@@ -1,7 +1,6 @@
 // n8n Client Service
 // Universal client for sending requests to n8n workflows via webhooks
 
-const crypto = require('crypto');
 const { logDRCTRequest, generateCorrelationId } = require('./drctLogger');
 
 /**
@@ -17,9 +16,6 @@ const config = {
 const requestTimeouts = {
   search: parseInt(process.env.N8N_TIMEOUT_SEARCH_MS || `${config.timeout}`, 10),
   price: parseInt(process.env.N8N_TIMEOUT_PRICE_MS || `${config.timeout}`, 10),
-  orderCreate: parseInt(process.env.N8N_TIMEOUT_ORDER_CREATE_MS || '90000', 10),
-  issue: parseInt(process.env.N8N_TIMEOUT_ORDER_ISSUE_MS || '90000', 10),
-  cancel: parseInt(process.env.N8N_TIMEOUT_ORDER_CANCEL_MS || '45000', 10)
 };
 
 /**
@@ -200,78 +196,6 @@ async function drctPrice(priceParams, tenantId) {
 }
 
 /**
- * Send DRCT order creation request via n8n
- * @param {Object} orderParams - Order parameters
- * @param {string} tenantId - Tenant UUID
- * @param {string} bookingId - Booking UUID
- * @returns {Promise<Object>} - Order results
- */
-async function drctCreateOrder(orderParams, tenantId, bookingId) {
-  // Generate Idempotency-Key to prevent duplicate orders
-  const idempotencyKey = crypto.randomUUID();
-
-  return sendRequest({
-    workflowPath: '/drct/order/create',
-    payload: orderParams,
-    requestType: 'order_create',
-    tenantId,
-    bookingId,
-    options: {
-      timeout: requestTimeouts.orderCreate,
-      headers: {
-        'Idempotency-Key': idempotencyKey
-      }
-    }
-  });
-}
-
-/**
- * Send DRCT ticket issue request via n8n
- * @param {Object} issueParams - Issue parameters
- * @param {string} tenantId - Tenant UUID
- * @param {string} bookingId - Booking UUID
- * @returns {Promise<Object>} - Issue results
- */
-async function drctIssue(issueParams, tenantId, bookingId) {
-  // Generate Idempotency-Key to prevent duplicate ticket issuance
-  const idempotencyKey = crypto.randomUUID();
-
-  return sendRequest({
-    workflowPath: '/drct/order/issue',
-    payload: issueParams,
-    requestType: 'issue',
-    tenantId,
-    bookingId,
-    options: {
-      timeout: requestTimeouts.issue,
-      headers: {
-        'Idempotency-Key': idempotencyKey
-      }
-    }
-  });
-}
-
-/**
- * Send DRCT cancel request via n8n
- * @param {Object} cancelParams - Cancel parameters
- * @param {string} tenantId - Tenant UUID
- * @param {string} bookingId - Booking UUID
- * @returns {Promise<Object>} - Cancel results
- */
-async function drctCancel(cancelParams, tenantId, bookingId) {
-  return sendRequest({
-    workflowPath: '/drct/order/cancel',
-    payload: cancelParams,
-    requestType: 'cancel',
-    tenantId,
-    bookingId,
-    options: {
-      timeout: requestTimeouts.cancel
-    }
-  });
-}
-
-/**
  * Check if error is retryable
  * @param {Error} error - Error object
  * @returns {boolean} - True if retryable
@@ -356,9 +280,6 @@ module.exports = {
   sendRequest,
   drctSearch,
   drctPrice,
-  drctCreateOrder,
-  drctIssue,
-  drctCancel,
   healthCheck,
   config,
   requestTimeouts

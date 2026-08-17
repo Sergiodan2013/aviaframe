@@ -6,7 +6,21 @@
         "httpMethod": "POST",
         "path": "drct/order/cancel",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "allowedOrigins": "http://localhost:3002",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, POST, PATCH, DELETE, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization"
+              }
+            ]
+          }
+        }
       },
       "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c71",
       "name": "Webhook",
@@ -17,7 +31,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validate cancel request\nconst body = $input.item.json.body;\n\nif (!body) {\n  throw new Error('Request body is required');\n}\n\nif (!body.order_id) {\n  throw new Error('Missing required field: order_id');\n}\n\n// Validate order_id format\nif (typeof body.order_id !== 'string' || body.order_id.trim() === '') {\n  throw new Error('order_id must be a non-empty string');\n}\n\nconsole.log(`[Validate] Cancel request for order: ${body.order_id}`);\n\nreturn {\n  order_id: body.order_id.trim(),\n  reason: body.reason || 'USER_REQUEST',\n  refund_requested: body.refund_requested !== false // default to true\n};"
+        "jsCode": "// Validate cancel request\nconst body = $input.item.json.body || {};\n\nif (!body.order_id) {\n  throw new Error('Missing required field: order_id');\n}\n\nif (typeof body.order_id !== 'string' || body.order_id.trim() === '') {\n  throw new Error('order_id must be a non-empty string');\n}\n\nconsole.log(`[Validate] Cancel request for order: ${body.order_id}`);\n\nreturn {\n  order_id: body.order_id.trim(),\n  reason: body.reason || 'USER_REQUEST',\n  refund_requested: body.refund_requested !== false\n};"
       },
       "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d71",
       "name": "Validate Cancel Request",
@@ -28,7 +42,7 @@
     {
       "parameters": {
         "method": "DELETE",
-        "url": "=https://sandbox-api.drct.aero/orders/{{ $json.order_id }}",
+        "url": "=https://api.drct.aero/orders/{{ $json.order_id }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -50,8 +64,7 @@
         "options": {
           "response": {
             "response": {
-              "responseFormat": "json",
-              "neverError": true
+              "responseFormat": "json"
             }
           },
           "timeout": 30000
@@ -65,7 +78,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Transform DRCT cancel response to Aviaframe format\nconst response = $input.item.json;\n\nconsole.log('[Transform] DRCT order cancellation response received');\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: response.status || 'CANCELLED',\n  cancelled_at: response.cancelled_at || new Date().toISOString(),\n  refund: {\n    status: response.refund?.status || 'PENDING',\n    amount: response.refund?.amount || 0,\n    currency: response.refund?.currency || 'USD',\n    estimated_date: response.refund?.estimated_date || null,\n    penalties: response.refund?.penalties || 0\n  },\n  tickets: (response.tickets || []).map(ticket => ({\n    ticket_number: ticket.ticket_number,\n    status: ticket.status || 'CANCELLED',\n    passenger: ticket.passenger\n  })),\n  reason: response.reason || 'USER_REQUEST',\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_cancel'\n  }\n};"
+        "jsCode": "// Transform DRCT cancel response to Aviaframe format\nconst response = $input.item.json;\nconst rawStatus = String(response.status || '').trim().toLowerCase();\nconst normalizedStatus = rawStatus === 'deleted' ? 'CANCELLED' : String(response.status || 'CANCELLED').toUpperCase();\n\nconsole.log('[Transform] DRCT order cancellation response received');\n\nreturn {\n  order_id: response.order_id || response.id,\n  status: normalizedStatus,\n  cancelled_at: response.cancelled_at || response.deleted_at || new Date().toISOString(),\n  locator: response.locator || null,\n  airline_locators: response.airline_locators || [],\n  refund: {\n    status: response.refund?.status || 'PENDING',\n    amount: response.refund?.amount || 0,\n    currency: response.refund?.currency || 'USD',\n    estimated_date: response.refund?.estimated_date || null,\n    penalties: response.refund?.penalties || 0\n  },\n  tickets: (response.tickets || []).map(ticket => ({\n    ticket_number: ticket.ticket_number || ticket.number || null,\n    status: String(ticket.status || 'CANCELLED').toUpperCase(),\n    passenger: ticket.passenger || null\n  })),\n  reason: response.reason || 'USER_REQUEST',\n  metadata: {\n    processed_at: new Date().toISOString(),\n    workflow_id: 'drct_order_cancel',\n    channel: response.channel || null\n  }\n};"
       },
       "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f71",
       "name": "Transform Cancel Response",
@@ -76,7 +89,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ $json }}",
+        "responseBody": "={{ JSON.stringify($json) }}",
         "options": {
           "responseHeaders": {
             "entries": [

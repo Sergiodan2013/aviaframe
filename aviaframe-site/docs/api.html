@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Partner API Reference | AviaFrame</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; background: #f8fafc; color: #1f2937; line-height: 1.6; }
+
+    .layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; max-width: 1200px; margin: 0 auto; }
+
+    /* Sidebar */
+    nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: #fff; border-right: 1px solid #e2e8f0; padding: 32px 0; font-size: 13px; }
+    .nav-logo { padding: 0 24px 24px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
+    .nav-logo a { text-decoration: none; font-weight: 700; font-size: 16px; color: #0f172a; }
+    .nav-logo span { color: #2563eb; }
+    .nav-logo .tag { display: inline-block; background: #dbeafe; color: #1d4ed8; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+    .nav-section { font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; padding: 8px 24px 4px; }
+    nav a { display: block; padding: 5px 24px; color: #374151; text-decoration: none; border-left: 2px solid transparent; transition: all .12s; }
+    nav a:hover { color: #2563eb; background: #f0f9ff; }
+    nav a.active { color: #2563eb; border-left-color: #2563eb; background: #eff6ff; font-weight: 600; }
+    .nav-method { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 3px; padding: 1px 5px; margin-right: 4px; vertical-align: middle; }
+    .get { background: #d1fae5; color: #065f46; }
+    .post { background: #dbeafe; color: #1e40af; }
+
+    /* Main content */
+    main { padding: 48px 56px; max-width: 860px; }
+    h1 { font-size: 32px; color: #0f172a; margin: 0 0 8px; font-weight: 800; }
+    h2 { font-size: 22px; color: #0f172a; margin: 52px 0 14px; padding-top: 52px; border-top: 1px solid #e2e8f0; }
+    h2:first-of-type { border-top: none; margin-top: 32px; padding-top: 0; }
+    h3 { font-size: 16px; color: #0f172a; margin: 28px 0 10px; font-weight: 700; }
+    p { margin: 0 0 14px; color: #374151; }
+    .lead { font-size: 17px; color: #4b5563; margin-bottom: 32px; }
+
+    /* Endpoint block */
+    .endpoint { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; margin: 20px 0 32px; overflow: hidden; }
+    .endpoint-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
+    .method-badge { font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 5px; letter-spacing: .02em; }
+    .method-badge.get { background: #d1fae5; color: #065f46; }
+    .endpoint-path { font-family: "SF Mono", "Fira Code", Consolas, monospace; font-size: 15px; font-weight: 600; color: #0f172a; }
+    .endpoint-desc { padding: 16px 20px 4px; font-size: 14px; color: #4b5563; }
+    .params-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 16px; }
+    .params-table th { text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; padding: 8px 16px; border-bottom: 1px solid #e2e8f0; }
+    .params-table td { padding: 8px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .params-table tr:last-child td { border-bottom: none; }
+    .param-name { font-family: "SF Mono", "Fira Code", Consolas, monospace; font-size: 12px; color: #1e40af; }
+    .param-type { font-size: 11px; color: #9ca3af; font-family: monospace; }
+    .required { font-size: 10px; font-weight: 700; color: #dc2626; background: #fee2e2; border-radius: 3px; padding: 1px 5px; }
+    .optional { font-size: 10px; color: #9ca3af; }
+
+    /* Code blocks */
+    pre { background: #0f172a; color: #e2e8f0; padding: 18px 20px; font-family: "SF Mono", "Fira Code", Consolas, monospace; font-size: 13px; line-height: 1.6; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+    code { font-family: "SF Mono", "Fira Code", Consolas, monospace; font-size: 12px; background: #f1f5f9; color: #e11d48; padding: 1px 5px; border-radius: 4px; }
+    .comment { color: #64748b; }
+    .string { color: #86efac; }
+    .key { color: #93c5fd; }
+    .num { color: #fcd34d; }
+
+    /* Callouts */
+    .info { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 14px; color: #1e40af; }
+    .warn { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 14px; color: #92400e; }
+    .success { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 14px; color: #166534; }
+
+    /* Status badges */
+    .status-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .status-table td { padding: 7px 12px; border-bottom: 1px solid #f1f5f9; }
+    .status-badge { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 8px; }
+    .s-pending { background: #fef3c7; color: #92400e; }
+    .s-confirmed { background: #dbeafe; color: #1e40af; }
+    .s-ticketed { background: #d1fae5; color: #065f46; }
+    .s-cancelled { background: #fee2e2; color: #991b1b; }
+    .s-refunded { background: #f3e8ff; color: #6b21a8; }
+    .s-failed { background: #f1f5f9; color: #475569; }
+
+    footer { margin-top: 64px; padding: 28px 0; border-top: 1px solid #e2e8f0; font-size: 13px; color: #94a3b8; }
+    footer a { color: #64748b; text-decoration: none; }
+    footer a:hover { color: #2563eb; }
+
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { display: none; }
+      main { padding: 32px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <nav>
+    <div class="nav-logo">
+      <a href="/"><span>Avia</span>Frame</a>
+      <span class="tag">API v1</span>
+    </div>
+    <div class="nav-section">Getting Started</div>
+    <a href="#overview" class="active">Overview</a>
+    <a href="#authentication">Authentication</a>
+    <a href="#errors">Errors</a>
+    <a href="#pagination">Pagination</a>
+
+    <div class="nav-section">Endpoints</div>
+    <a href="#list-bookings"><span class="nav-method get">GET</span> List Bookings</a>
+    <a href="#get-booking"><span class="nav-method get">GET</span> Get Booking</a>
+    <a href="#revenue"><span class="nav-method get">GET</span> Revenue</a>
+    <a href="#summary"><span class="nav-method get">GET</span> Summary</a>
+    <a href="#export"><span class="nav-method get">GET</span> Export CSV</a>
+
+    <div class="nav-section">Reference</div>
+    <a href="#booking-object">Booking Object</a>
+    <a href="#statuses">Order Statuses</a>
+  </nav>
+
+  <main>
+    <h1>Partner API Reference</h1>
+    <p class="lead">Pull your sales data, bookings, and revenue reports from AviaFrame. All data is scoped to your agency — you can only access your own bookings.</p>
+
+    <div class="info">
+      <strong>Base URL:</strong> <code>https://peaceful-amazement-production-629f.up.railway.app</code><br>
+      All endpoints require an API key. Contact your AviaFrame account manager to obtain one.
+    </div>
+
+    <!-- AUTHENTICATION -->
+    <h2 id="authentication">Authentication</h2>
+    <p>All requests must include your API key in the <code>Authorization</code> header using the Bearer scheme.</p>
+
+    <pre><span class="comment"># Example request with API key</span>
+curl https://peaceful-amazement-production-629f.up.railway.app/api/agency/reports/bookings \
+  -H <span class="string">"Authorization: Bearer avf_live_YOUR_API_KEY"</span></pre>
+
+    <div class="warn">
+      <strong>Keep your API key secret.</strong> It provides read access to all your agency's booking data. If a key is compromised, contact AviaFrame support to revoke it immediately.
+    </div>
+
+    <h3>Key properties</h3>
+    <ul style="font-size:14px;color:#374151">
+      <li>Scope: <code>reports:read</code> — read-only access, no mutations possible</li>
+      <li>Keys can be revoked at any time by your AviaFrame account manager</li>
+      <li>Multiple keys can be issued (e.g. for different internal systems)</li>
+    </ul>
+
+    <!-- ERRORS -->
+    <h2 id="errors">Errors</h2>
+    <p>All errors return a consistent JSON structure with an <code>error</code> object:</p>
+
+    <pre>{
+  <span class="key">"error"</span>: {
+    <span class="key">"code"</span>: <span class="string">"UNAUTHORIZED"</span>,
+    <span class="key">"message"</span>: <span class="string">"API key required. Use Authorization: Bearer &lt;key&gt;"</span>
+  }
+}</pre>
+
+    <table class="status-table">
+      <tr><td><strong>401</strong></td><td><code>UNAUTHORIZED</code></td><td>Missing, invalid, or revoked API key</td></tr>
+      <tr><td><strong>400</strong></td><td><code>INVALID_PARAMS</code></td><td>Invalid query parameter (bad date format, unknown status)</td></tr>
+      <tr><td><strong>404</strong></td><td><code>NOT_FOUND</code></td><td>The requested order does not exist in your agency</td></tr>
+      <tr><td><strong>500</strong></td><td><code>DB_ERROR</code></td><td>Internal server error — contact support</td></tr>
+    </table>
+
+    <!-- PAGINATION -->
+    <h2 id="pagination">Pagination</h2>
+    <p>List endpoints return a <code>pagination</code> object alongside <code>data</code>:</p>
+
+    <pre>{
+  <span class="key">"data"</span>: [ <span class="comment">/* ... */</span> ],
+  <span class="key">"pagination"</span>: {
+    <span class="key">"total"</span>: <span class="num">143</span>,
+    <span class="key">"page"</span>: <span class="num">1</span>,
+    <span class="key">"limit"</span>: <span class="num">50</span>,
+    <span class="key">"pages"</span>: <span class="num">3</span>
+  }
+}</pre>
+
+    <p>Use <code>?page=2&amp;limit=50</code> to paginate. Maximum <code>limit</code> is 200.</p>
+
+    <!-- LIST BOOKINGS -->
+    <h2 id="list-bookings">List Bookings</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/agency/reports/bookings</span>
+      </div>
+      <div class="endpoint-desc">
+        <p>Returns a paginated list of bookings for your agency, sorted by creation date descending.</p>
+        <table class="params-table">
+          <tr><th>Parameter</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr>
+            <td class="param-name">from</td>
+            <td class="param-type">date</td>
+            <td><span class="optional">optional</span></td>
+            <td>Start date. Default: 30 days ago. Format: <code>YYYY-MM-DD</code></td>
+          </tr>
+          <tr>
+            <td class="param-name">to</td>
+            <td class="param-type">date</td>
+            <td><span class="optional">optional</span></td>
+            <td>End date. Default: today. Format: <code>YYYY-MM-DD</code></td>
+          </tr>
+          <tr>
+            <td class="param-name">status</td>
+            <td class="param-type">string</td>
+            <td><span class="optional">optional</span></td>
+            <td>Filter by status: <code>pending</code>, <code>confirmed</code>, <code>ticketed</code>, <code>cancelled</code>, <code>refunded</code>, <code>failed</code></td>
+          </tr>
+          <tr>
+            <td class="param-name">limit</td>
+            <td class="param-type">integer</td>
+            <td><span class="optional">optional</span></td>
+            <td>Results per page. Default: 50. Max: 200</td>
+          </tr>
+          <tr>
+            <td class="param-name">page</td>
+            <td class="param-type">integer</td>
+            <td><span class="optional">optional</span></td>
+            <td>Page number. Default: 1</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <pre><span class="comment"># Fetch issued bookings for August 2026</span>
+curl "https://peaceful-amazement-production-629f.up.railway.app/api/agency/reports/bookings\
+?from=2026-08-01&to=2026-08-31&status=ticketed&limit=50" \
+  -H <span class="string">"Authorization: Bearer avf_live_YOUR_API_KEY"</span></pre>
+
+    <pre><span class="comment"># Response</span>
+{
+  <span class="key">"data"</span>: [
+    {
+      <span class="key">"order_id"</span>: <span class="string">"3fa85f64-5717-4562-b3fc-2c963f66afa6"</span>,
+      <span class="key">"order_number"</span>: <span class="string">"AVF12345678"</span>,
+      <span class="key">"status"</span>: <span class="string">"ticketed"</span>,
+      <span class="key">"origin"</span>: <span class="string">"TBS"</span>,
+      <span class="key">"destination"</span>: <span class="string">"DXB"</span>,
+      <span class="key">"departure_time"</span>: <span class="string">"2026-09-01T06:00:00Z"</span>,
+      <span class="key">"airline_name"</span>: <span class="string">"Georgian Airways"</span>,
+      <span class="key">"flight_number"</span>: <span class="string">"A9111"</span>,
+      <span class="key">"passengers"</span>: { <span class="key">"ADT"</span>: <span class="num">2</span>, <span class="key">"CHD"</span>: <span class="num">1</span> },
+      <span class="key">"base_price"</span>: <span class="num">620.00</span>,
+      <span class="key">"taxes"</span>: <span class="num">48.50</span>,
+      <span class="key">"baggage_price"</span>: <span class="num">0.00</span>,
+      <span class="key">"total_price"</span>: <span class="num">668.50</span>,
+      <span class="key">"currency"</span>: <span class="string">"USD"</span>,
+      <span class="key">"ticket_number"</span>: <span class="string">"257-1234567890"</span>,
+      <span class="key">"pnr"</span>: <span class="string">"ABCDEF"</span>,
+      <span class="key">"issued_at"</span>: <span class="string">"2026-08-15T14:30:00Z"</span>,
+      <span class="key">"created_at"</span>: <span class="string">"2026-08-14T09:12:00Z"</span>
+    }
+  ],
+  <span class="key">"pagination"</span>: { <span class="key">"total"</span>: <span class="num">47</span>, <span class="key">"page"</span>: <span class="num">1</span>, <span class="key">"limit"</span>: <span class="num">50</span>, <span class="key">"pages"</span>: <span class="num">1</span> }
+}</pre>
+
+    <!-- GET BOOKING -->
+    <h2 id="get-booking">Get Booking</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/agency/reports/bookings/:orderId</span>
+      </div>
+      <div class="endpoint-desc">
+        <p>Returns full details for a single booking, including all passengers and ticket issuance info.</p>
+        <table class="params-table">
+          <tr><th>Parameter</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr>
+            <td class="param-name">orderId</td>
+            <td class="param-type">UUID</td>
+            <td><span class="required">required</span></td>
+            <td>The <code>order_id</code> returned in the bookings list</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <pre><span class="comment"># Get single booking detail</span>
+curl "https://peaceful-amazement-production-629f.up.railway.app\
+/api/agency/reports/bookings/3fa85f64-5717-4562-b3fc-2c963f66afa6" \
+  -H <span class="string">"Authorization: Bearer avf_live_YOUR_API_KEY"</span></pre>
+
+    <!-- REVENUE -->
+    <h2 id="revenue">Revenue</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/agency/reports/revenue</span>
+      </div>
+      <div class="endpoint-desc">
+        <p>Returns revenue grouped by day or month. Only confirmed and ticketed orders are counted as revenue; cancelled orders are tracked separately.</p>
+        <table class="params-table">
+          <tr><th>Parameter</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td class="param-name">from</td><td class="param-type">date</td><td><span class="optional">optional</span></td><td>Start date. Default: 30 days ago</td></tr>
+          <tr><td class="param-name">to</td><td class="param-type">date</td><td><span class="optional">optional</span></td><td>End date. Default: today</td></tr>
+          <tr><td class="param-name">group_by</td><td class="param-type">string</td><td><span class="optional">optional</span></td><td><code>day</code> or <code>month</code> (default: month)</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <pre><span class="comment"># Revenue by month, last 3 months</span>
+curl "https://peaceful-amazement-production-629f.up.railway.app\
+/api/agency/reports/revenue?from=2026-06-01&to=2026-08-31&group_by=month" \
+  -H <span class="string">"Authorization: Bearer avf_live_YOUR_API_KEY"</span></pre>
+
+    <pre><span class="comment"># Response</span>
+{
+  <span class="key">"data"</span>: [
+    { <span class="key">"period"</span>: <span class="string">"2026-06"</span>, <span class="key">"bookings_count"</span>: <span class="num">31</span>, <span class="key">"revenue"</span>: <span class="num">14820.00</span>, <span class="key">"cancelled_count"</span>: <span class="num">2</span>, <span class="key">"currency"</span>: <span class="string">"USD"</span> },
+    { <span class="key">"period"</span>: <span class="string">"2026-07"</span>, <span class="key">"bookings_count"</span>: <span class="num">44</span>, <span class="key">"revenue"</span>: <span class="num">21340.50</span>, <span class="key">"cancelled_count"</span>: <span class="num">3</span>, <span class="key">"currency"</span>: <span class="string">"USD"</span> },
+    { <span class="key">"period"</span>: <span class="string">"2026-08"</span>, <span class="key">"bookings_count"</span>: <span class="num">47</span>, <span class="key">"revenue"</span>: <span class="num">22150.00</span>, <span class="key">"cancelled_count"</span>: <span class="num">1</span>, <span class="key">"currency"</span>: <span class="string">"USD"</span> }
+  ],
+  <span class="key">"group_by"</span>: <span class="string">"month"</span>
+}</pre>
+
+    <!-- SUMMARY -->
+    <h2 id="summary">Summary</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/agency/reports/summary</span>
+      </div>
+      <div class="endpoint-desc">
+        <p>Returns an aggregated dashboard summary: total bookings, revenue, cancellations, and top 5 routes for the period.</p>
+        <table class="params-table">
+          <tr><th>Parameter</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td class="param-name">from</td><td class="param-type">date</td><td><span class="optional">optional</span></td><td>Start date. Default: 30 days ago</td></tr>
+          <tr><td class="param-name">to</td><td class="param-type">date</td><td><span class="optional">optional</span></td><td>End date. Default: today</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <pre><span class="comment"># Response</span>
+{
+  <span class="key">"data"</span>: {
+    <span class="key">"period"</span>: { <span class="key">"from"</span>: <span class="string">"2026-08-01T00:00:00.000Z"</span>, <span class="key">"to"</span>: <span class="string">"2026-08-31T23:59:59.999Z"</span> },
+    <span class="key">"total_bookings"</span>: <span class="num">47</span>,
+    <span class="key">"ticketed_count"</span>: <span class="num">43</span>,
+    <span class="key">"cancelled_count"</span>: <span class="num">1</span>,
+    <span class="key">"total_revenue"</span>: <span class="num">22150.00</span>,
+    <span class="key">"currency"</span>: <span class="string">"USD"</span>,
+    <span class="key">"top_routes"</span>: [
+      { <span class="key">"origin"</span>: <span class="string">"TBS"</span>, <span class="key">"destination"</span>: <span class="string">"DXB"</span>, <span class="key">"count"</span>: <span class="num">18</span> },
+      { <span class="key">"origin"</span>: <span class="string">"TBS"</span>, <span class="key">"destination"</span>: <span class="string">"IST"</span>, <span class="key">"count"</span>: <span class="num">12</span> }
+    ]
+  }
+}</pre>
+
+    <!-- EXPORT CSV -->
+    <h2 id="export">Export CSV</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/agency/reports/export</span>
+      </div>
+      <div class="endpoint-desc">
+        <p>Downloads all bookings as a UTF-8 CSV file (with BOM for Excel compatibility). Maximum 10,000 rows per request.</p>
+        <table class="params-table">
+          <tr><th>Parameter</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td class="param-name">from</td><td class="param-type">date</td><td><span class="optional">optional</span></td><td>Start date. Default: 30 days ago</td></tr>
+          <tr><td class="param-name">to</td><td class="param-type">date</td><td><span class="optional">optional</span></td><td>End date. Default: today</td></tr>
+          <tr><td class="param-name">status</td><td class="param-type">string</td><td><span class="optional">optional</span></td><td>Filter by status (same values as List Bookings)</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <pre><span class="comment"># Download CSV for August — open directly in Excel</span>
+curl -OJ "https://peaceful-amazement-production-629f.up.railway.app\
+/api/agency/reports/export?from=2026-08-01&to=2026-08-31" \
+  -H <span class="string">"Authorization: Bearer avf_live_YOUR_API_KEY"</span>
+
+<span class="comment"># Output file: aviaframe-bookings-2026-08-01-to-2026-08-31.csv</span></pre>
+
+    <p>CSV columns: <code>order_number</code>, <code>status</code>, <code>origin</code>, <code>destination</code>, <code>departure_time</code>, <code>airline_name</code>, <code>flight_number</code>, <code>pax_ADT</code>, <code>pax_CHD</code>, <code>pax_INF</code>, <code>base_price</code>, <code>taxes</code>, <code>baggage_price</code>, <code>total_price</code>, <code>currency</code>, <code>ticket_number</code>, <code>pnr</code>, <code>issued_at</code>, <code>created_at</code></p>
+
+    <!-- BOOKING OBJECT -->
+    <h2 id="booking-object">Booking Object</h2>
+    <p>All booking endpoints return booking objects with these fields:</p>
+
+    <table class="params-table" style="margin-top:12px">
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="param-name">order_id</td><td class="param-type">UUID</td><td>Unique identifier</td></tr>
+      <tr><td class="param-name">order_number</td><td class="param-type">string</td><td>Human-readable reference, e.g. <code>AVF12345678</code></td></tr>
+      <tr><td class="param-name">status</td><td class="param-type">string</td><td>Current order status (see Statuses)</td></tr>
+      <tr><td class="param-name">origin</td><td class="param-type">string</td><td>3-letter IATA departure airport code</td></tr>
+      <tr><td class="param-name">destination</td><td class="param-type">string</td><td>3-letter IATA arrival airport code</td></tr>
+      <tr><td class="param-name">departure_time</td><td class="param-type">ISO 8601</td><td>Scheduled departure datetime</td></tr>
+      <tr><td class="param-name">airline_name</td><td class="param-type">string</td><td>Carrier name</td></tr>
+      <tr><td class="param-name">flight_number</td><td class="param-type">string</td><td>Flight number</td></tr>
+      <tr><td class="param-name">passengers</td><td class="param-type">object</td><td>Passenger counts by type: <code>{ADT: 2, CHD: 1, INF: 0}</code></td></tr>
+      <tr><td class="param-name">base_price</td><td class="param-type">number</td><td>Fare before taxes and baggage</td></tr>
+      <tr><td class="param-name">taxes</td><td class="param-type">number</td><td>Taxes and fees</td></tr>
+      <tr><td class="param-name">baggage_price</td><td class="param-type">number</td><td>Baggage surcharge</td></tr>
+      <tr><td class="param-name">total_price</td><td class="param-type">number</td><td>Total amount charged</td></tr>
+      <tr><td class="param-name">currency</td><td class="param-type">string</td><td>ISO 4217 currency code</td></tr>
+      <tr><td class="param-name">ticket_number</td><td class="param-type">string</td><td>Airline ticket number (null if not yet issued)</td></tr>
+      <tr><td class="param-name">pnr</td><td class="param-type">string</td><td>GDS/airline PNR code</td></tr>
+      <tr><td class="param-name">issued_at</td><td class="param-type">ISO 8601</td><td>Ticket issuance datetime (null if not issued)</td></tr>
+      <tr><td class="param-name">created_at</td><td class="param-type">ISO 8601</td><td>Booking creation datetime</td></tr>
+    </table>
+
+    <!-- STATUSES -->
+    <h2 id="statuses">Order Statuses</h2>
+
+    <table class="status-table" style="margin-top:12px">
+      <tr>
+        <td><span class="status-badge s-pending">pending</span></td>
+        <td>Order created, awaiting payment</td>
+      </tr>
+      <tr>
+        <td><span class="status-badge s-confirmed">confirmed</span></td>
+        <td>Payment received, booking confirmed with airline</td>
+      </tr>
+      <tr>
+        <td><span class="status-badge s-ticketed">ticketed</span></td>
+        <td>Ticket issued — itinerary sent to passenger</td>
+      </tr>
+      <tr>
+        <td><span class="status-badge s-cancelled">cancelled</span></td>
+        <td>Order cancelled</td>
+      </tr>
+      <tr>
+        <td><span class="status-badge s-refunded">refunded</span></td>
+        <td>Refund processed</td>
+      </tr>
+      <tr>
+        <td><span class="status-badge s-failed">failed</span></td>
+        <td>Payment or booking failed</td>
+      </tr>
+    </table>
+
+    <div class="success" style="margin-top:28px">
+      <strong>Questions?</strong> Contact your AviaFrame account manager or email <a href="mailto:support@aviaframe.com" style="color:#166534">support@aviaframe.com</a>.
+    </div>
+
+    <footer>
+      <a href="/">aviaframe.com</a> &nbsp;·&nbsp;
+      <a href="/legal/">Legal</a> &nbsp;·&nbsp;
+      Partner API v1 &nbsp;·&nbsp; AviaFrame © 2026
+    </footer>
+  </main>
+
+</div>
+
+</body>
+</html>
