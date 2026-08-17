@@ -17,14 +17,13 @@ import {
   updateAdminInvoice,
   generateAdminInvoicePdf,
   finalizeTicketDocument,
+  issueOrderTicket,
   markOrderPaid,
   getDocumentDownloadUrl,
   getOrderTicketDocument,
   getProfile,
   getMyAgency,
   updateMyAgency,
-  publishMyAgencySite,
-  redeployMyAgencySite,
   provisionAdminAgency,
   uploadAgencyLogo,
   uploadAgencyMedia,
@@ -32,9 +31,16 @@ import {
   listDestinationLibrary,
   redeployAdminAgencySite,
   publishAdminAgencySite,
-  sendAdminAgencySetupEmail
+  sendAdminAgencySetupEmail,
+  listAgencyApiKeys,
+  createAgencyApiKey,
+  revokeAgencyApiKey
 } from '../lib/supabase';
-import { drctApi } from '../lib/drctApi';
+import {
+  DESTINATION_PRESETS,
+  DESTINATION_PRESET_COUNTRIES,
+  buildDestinationPresetEntry
+} from '../lib/destinationPresets';
 
 export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_admin' }) {
   const [orders, setOrders] = useState([]);
@@ -87,6 +93,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     q: ''
   });
   const [agencyEditId, setAgencyEditId] = useState(null);
+  const [agencyApiKeys, setAgencyApiKeys] = useState({});
+  const [generatedApiKey, setGeneratedApiKey] = useState(null);
+  const [apiKeyName, setApiKeyName] = useState('Reporting Key');
+  const [apiKeyGenerating, setApiKeyGenerating] = useState(false);
   const [agencyEditForm, setAgencyEditForm] = useState({
     name: '',
     name_ar: '',
@@ -205,19 +215,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     { code: 'WY', name: 'Oman Air' }, { code: 'W2', name: 'Flexflight' }, { code: 'XJ', name: 'Thai AirAsia X' },
     { code: 'XY', name: 'flynas' }, { code: '5J', name: 'Cebu Pacific' }, { code: '6E', name: 'IndiGo' },
   ];
-  const SERVICE_OPTIONS = [
-    { key: 'flights_domestic', label: 'Domestic flights' },
-    { key: 'flights_intl', label: 'International flights' },
-    { key: 'hotels', label: 'Hotels' },
-    { key: 'visa', label: 'Visa support' },
-    { key: 'insurance', label: 'Insurance' },
-    { key: 'umrah', label: 'Umrah / Hajj' },
-    { key: 'tours', label: 'Tours & holidays' },
-    { key: 'corporate', label: 'Corporate travel' },
-    { key: 'transfers', label: 'Airport transfers' },
-    { key: 'car_rental', label: 'Car rental' }
-  ];
-
   const [agencySelfForm, setAgencySelfForm] = useState({
     commission_rate: 0,
     commission_model: 'percent',
@@ -225,58 +222,17 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     carrier_commission_mode: 'all', // 'all' or 'per_carrier'
     carrier_commission_all_amount: 0, // used in 'all' mode
     carrier_commissions: {}, // { SV: 50, EK: 75 } — used in 'per_carrier' mode
-    currency: 'SAR',
-    bank_name: '',
-    bank_account: '',
-    iban: '',
-    swift_bic: '',
-    sama_code: '',
-    contact_person_name: '',
-    widget_allowed_domains: '',
-    name_ar: '',
-    contact_phone2: '',
-    whatsapp_phone: '',
-    brand_color: '#1a3c8e',
-    accent_color: '#2468c4',
-    supervisor_name: '',
-    supervisor_email: '',
-    logo_url: '',
-    about_en: '',
-    about_ar: '',
-    working_hours: '',
-    working_hours_ar: '',
-    license_number: '',
-    iata_number: '',
-    founded_year: '',
-    google_maps_url: '',
-    instagram: '',
-    twitter: '',
-    snapchat: '',
-    facebook: '',
-    services: ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate'],
-    hero_tagline: '',
-    hero_description: '',
-    destinations: [],
-    reviews: [],
-    featured_airlines: [],
-    hero_image_url: '',
-    header_bg: '',
-    footer_bg: ''
+    currency: 'SAR'
   });
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
   const [agencySelfLoading, setAgencySelfLoading] = useState(false);
-  const [sitePublishing, setSitePublishing] = useState(false);
-  const [siteRedeploying, setSiteRedeploying] = useState(false);
   const [setupEmailSendingId, setSetupEmailSendingId] = useState(null);
   const [rowPublishingId, setRowPublishingId] = useState(null);
   const [rowRedeployingId, setRowRedeployingId] = useState(null);
   const [draftInviting, setDraftInviting] = useState(false);
-  const [widgetDomains, setWidgetDomains] = useState([]);
-  const [domainDraft, setDomainDraft] = useState('');
-  const [showAddDomain, setShowAddDomain] = useState(false);
-  const [domainsDirty, setDomainsDirty] = useState(false);
-  const [domainsSaving, setDomainsSaving] = useState(false);
+  const [destinationPresetCountry, setDestinationPresetCountry] = useState('');
+  const [destinationPresetId, setDestinationPresetId] = useState('');
   const [salesReportFilters, setSalesReportFilters] = useState({
     date_from: '',
     date_to: '',
@@ -288,6 +244,14 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const loadingRef = useRef(false);
   const isAgencyAdminPreview = viewMode === 'agency_admin';
   const isSuperAdminView = !isAgencyAdminPreview;
+  const filteredDestinationPresets = useMemo(
+    () => DESTINATION_PRESETS.filter((preset) => !destinationPresetCountry || preset.countryKey === destinationPresetCountry),
+    [destinationPresetCountry]
+  );
+  const selectedDestinationPreset = useMemo(
+    () => DESTINATION_PRESETS.find((preset) => preset.id === destinationPresetId) || null,
+    [destinationPresetId]
+  );
 
   const normalizeRole = (role) => {
     const normalized = String(role || 'user').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -674,9 +638,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
   const applyAgencyToSelfForm = (agencyData) => {
     const commission = agencyData?.settings?.commission || {};
-    const bankDetails = agencyData?.settings?.bank_details || {};
     const carrierComms = agencyData?.settings?.carrier_commissions || {};
-    const site = agencyData?.settings?.site || {};
     const carrierCodes = Object.keys(carrierComms);
     let ccMode = 'all';
     let ccAllAmount = 0;
@@ -697,55 +659,8 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       carrier_commission_mode: ccMode,
       carrier_commission_all_amount: ccAllAmount,
       carrier_commissions: carrierComms,
-      currency: (commission.currency || 'SAR').toUpperCase(),
-      bank_name: bankDetails.bank_name || '',
-      bank_account: bankDetails.bank_account || '',
-      iban: bankDetails.iban || '',
-      swift_bic: bankDetails.swift_bic || '',
-      sama_code: bankDetails.sama_code || '',
-      contact_person_name: agencyData?.settings?.contact_person?.full_name || '',
-      widget_allowed_domains: Array.isArray(agencyData?.settings?.widget_allowed_domains)
-        ? agencyData.settings.widget_allowed_domains.join('\n')
-        : '',
-      name_ar: site.name_ar || '',
-      contact_phone2: site.contact_phone2 || '',
-      whatsapp_phone: site.whatsapp_phone || '',
-      brand_color: site.brand_color || '#1a3c8e',
-      accent_color: site.accent_color || '#2468c4',
-      supervisor_name: site.supervisor_name || '',
-      supervisor_email: site.supervisor_email || '',
-      logo_url: site.logo_url || '',
-      about_en: site.about_en || '',
-      about_ar: site.about_ar || '',
-      working_hours: site.working_hours || '',
-      working_hours_ar: site.working_hours_ar || '',
-      license_number: site.license_number || '',
-      iata_number: site.iata_number || '',
-      founded_year: site.founded_year || '',
-      google_maps_url: site.google_maps_url || '',
-      instagram: site.instagram || '',
-      twitter: site.twitter || '',
-      snapchat: site.snapchat || '',
-      facebook: site.facebook || '',
-      services: Array.isArray(site.services) && site.services.length
-        ? site.services
-        : ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate'],
-      hero_tagline: site.hero_tagline || '',
-      hero_description: site.hero_description || '',
-      destinations: Array.isArray(site.destinations) ? site.destinations : [],
-      reviews: Array.isArray(site.reviews) ? site.reviews : [],
-      featured_airlines: Array.isArray(site.featured_airlines) ? site.featured_airlines : [],
-      hero_image_url: site.hero_image_url || '',
-      header_bg: site.header_bg || '',
-      footer_bg: site.footer_bg || ''
+      currency: (commission.currency || 'SAR').toUpperCase()
     });
-    const domains = Array.isArray(agencyData?.settings?.widget_allowed_domains)
-      ? agencyData.settings.widget_allowed_domains
-      : [];
-    setWidgetDomains(domains.map((d) => normalizeWidgetDomain(d)).filter(Boolean));
-    setDomainsDirty(false);
-    setShowAddDomain(false);
-    setDomainDraft('');
     setAgencySelfMeta({
       id: agencyData?.id || null,
       name: agencyData?.name || null,
@@ -1038,19 +953,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
-  const handleAgencySelfLogoUpload = async (file) => {
-    if (!file) return;
-    setLogoUploading(true);
-    const { url, error } = await uploadAgencyLogo(file);
-    setLogoUploading(false);
-    if (error) {
-      setNotice({ type: 'error', text: `Logo upload failed: ${error.message}` });
-      return;
-    }
-    setAgencySelfForm((prev) => ({ ...prev, logo_url: url }));
-    setNotice({ type: 'success', text: 'Agency logo uploaded. Save settings to publish it.' });
-  };
-
   const handleProvisionAgency = async () => {
     if (!agencyForm.name || !agencyForm.contact_email || !agencyForm.domain) {
       setNotice({ type: 'error', text: 'Name, subdomain and email are required' });
@@ -1143,6 +1045,11 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
   const beginEditAgency = (agency) => {
     setAgencyEditId(agency.id);
+    setGeneratedApiKey(null);
+    setApiKeyName('Reporting Key');
+    listAgencyApiKeys(agency.id).then(({ data }) => {
+      if (data) setAgencyApiKeys(prev => ({ ...prev, [agency.id]: data }));
+    });
     const site = agency?.settings?.site || {};
     setAgencyEditForm({
       name: agency.name || '',
@@ -1284,6 +1191,42 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
+  const handleAddDestinationPreset = () => {
+    if (!selectedDestinationPreset) {
+      setNotice({ type: 'error', text: 'Select a destination preset first' });
+      return;
+    }
+
+    setAgencyEditForm((prev) => ({
+      ...prev,
+      destinations: [
+        ...(prev.destinations || []),
+        buildDestinationPresetEntry(selectedDestinationPreset)
+      ]
+    }));
+    setNotice({
+      type: 'success',
+      text: `Added preset: ${selectedDestinationPreset.city}, ${selectedDestinationPreset.country}`
+    });
+  };
+
+  const handleReplaceDestinationWithPreset = (index) => {
+    if (!selectedDestinationPreset) {
+      setNotice({ type: 'error', text: 'Select a destination preset first' });
+      return;
+    }
+
+    setAgencyEditForm((prev) => {
+      const next = [...(prev.destinations || [])];
+      next[index] = buildDestinationPresetEntry(selectedDestinationPreset);
+      return { ...prev, destinations: next };
+    });
+    setNotice({
+      type: 'success',
+      text: `Replaced destination with preset: ${selectedDestinationPreset.city}, ${selectedDestinationPreset.country}`
+    });
+  };
+
   const handleCreateInvoice = async () => {
     try {
       const statuses = String(invoiceForm.statuses || '')
@@ -1417,45 +1360,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           ? Number(agencySelfForm.commission_fixed_amount || 0)
           : 0,
         carrier_commissions: carrierCommissionsPayload,
-        currency: agencySelfForm.currency || 'SAR',
-        bank_details: {
-          bank_name: agencySelfForm.bank_name || null,
-          bank_account: agencySelfForm.bank_account || null,
-          iban: agencySelfForm.iban || null,
-          swift_bic: agencySelfForm.swift_bic || null,
-          sama_code: agencySelfForm.sama_code || null
-        },
-        contact_person_name: agencySelfForm.contact_person_name || null,
-        widget_allowed_domains: widgetDomains,
-        name_ar: agencySelfForm.name_ar || '',
-        contact_phone2: agencySelfForm.contact_phone2 || '',
-        whatsapp_phone: agencySelfForm.whatsapp_phone || '',
-        brand_color: agencySelfForm.brand_color || '#1a3c8e',
-        accent_color: agencySelfForm.accent_color || '#2468c4',
-        supervisor_name: agencySelfForm.supervisor_name || '',
-        supervisor_email: agencySelfForm.supervisor_email || '',
-        logo_url: agencySelfForm.logo_url || '',
-        about_en: agencySelfForm.about_en || '',
-        about_ar: agencySelfForm.about_ar || '',
-        working_hours: agencySelfForm.working_hours || '',
-        working_hours_ar: agencySelfForm.working_hours_ar || '',
-        license_number: agencySelfForm.license_number || '',
-        iata_number: agencySelfForm.iata_number || '',
-        founded_year: agencySelfForm.founded_year || '',
-        google_maps_url: agencySelfForm.google_maps_url || '',
-        instagram: agencySelfForm.instagram || '',
-        twitter: agencySelfForm.twitter || '',
-        snapchat: agencySelfForm.snapchat || '',
-        facebook: agencySelfForm.facebook || '',
-        services: Array.isArray(agencySelfForm.services) ? agencySelfForm.services : [],
-        hero_tagline: agencySelfForm.hero_tagline || '',
-        hero_description: agencySelfForm.hero_description || '',
-        destinations: agencySelfForm.destinations || [],
-        reviews: agencySelfForm.reviews || [],
-        featured_airlines: agencySelfForm.featured_airlines || [],
-        hero_image_url: agencySelfForm.hero_image_url || '',
-        header_bg: agencySelfForm.header_bg || '',
-        footer_bg: agencySelfForm.footer_bg || ''
+        currency: agencySelfForm.currency || 'SAR'
       };
       let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
       if (isAgencyAdminPreview && !agencyIdForUpdate) {
@@ -1482,71 +1387,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setNotice({ type: 'error', text: `Failed to save settings: ${err.message}` });
     } finally {
       setAgencySelfLoading(false);
-    }
-  };
-
-  const handleRedeployAgencySite = async () => {
-    try {
-      setSiteRedeploying(true);
-      let result;
-      if (isAgencyAdminPreview && ['admin', 'super_admin'].includes(userProfile?.role)) {
-        let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
-        if (!agencyIdForUpdate) {
-          agencyIdForUpdate = await resolveAgencyIdForAgencyAdmin();
-        }
-        if (!agencyIdForUpdate) {
-          throw new Error('Agency is not linked to this account');
-        }
-        result = await redeployAdminAgencySite(agencyIdForUpdate);
-      } else {
-        result = await redeployMyAgencySite();
-      }
-      if (result?.error) {
-        throw new Error(result.error.message || 'Agency site redeploy failed');
-      }
-      setNotice({
-        type: 'success',
-        text: `Site update started — your live site will refresh in 1–2 minutes.${result?.data?.site_url ? ` URL: ${result.data.site_url}` : ''}`
-      });
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to publish site updates: ${err.message}` });
-    } finally {
-      setSiteRedeploying(false);
-    }
-  };
-
-  const handlePublishAgencySite = async () => {
-    try {
-      setSitePublishing(true);
-      let result;
-      if (isAgencyAdminPreview && ['admin', 'super_admin'].includes(userProfile?.role)) {
-        let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
-        if (!agencyIdForUpdate) {
-          agencyIdForUpdate = await resolveAgencyIdForAgencyAdmin();
-        }
-        if (!agencyIdForUpdate) {
-          throw new Error('Agency is not linked to this account');
-        }
-        result = await publishAdminAgencySite(agencyIdForUpdate);
-      } else {
-        result = await publishMyAgencySite();
-      }
-      if (result?.error) {
-        throw new Error(result.error.message || 'Agency site publish failed');
-      }
-      setNotice({
-        type: 'success',
-        text: `Site publish started — your site will be live in 1–2 minutes.${result?.data?.site_url ? ` URL: ${result.data.site_url}` : ''}`
-      });
-      if (isAgencyAdminPreview) {
-        await Promise.all([loadAdminData(), loadMyAgencySettings()]);
-      } else {
-        await loadMyAgencySettings();
-      }
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to publish agency site: ${err.message}` });
-    } finally {
-      setSitePublishing(false);
     }
   };
 
@@ -1620,62 +1460,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
-  const handleAddWidgetDomain = () => {
-    const next = normalizeWidgetDomain(domainDraft);
-    if (!next) {
-      setNotice({ type: 'error', text: 'Enter a valid domain (for example: example.com)' });
-      return;
-    }
-    if (widgetDomains.includes(next)) {
-      setNotice({ type: 'error', text: 'Domain already added' });
-      return;
-    }
-    setWidgetDomains((prev) => [...prev, next]);
-    setDomainDraft('');
-    setShowAddDomain(false);
-    setDomainsDirty(true);
-  };
-
-  const handleRemoveWidgetDomain = (domain) => {
-    setWidgetDomains((prev) => prev.filter((d) => d !== domain));
-    setDomainsDirty(true);
-  };
-
-  const handleSaveWidgetDomains = async () => {
-    try {
-      setDomainsSaving(true);
-      const payload = {
-        widget_allowed_domains: widgetDomains
-      };
-      let agencyIdForUpdate = userProfile?.agency_id || agencyPreviewId || agencies[0]?.id || null;
-      if (isAgencyAdminPreview && !agencyIdForUpdate) {
-        const resolvedAgencyId = await loadMyAgencySettings();
-        agencyIdForUpdate = resolvedAgencyId || null;
-      }
-      if (isAgencyAdminPreview && !agencyIdForUpdate) {
-        agencyIdForUpdate = await resolveAgencyIdForAgencyAdmin();
-      }
-      if (isAgencyAdminPreview && !agencyIdForUpdate) {
-        throw new Error('Agency is not linked to this account');
-      }
-      const { error } = (isAgencyAdminPreview && ['admin', 'super_admin'].includes(userProfile?.role))
-        ? await updateAdminAgency(agencyIdForUpdate, payload)
-        : await updateMyAgency(payload);
-      if (error) throw new Error(error.message || 'Domains save failed');
-      setDomainsDirty(false);
-      setNotice({ type: 'success', text: 'Widget domains saved' });
-      if (isAgencyAdminPreview) {
-        await loadAdminData();
-      } else {
-        await loadMyAgencySettings();
-      }
-    } catch (err) {
-      setNotice({ type: 'error', text: `Failed to save widget domains: ${err.message}` });
-    } finally {
-      setDomainsSaving(false);
-    }
-  };
-
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       setUpdatingOrderId(orderId);
@@ -1732,30 +1516,18 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     try {
       setIssuingOrderId(order.id);
 
-      const orderIdForDRCT =
-        order.drct_order_id ||
-        order.booking_reference ||
-        order.order_number ||
-        order.id;
-
-      const { error: issueError } = await drctApi.issueTickets(orderIdForDRCT);
+      const {
+        error: issueError,
+        data: issuedOrder,
+        pnr: issuedPnr
+      } = await issueOrderTicket(order.id);
       if (issueError) {
         throw new Error(issueError.message || 'Issue ticket failed');
       }
 
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          status: 'issued',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', order.id);
-
-      if (updateError) throw updateError;
-
       const { error: ticketFinalizeError, email } = await finalizeTicketDocument(order.id, {
         send_email: true,
-        pnr: order.drct_order_id || null
+        pnr: issuedPnr || order.drct_order_id || null
       });
       if (ticketFinalizeError) {
         setNotice({
@@ -1773,11 +1545,23 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           o.id === order.id
             ? {
                 ...o,
-                status: 'issued',
-                updated_at: new Date().toISOString(),
+                ...(issuedOrder || {}),
+                status: normalizeStatus(issuedOrder?.status || 'ticketed'),
+                updated_at: issuedOrder?.updated_at || new Date().toISOString(),
               }
             : o
         )
+      );
+
+      setSelectedOrder((prev) =>
+        prev && prev.id === order.id
+          ? {
+              ...prev,
+              ...(issuedOrder || {}),
+              status: normalizeStatus(issuedOrder?.status || 'ticketed'),
+              updated_at: issuedOrder?.updated_at || new Date().toISOString(),
+            }
+          : prev
       );
 
     } catch (err) {
@@ -2131,20 +1915,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                     {setupEmailSendingId === agencySelfMeta.id ? 'Sending setup email...' : 'Send setup email'}
                   </button>
                 )}
-                <button
-                  onClick={handlePublishAgencySite}
-                  disabled={sitePublishing || !selectedAgencyOnboarding?.publish_ready}
-                  className={`rounded px-3 py-1.5 text-sm ${sitePublishing || !selectedAgencyOnboarding?.publish_ready ? 'bg-gray-200 text-gray-500' : 'bg-emerald-600 text-white'}`}
-                >
-                  {sitePublishing ? 'Publishing...' : 'Publish site'}
-                </button>
-                <button
-                  onClick={handleRedeployAgencySite}
-                  disabled={siteRedeploying || !agencySelfMeta?.domain}
-                  className={`rounded px-3 py-1.5 text-sm ${siteRedeploying || !agencySelfMeta?.domain ? 'bg-gray-200 text-gray-500' : 'bg-amber-500 text-white'}`}
-                >
-                  {siteRedeploying ? 'Publishing...' : 'Republish current site'}
-                </button>
                 {agencySelfMeta?.domain && (
                   <button
                     onClick={() => window.open(`https://${agencySelfMeta.domain}`, '_blank')}
@@ -2265,385 +2035,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 )}
               </div>
 
-              <input
-                value={agencySelfForm.contact_person_name}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_person_name: e.target.value }))}
-                placeholder="Contact person full name"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.bank_name}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, bank_name: e.target.value }))}
-                placeholder="Bank name"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.bank_account}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, bank_account: e.target.value }))}
-                placeholder="Account number"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.iban}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, iban: e.target.value.toUpperCase() }))}
-                placeholder="IBAN (SA...)"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.swift_bic}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, swift_bic: e.target.value.toUpperCase() }))}
-                placeholder="SWIFT/BIC"
-                className="border rounded px-2 py-1"
-              />
-              <input
-                value={agencySelfForm.sama_code}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, sama_code: e.target.value.toUpperCase() }))}
-                placeholder="SAMA bank code"
-                className="border rounded px-2 py-1"
-              />
-              <div className="md:col-span-3 border rounded px-3 py-3 bg-white">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-700">Allowed widget domains</span>
-                  <button
-                    onClick={() => setShowAddDomain((v) => !v)}
-                    className="bg-indigo-600 text-white rounded px-3 py-1 text-xs"
-                  >
-                    Add domain
-                  </button>
-                  <button
-                    onClick={handleSaveWidgetDomains}
-                    disabled={!domainsDirty || domainsSaving}
-                    className={`rounded px-3 py-1 text-xs ${(!domainsDirty || domainsSaving) ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white'}`}
-                  >
-                    {domainsSaving ? 'Saving...' : domainsDirty ? 'Save domains' : 'Saved'}
-                  </button>
-                </div>
-                {showAddDomain && (
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      value={domainDraft}
-                      onChange={(e) => setDomainDraft(e.target.value)}
-                      placeholder="example.com"
-                      className="border rounded px-2 py-1 flex-1"
-                    />
-                    <button
-                      onClick={handleAddWidgetDomain}
-                      className="bg-indigo-600 text-white rounded px-3 py-1 text-sm"
-                    >
-                      Add
-                    </button>
-                  </div>
-                )}
-                {widgetDomains.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {widgetDomains.map((d) => (
-                      <div key={d} className="flex items-center gap-2 px-2 py-1 rounded bg-indigo-50 border border-indigo-200">
-                        <span className="text-xs font-mono text-indigo-900">{d}</span>
-                        <button
-                          onClick={() => handleRemoveWidgetDomain(d)}
-                          className="text-xs text-red-600 hover:text-red-800"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500">No domains yet. Add at least one agency website domain.</p>
-                )}
-              </div>
-              <div className="md:col-span-3 border border-indigo-100 rounded-lg p-4 bg-indigo-50/30">
-                <h3 className="text-sm font-semibold text-indigo-900 mb-3">Branding, support and public site content</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <input
-                    value={agencySelfForm.name_ar}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, name_ar: e.target.value }))}
-                    placeholder="Arabic agency name"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.contact_phone2}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, contact_phone2: e.target.value }))}
-                    placeholder="Secondary phone"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.whatsapp_phone}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, whatsapp_phone: e.target.value }))}
-                    placeholder="WhatsApp phone"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.supervisor_name}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, supervisor_name: e.target.value }))}
-                    placeholder="Supervisor name"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    type="email"
-                    value={agencySelfForm.supervisor_email}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, supervisor_email: e.target.value }))}
-                    placeholder="Supervisor email"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.logo_url}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, logo_url: e.target.value }))}
-                    placeholder="Logo URL"
-                    className="border rounded px-2 py-1"
-                  />
-                  <label className="border rounded px-3 py-2 text-sm text-gray-700 bg-white cursor-pointer flex items-center justify-between">
-                    <span>{logoUploading ? 'Uploading logo...' : 'Upload logo file'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleAgencySelfLogoUpload(e.target.files?.[0])}
-                    />
-                  </label>
-                  <p className="text-xs text-gray-400">PNG, SVG, or JPG. Max 2 MB. Recommended size: min 200px height, 2:1–4:1 aspect ratio (e.g. 400×100px), transparent background. After uploading, save settings and click <strong>Republish</strong> to update your live site.</p>
-                  <div className="flex items-center gap-3 border rounded px-3 py-2 bg-white">
-                    <label className="text-sm text-gray-600">Brand</label>
-                    <input
-                      type="color"
-                      value={agencySelfForm.brand_color}
-                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, brand_color: e.target.value }))}
-                      className="w-12 h-8 border rounded"
-                    />
-                    <label className="text-sm text-gray-600 ml-2">Accent</label>
-                    <input
-                      type="color"
-                      value={agencySelfForm.accent_color}
-                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, accent_color: e.target.value }))}
-                      className="w-12 h-8 border rounded"
-                    />
-                  </div>
-                  <input
-                    value={agencySelfForm.license_number}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, license_number: e.target.value }))}
-                    placeholder="License / CR number"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.iata_number}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, iata_number: e.target.value }))}
-                    placeholder="IATA number"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.founded_year}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, founded_year: e.target.value }))}
-                    placeholder="Founded year"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.google_maps_url}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, google_maps_url: e.target.value }))}
-                    placeholder="Google Maps embed URL"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.instagram}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, instagram: e.target.value }))}
-                    placeholder="Instagram URL"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.twitter}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, twitter: e.target.value }))}
-                    placeholder="Twitter / X URL"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.snapchat}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, snapchat: e.target.value }))}
-                    placeholder="Snapchat URL"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.facebook}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, facebook: e.target.value }))}
-                    placeholder="Facebook URL"
-                    className="border rounded px-2 py-1"
-                  />
-                  <input
-                    value={agencySelfForm.working_hours}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, working_hours: e.target.value }))}
-                    placeholder="Working hours (EN)"
-                    className="border rounded px-2 py-1 md:col-span-2"
-                  />
-                  <input
-                    value={agencySelfForm.working_hours_ar}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, working_hours_ar: e.target.value }))}
-                    placeholder="Working hours (AR)"
-                    className="border rounded px-2 py-1 md:col-span-2"
-                  />
-                  <textarea
-                    value={agencySelfForm.about_en}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, about_en: e.target.value }))}
-                    placeholder="About section (EN)"
-                    className="border rounded px-2 py-2 md:col-span-2 min-h-24"
-                  />
-                  <textarea
-                    value={agencySelfForm.about_ar}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, about_ar: e.target.value }))}
-                    placeholder="About section (AR)"
-                    className="border rounded px-2 py-2 md:col-span-2 min-h-24"
-                  />
-                  <div className="md:col-span-2 border rounded px-3 py-3 bg-white">
-                    <div className="text-sm font-medium text-gray-700 mb-2">Services shown on agency landing page</div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {SERVICE_OPTIONS.map((service) => {
-                        const checked = agencySelfForm.services.includes(service.key);
-                        return (
-                          <label key={service.key} className="flex items-center gap-2 text-sm text-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                setAgencySelfForm((p) => ({
-                                  ...p,
-                                  services: e.target.checked
-                                    ? [...new Set([...p.services, service.key])]
-                                    : p.services.filter((value) => value !== service.key)
-                                }));
-                              }}
-                            />
-                            {service.label}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {/* Self: Header / Footer colors */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500 font-semibold mb-1">Header background color</p>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={agencySelfForm.header_bg || '#ffffff'}
-                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, header_bg: e.target.value }))}
-                      className="h-8 w-10 rounded border cursor-pointer" />
-                    <input value={agencySelfForm.header_bg || ''}
-                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, header_bg: e.target.value }))}
-                      className="border rounded px-2 py-1 text-sm flex-1" placeholder="#ffffff (default white)" />
-                    {agencySelfForm.header_bg && (
-                      <button onClick={() => setAgencySelfForm((p) => ({ ...p, header_bg: '' }))}
-                        className="text-xs text-gray-400 hover:text-gray-600">✕</button>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-semibold mb-1">Footer background color</p>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={agencySelfForm.footer_bg || agencySelfForm.brand_color || '#1a3c8e'}
-                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, footer_bg: e.target.value }))}
-                      className="h-8 w-10 rounded border cursor-pointer" />
-                    <input value={agencySelfForm.footer_bg || ''}
-                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, footer_bg: e.target.value }))}
-                      className="border rounded px-2 py-1 text-sm flex-1" placeholder="default = brand color" />
-                    {agencySelfForm.footer_bg && (
-                      <button onClick={() => setAgencySelfForm((p) => ({ ...p, footer_bg: '' }))}
-                        className="text-xs text-gray-400 hover:text-gray-600">✕</button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Self: Hero */}
-              <div>
-                <p className="text-xs text-gray-500 font-semibold mb-1">Hero — headline, sub-text &amp; background image</p>
-                <div className="space-y-2">
-                  <input value={agencySelfForm.hero_tagline || ''}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, hero_tagline: e.target.value }))}
-                    className="border rounded px-2 py-1 w-full text-sm"
-                    placeholder="Hero headline (leave blank for default)" />
-                  <textarea value={agencySelfForm.hero_description || ''}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, hero_description: e.target.value }))}
-                    className="border rounded px-2 py-1 w-full text-sm min-h-14"
-                    placeholder="Hero sub-text (leave blank for default)" />
-                  <div>
-                    <p className="text-xs text-gray-400 mb-1">Hero background image (leave blank for brand color gradient). Recommended: 1920×600px min, JPG/WebP, under 2 MB.</p>
-                    <div className="flex gap-2">
-                      <input value={agencySelfForm.hero_image_url || ''}
-                        onChange={(e) => setAgencySelfForm((p) => ({ ...p, hero_image_url: e.target.value }))}
-                        className="border rounded px-2 py-1 text-sm flex-1"
-                        placeholder="https://... image URL" />
-                      {agencySelfForm.hero_image_url && (
-                        <button onClick={() => setAgencySelfForm((p) => ({ ...p, hero_image_url: '' }))}
-                          className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
-                      )}
-                    </div>
-                    {agencySelfForm.hero_image_url && (
-                      <img src={agencySelfForm.hero_image_url} alt="hero preview"
-                        className="mt-2 h-20 w-full object-cover rounded border" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Self: Destinations */}
-              <div>
-                <p className="text-xs text-gray-500 font-semibold mb-1">
-                  Top Destinations ({(agencySelfForm.destinations || []).length > 0 ? 'custom' : 'using defaults'})
-                </p>
-                <div className="space-y-2">
-                  {(agencySelfForm.destinations || []).map((dest, di) => (
-                    <div key={di} className="border rounded p-2 bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-2 items-start">
-                      <input value={dest.city || ''} onChange={(e) => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],city:e.target.value}; return {...p,destinations:n}; })} className="border rounded px-2 py-1 text-sm" placeholder="City" />
-                      <input value={dest.country || ''} onChange={(e) => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],country:e.target.value}; return {...p,destinations:n}; })} className="border rounded px-2 py-1 text-sm" placeholder="Country" />
-                      <input value={dest.price || ''} onChange={(e) => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],price:e.target.value}; return {...p,destinations:n}; })} className="border rounded px-2 py-1 text-sm" placeholder="Price (SAR)" />
-                      <div className="flex flex-col gap-1">
-                        <div className="flex gap-1 items-center">
-                          {dest.image_url ? <img src={dest.image_url} alt="" className="h-7 w-10 object-cover rounded border flex-shrink-0" /> : <div className="h-7 w-10 bg-gray-200 rounded border flex-shrink-0 flex items-center justify-center text-gray-400 text-xs">—</div>}
-                          <input value={dest.image_url || ''} onChange={(e) => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],image_url:e.target.value||null}; return {...p,destinations:n}; })} className="border rounded px-2 py-1 text-xs flex-1 min-w-0" placeholder="Photo URL" />
-                        </div>
-                        <div className="flex gap-1">
-                          <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 border rounded px-2 py-1 text-xs whitespace-nowrap">
-                            ↑ Upload
-                            <input type="file" accept="image/*" className="hidden"
-                              onChange={async (e) => {
-                                const f = e.target.files?.[0]; if (!f) return;
-                                const { url, error: uploadErr } = await uploadToDestinationLibrary(f);
-                                if (uploadErr) { setNotice({ type: 'error', text: `Upload failed: ${uploadErr.message}` }); return; }
-                                setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],image_url:url}; return {...p,destinations:n}; });
-                                setDestLibrary(prev => ({ ...prev, images: [{ url, name: url.split('/').pop() }, ...prev.images] }));
-                              }} />
-                          </label>
-                          <button type="button" className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded px-2 py-1 text-xs text-indigo-700 whitespace-nowrap"
-                            onClick={async () => {
-                              if (destLibrary.openFor === `self-${di}`) { setDestLibrary(prev => ({ ...prev, openFor: null })); return; }
-                              setDestLibrary(prev => ({ ...prev, openFor: `self-${di}`, loading: true }));
-                              const { images } = await listDestinationLibrary();
-                              setDestLibrary(prev => ({ ...prev, images, loading: false }));
-                            }}>📷 Library</button>
-                          {dest.image_url && <button type="button" className="text-gray-400 hover:text-gray-600 text-xs px-1"
-                            onClick={() => setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],image_url:null}; return {...p,destinations:n}; })}>✕</button>}
-                        </div>
-                        {destLibrary.openFor === `self-${di}` && (
-                          <div className="border rounded bg-white p-2 mt-1">
-                            {destLibrary.loading ? <p className="text-xs text-gray-400 py-2 text-center">Loading…</p>
-                              : destLibrary.images.length === 0 ? <p className="text-xs text-gray-400 py-2 text-center">Library empty. Upload first.</p>
-                              : <div className="grid grid-cols-5 gap-1 max-h-32 overflow-y-auto">
-                                  {destLibrary.images.map((img, ii) => (
-                                    <img key={ii} src={img.url} alt="" className={`h-12 w-full object-cover rounded cursor-pointer border-2 ${dest.image_url === img.url ? 'border-indigo-500' : 'border-transparent hover:border-indigo-300'}`}
-                                      onClick={() => { setAgencySelfForm((p) => { const n=[...(p.destinations||[])]; n[di]={...n[di],image_url:img.url}; return {...p,destinations:n}; }); setDestLibrary(prev => ({ ...prev, openFor: null })); }} />
-                                  ))}
-                                </div>}
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => setAgencySelfForm((p) => ({ ...p, destinations: (p.destinations||[]).filter((_,i)=>i!==di) }))} className="text-red-400 text-xs self-center col-span-2 md:col-span-1">✕ Remove</button>
-                    </div>
-                  ))}
-                  <div className="flex gap-2">
-                    <button onClick={() => setAgencySelfForm((p) => ({ ...p, destinations: [...(p.destinations||[]), { city:'', country:'', price:'', image_url:null }] }))} className="text-blue-600 text-xs border border-blue-200 rounded px-3 py-1 hover:bg-blue-50">+ Add destination</button>
-                    {(agencySelfForm.destinations||[]).length > 0 && <button onClick={() => setAgencySelfForm((p) => ({ ...p, destinations: [] }))} className="text-gray-400 text-xs border rounded px-3 py-1 hover:bg-gray-50">✕ Clear (use defaults)</button>}
-                  </div>
-                </div>
-              </div>
-
               <button
                 onClick={handleSaveMyAgencySettings}
                 className="bg-blue-600 text-white rounded px-3 py-1"
@@ -2656,10 +2047,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
             <div className="mt-4 border border-indigo-100 rounded-lg p-3 bg-indigo-50/40">
               <h3 className="text-sm font-semibold text-indigo-900 mb-2">Widget setup</h3>
               <div className="text-xs text-indigo-900/80 mb-3 space-y-1">
-                <p>1) Add your website domains above and save.</p>
-                <p>2) Copy embed code and paste it on the agency website.</p>
-                <p>3) Publish site updates after changing logo, colors or content.</p>
-                <p>4) Open preview and verify the widget loads.</p>
+                <p>1) Copy embed code and paste it on the agency website.</p>
+                <p>2) Ask AviaFrame super admin to add your website domain to the allowlist.</p>
+                <p>3) Open preview and verify the widget loads.</p>
               </div>
               <textarea
                 readOnly
@@ -2678,13 +2068,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   className="bg-white border border-indigo-300 text-indigo-700 rounded px-3 py-1 text-sm"
                 >
                   Preview
-                </button>
-                <button
-                  onClick={handleRedeployAgencySite}
-                  disabled={siteRedeploying || !agencySelfMeta?.domain}
-                  className={`rounded px-3 py-1 text-sm ${siteRedeploying || !agencySelfMeta?.domain ? 'bg-gray-200 text-gray-500' : 'bg-amber-500 text-white'}`}
-                >
-                  {siteRedeploying ? 'Publishing...' : 'Publish site updates'}
                 </button>
                 {agencySelfMeta?.domain && (
                   <button
@@ -3239,6 +2622,51 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         <p className="text-xs text-gray-500 font-semibold mb-1">
                           Destinations — shown on public site ({(agencyEditForm.destinations || []).length > 0 ? 'custom' : 'using defaults'})
                         </p>
+                        <div className="border border-indigo-100 rounded-lg p-3 mb-3 bg-indigo-50/40">
+                          <div className="text-sm font-semibold text-indigo-900 mb-2">Preset catalog</div>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                            <select
+                              value={destinationPresetCountry}
+                              onChange={(e) => {
+                                const nextCountry = e.target.value;
+                                setDestinationPresetCountry(nextCountry);
+                                setDestinationPresetId((currentId) => {
+                                  const stillAvailable = DESTINATION_PRESETS.some((preset) => preset.id === currentId && (!nextCountry || preset.countryKey === nextCountry));
+                                  return stillAvailable ? currentId : '';
+                                });
+                              }}
+                              className="border rounded px-2 py-1 text-sm"
+                            >
+                              <option value="">All countries</option>
+                              {DESTINATION_PRESET_COUNTRIES.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={destinationPresetId}
+                              onChange={(e) => setDestinationPresetId(e.target.value)}
+                              className="border rounded px-2 py-1 text-sm md:col-span-2"
+                            >
+                              <option value="">Select destination preset</option>
+                              {filteredDestinationPresets.map((preset) => (
+                                <option key={preset.id} value={preset.id}>
+                                  {preset.city}, {preset.country} · from SAR {preset.price}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleAddDestinationPreset}
+                              disabled={!selectedDestinationPreset}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                            >
+                              + Add preset
+                            </button>
+                          </div>
+                          <p className="text-xs text-indigo-900/75 mt-2">
+                            Preset fills city, country, image and starting fare automatically. After that you can replace the image with a real city photo using `Photo URL`, `Upload` or the shared `Library`.
+                          </p>
+                        </div>
                         <div className="space-y-2">
                           {(agencyEditForm.destinations || []).map((dest, di) => (
                             <div key={di} className="border rounded p-2 bg-gray-50 grid grid-cols-2 md:grid-cols-5 gap-2 items-start">
@@ -3358,15 +2786,25 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                                   </div>
                                 )}
                               </div>
-                              <button
-                                onClick={() => setAgencyEditForm((p) => ({
-                                  ...p,
-                                  destinations: (p.destinations || []).filter((_, i) => i !== di)
-                                }))}
-                                className="text-red-400 text-xs self-center"
-                              >
-                                ✕ Remove
-                              </button>
+                              <div className="flex flex-col gap-1 self-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleReplaceDestinationWithPreset(di)}
+                                  disabled={!selectedDestinationPreset}
+                                  className="text-indigo-700 border border-indigo-200 rounded px-2 py-1 text-xs whitespace-nowrap disabled:opacity-40"
+                                >
+                                  ↺ Replace preset
+                                </button>
+                                <button
+                                  onClick={() => setAgencyEditForm((p) => ({
+                                    ...p,
+                                    destinations: (p.destinations || []).filter((_, i) => i !== di)
+                                  }))}
+                                  className="text-red-400 text-xs"
+                                >
+                                  ✕ Remove
+                                </button>
+                              </div>
                             </div>
                           ))}
                           <button
@@ -3608,6 +3046,74 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         />
                       </div>
 
+                      {/* Reporting API Keys */}
+                      <div className="border-t pt-3">
+                        <p className="text-xs text-gray-500 font-semibold mb-2">Reporting API Keys</p>
+                        <div className="space-y-1 mb-2">
+                          {(agencyApiKeys[a.id] || []).length === 0 && (
+                            <p className="text-xs text-gray-400 italic">No keys yet</p>
+                          )}
+                          {(agencyApiKeys[a.id] || []).map(k => (
+                            <div key={k.id} className="flex items-center justify-between bg-gray-50 rounded px-2 py-1 text-xs">
+                              <div>
+                                <span className="font-medium">{k.name}</span>
+                                <span className="text-gray-400 ml-2">created {new Date(k.created_at).toLocaleDateString()}</span>
+                                {k.last_used_at && <span className="text-gray-400 ml-2">last used {new Date(k.last_used_at).toLocaleDateString()}</span>}
+                                {k.revoked_at && <span className="text-red-500 ml-2 font-semibold">REVOKED</span>}
+                              </div>
+                              {!k.revoked_at && (
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm('Revoke this API key? The partner will lose access immediately.')) return;
+                                    await revokeAgencyApiKey(a.id, k.id);
+                                    const { data } = await listAgencyApiKeys(a.id);
+                                    if (data) setAgencyApiKeys(prev => ({ ...prev, [a.id]: data }));
+                                  }}
+                                  className="text-red-500 hover:text-red-700 ml-4 text-xs"
+                                >Revoke</button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {generatedApiKey && (
+                          <div className="bg-green-50 border border-green-200 rounded p-2 mb-2 text-xs">
+                            <p className="font-semibold text-green-800 mb-1">New key generated — copy it now, it won't be shown again:</p>
+                            <div className="flex items-center gap-2">
+                              <code className="font-mono break-all text-green-900 flex-1">{generatedApiKey}</code>
+                              <button
+                                onClick={() => { navigator.clipboard.writeText(generatedApiKey); setNotice({ type: 'success', text: 'Copied!' }); }}
+                                className="bg-green-600 text-white rounded px-2 py-0.5 text-xs whitespace-nowrap"
+                              >Copy</button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex gap-2 items-center">
+                          <input
+                            value={apiKeyName}
+                            onChange={e => setApiKeyName(e.target.value)}
+                            placeholder="Key name (e.g. Avianet Reporting)"
+                            className="border rounded px-2 py-1 text-xs flex-1"
+                          />
+                          <button
+                            disabled={apiKeyGenerating}
+                            onClick={async () => {
+                              setApiKeyGenerating(true);
+                              setGeneratedApiKey(null);
+                              try {
+                                const { data, error } = await createAgencyApiKey(a.id, apiKeyName || 'Reporting Key');
+                                if (error) { setNotice({ type: 'error', text: error.message || 'Failed to generate key' }); return; }
+                                setGeneratedApiKey(data.raw_key);
+                                const { data: keys } = await listAgencyApiKeys(a.id);
+                                if (keys) setAgencyApiKeys(prev => ({ ...prev, [a.id]: keys }));
+                              } finally {
+                                setApiKeyGenerating(false);
+                              }
+                            }}
+                            className="bg-indigo-600 text-white rounded px-3 py-1 text-xs font-medium whitespace-nowrap disabled:opacity-50"
+                          >{apiKeyGenerating ? 'Generating…' : '+ Generate key'}</button>
+                        </div>
+                      </div>
+
                       <div className="flex gap-2 pt-1">
                         <button onClick={() => handleSaveAgency(a.id)} className="bg-green-600 text-white rounded px-4 py-1.5 text-sm font-medium">Save changes</button>
                         <button onClick={() => setAgencyEditId(null)} className="bg-gray-100 rounded px-4 py-1.5 text-sm">Cancel</button>
@@ -3651,20 +3157,24 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                               ? 'Send setup again'
                               : 'Send setup'}
                         </button>
-                        <button
-                          onClick={() => handlePublishAgencyRow(a)}
-                          disabled={rowPublishingId === a.id || !a?.onboarding_state?.publish_ready || a?.deploy_state?.status === 'deployed'}
-                          className={`rounded px-3 py-1 text-sm ${rowPublishingId === a.id || !a?.onboarding_state?.publish_ready || a?.deploy_state?.status === 'deployed' ? 'bg-gray-200 text-gray-500' : 'bg-green-100 text-green-700'}`}
-                        >
-                          {rowPublishingId === a.id ? 'Publishing...' : 'Publish first time'}
-                        </button>
-                        <button
-                          onClick={() => handleRedeployAgencyRow(a)}
-                          disabled={rowRedeployingId === a.id || a?.deploy_state?.status === 'not_deployed'}
-                          className={`rounded px-3 py-1 text-sm ${rowRedeployingId === a.id || a?.deploy_state?.status === 'not_deployed' ? 'bg-gray-200 text-gray-500' : 'bg-amber-100 text-amber-700'}`}
-                        >
-                          {rowRedeployingId === a.id ? 'Republishing...' : 'Republish'}
-                        </button>
+                        {userProfile?.role === 'super_admin' && (
+                          <>
+                            <button
+                              onClick={() => handlePublishAgencyRow(a)}
+                              disabled={rowPublishingId === a.id || !a?.onboarding_state?.publish_ready || a?.deploy_state?.status === 'deployed'}
+                              className={`rounded px-3 py-1 text-sm ${rowPublishingId === a.id || !a?.onboarding_state?.publish_ready || a?.deploy_state?.status === 'deployed' ? 'bg-gray-200 text-gray-500' : 'bg-green-100 text-green-700'}`}
+                            >
+                              {rowPublishingId === a.id ? 'Publishing...' : 'Publish first time'}
+                            </button>
+                            <button
+                              onClick={() => handleRedeployAgencyRow(a)}
+                              disabled={rowRedeployingId === a.id || a?.deploy_state?.status === 'not_deployed'}
+                              className={`rounded px-3 py-1 text-sm ${rowRedeployingId === a.id || a?.deploy_state?.status === 'not_deployed' ? 'bg-gray-200 text-gray-500' : 'bg-amber-100 text-amber-700'}`}
+                            >
+                              {rowRedeployingId === a.id ? 'Republishing...' : 'Republish'}
+                            </button>
+                          </>
+                        )}
                         <button onClick={() => handleToggleAgencyActive(a)} className="bg-yellow-100 rounded px-3 py-1 text-sm">{a.is_active ? 'Suspend' : 'Unsuspend'}</button>
                         <button onClick={() => handleDeleteAgency(a)} className="bg-red-100 text-red-700 rounded px-3 py-1 text-sm">Delete</button>
                       </div>

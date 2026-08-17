@@ -8,7 +8,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 const supabase = require('../lib/supabase');
 const { config, VALID_PAYMENT_METHODS } = require('../config');
 const { isAdminRole, normalizeHost, toIsoDateStart, toIsoDateEnd, generateInvoiceNumber } = require('../utils/helpers');
-const { resolveAuthContext, forbidden, ensureAdmin, ensureStaff } = require('../middleware/auth');
+const { resolveAuthContext, forbidden, ensureAdmin, ensureSuperAdmin, ensureStaff } = require('../middleware/auth');
 const {
   linkAgencyAdminProfileByEmail,
   ensureAuthUserByEmail,
@@ -1868,7 +1868,7 @@ router.post('/agencies/:id/send-setup-email', async (req, res) => {
 router.post('/agencies/:id/publish-site', async (req, res) => {
   const auth = await resolveAuthContext(req);
   if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
-  if (!ensureAdmin(auth, res)) return;
+  if (!ensureSuperAdmin(auth, res)) return;
 
   const agencyId = String(req.params.id || '').trim();
   if (!agencyId) {
@@ -1915,7 +1915,7 @@ router.post('/agencies/:id/publish-site', async (req, res) => {
 router.post('/agencies/:id/redeploy-site', async (req, res) => {
   const auth = await resolveAuthContext(req);
   if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
-  if (!ensureAdmin(auth, res)) return;
+  if (!ensureSuperAdmin(auth, res)) return;
 
   const agencyId = String(req.params.id || '').trim();
   if (!agencyId) {
@@ -2093,6 +2093,67 @@ router.get('/reports/sales', async (req, res) => {
     console.error('Sales report error:', err);
     return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: config.nodeEnv === 'development' ? err.message : 'Internal server error' } });
   }
+});
+
+// ─── Agency Reporting API Keys ────────────────────────────────────────────────
+
+// GET /agencies/:agencyId/api-keys
+router.get('/agencies/:agencyId/api-keys', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureSuperAdmin(auth, res)) return;
+
+  const { agencyId } = req.params;
+  const { data, error } = await supabase
+    .from('agency_api_keys')
+    .select('id, name, scopes, last_used_at, revoked_at, created_at')
+    .eq('agency_id', agencyId)
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: 'Failed to fetch API keys' } });
+  return res.json({ data: data || [] });
+});
+
+// POST /agencies/:agencyId/api-keys
+router.post('/agencies/:agencyId/api-keys', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureSuperAdmin(auth, res)) return;
+
+  const { agencyId } = req.params;
+  const { name = 'Reporting Key' } = req.body || {};
+
+  const { data: agency } = await supabase.from('agencies').select('id').eq('id', agencyId).maybeSingle();
+  if (!agency) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Agency not found' } });
+
+  const rawKey = 'avf_live_' + crypto.randomBytes(32).toString('hex');
+  const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+
+  const { data: keyRecord, error } = await supabase
+    .from('agency_api_keys')
+    .insert({ agency_id: agencyId, name: String(name).slice(0, 100), key_hash: keyHash, created_by: auth.user?.id || null })
+    .select('id, name, scopes, created_at')
+    .single();
+
+  if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: 'Failed to create API key' } });
+  return res.status(201).json({ data: { ...keyRecord, raw_key: rawKey } });
+});
+
+// DELETE /agencies/:agencyId/api-keys/:keyId  (soft-revoke)
+router.delete('/agencies/:agencyId/api-keys/:keyId', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  if (!ensureSuperAdmin(auth, res)) return;
+
+  const { agencyId, keyId } = req.params;
+  const { error } = await supabase
+    .from('agency_api_keys')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', keyId)
+    .eq('agency_id', agencyId);
+
+  if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: 'Failed to revoke API key' } });
+  return res.json({ data: { revoked: true } });
 });
 
 module.exports = router;

@@ -312,6 +312,14 @@ export const createOrder = async (orderData) => {
   return { data, error };
 };
 
+export const createPortalOrder = async (payload = {}) => {
+  const { data, error } = await backendApiRequest('/orders', {
+    method: 'POST',
+    body: payload
+  });
+  return { data: data || null, error };
+};
+
 export const getOrder = async (orderId) => {
   const { data, error } = await supabase
     .from('orders_with_details')
@@ -1065,6 +1073,15 @@ export const publishAdminAgencySite = async (agencyId) => {
   return { data: data || null, error };
 };
 
+export const listAgencyApiKeys = async (agencyId) =>
+  backendApiRequest(`/admin/agencies/${agencyId}/api-keys`);
+
+export const createAgencyApiKey = async (agencyId, name = 'Reporting Key') =>
+  backendApiRequest(`/admin/agencies/${agencyId}/api-keys`, { method: 'POST', body: { name } });
+
+export const revokeAgencyApiKey = async (agencyId, keyId) =>
+  backendApiRequest(`/admin/agencies/${agencyId}/api-keys/${keyId}`, { method: 'DELETE' });
+
 export const deleteAdminAgency = async (agencyId) => {
   const { data, error } = await backendApiRequest(`/admin/agencies/${agencyId}`, {
     method: 'DELETE'
@@ -1216,20 +1233,6 @@ export const updateMyAgency = async (payload) => {
   return { data: data?.agency || null, error };
 };
 
-export const redeployMyAgencySite = async () => {
-  const { data, error } = await backendApiRequest('/agency/me/redeploy-site', {
-    method: 'POST'
-  });
-  return { data: data || null, error };
-};
-
-export const publishMyAgencySite = async () => {
-  const { data, error } = await backendApiRequest('/agency/me/publish-site', {
-    method: 'POST'
-  });
-  return { data: data || null, error };
-};
-
 export const generateAdminInvoicePdf = async (invoiceId) => {
   const { data, error } = await backendApiRequest(`/admin/invoices/${invoiceId}/generate-pdf`, {
     method: 'POST'
@@ -1258,6 +1261,36 @@ export const finalizeTicketDocument = async (orderId, payload = {}) => {
     document: data?.document || null,
     downloadUrl: data?.download_url || null,
     email: data?.email || null,
+    error
+  };
+};
+
+export const issueOrderTicket = async (orderId) => {
+  const { data, error } = await backendApiRequest(`/orders/${orderId}/issue`, {
+    method: 'POST',
+    body: {
+      issued_via: 'portal_admin'
+    }
+  });
+  return {
+    data: data?.order || null,
+    issuance: data?.issuance || null,
+    document: data?.document || null,
+    downloadUrl: data?.download_url || null,
+    pnr: data?.pnr || null,
+    ticketNumber: data?.ticket_number || null,
+    error
+  };
+};
+
+export const cancelOrderTicket = async (orderId, payload = {}) => {
+  const { data, error } = await backendApiRequest(`/orders/${orderId}/cancel`, {
+    method: 'POST',
+    body: payload
+  });
+  return {
+    data: data?.order || null,
+    providerResult: data?.provider_result || null,
     error
   };
 };
