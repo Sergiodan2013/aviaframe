@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, Component } from 'react';
 import axios from 'axios';
 import SearchForm from './components/SearchForm';
 import FlightCard from './components/FlightCard';
@@ -9,12 +9,100 @@ import PassengerForm from './components/PassengerForm';
 import PaymentScreen from './components/PaymentScreen';
 import MyBookings from './pages/MyBookings';
 import AdminDashboard from './pages/AdminDashboard';
+import { getAirportByCode } from './data/airports.js';
 import { Plane, AlertCircle, TestTube2, User, LogOut, CheckCircle, BookOpen, Shield } from 'lucide-react';
 import { mockFlightData } from './mock/flightData';
 import { drctApi, formatDRCTError, calculateBaggagePrice } from './lib/drctApi';
-import { supabase, getProfile } from './lib/supabase';
+import { supabase, getProfile, createPortalOrder } from './lib/supabase';
+import {
+  buildCachedOrderRecord,
+  buildInitialPassengerFormData,
+  buildOrderPayloadForDRCT,
+  buildPassengerSummary,
+  buildPendingBookingData,
+  normalizePassengerCounts,
+} from './lib/passengerBooking';
+import { buildPaymentReturnUrl, getTamaraReturnState, shouldRequireAuthForCheckout } from './lib/checkoutFlow';
+
+class AdminErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, info: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[AdminDashboard] render crash:', error, info?.componentStack);
+    this.setState({ info });
+  }
+  render() {
+    if (this.state.hasError) {
+      const msg = this.state.error?.toString() || 'Unknown error';
+      const stack = this.state.info?.componentStack || '';
+      return (
+        <div style={{ padding: '2rem', fontFamily: 'monospace', background: '#fff3f3', border: '2px solid #dc2626', borderRadius: 8, margin: 16 }}>
+          <h2 style={{ color: '#dc2626', marginBottom: 8 }}>Admin panel error — send this to support</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11, color: '#7f1d1d', background: '#fee2e2', padding: 12, borderRadius: 4, maxHeight: 400, overflow: 'auto' }}>
+            {msg}{'\n\n'}{stack}
+          </pre>
+          <button
+            onClick={() => { window.location.reload(); }}
+            style={{ marginTop: 12, padding: '6px 16px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+          >
+            Reload page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function formatAirportDisplayName(name, code) {
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  const normalizedName = String(name || '').trim();
+  const airport = normalizedCode ? getAirportByCode(normalizedCode) : null;
+
+  if (airport) {
+    if (airport.name === 'All Airports') {
+      return `${airport.city} (${airport.code})`;
+    }
+    return `${airport.city} ${airport.name} (${airport.code})`;
+  }
+
+  if (normalizedName && normalizedCode) {
+    if (normalizedName.toUpperCase() === normalizedCode || normalizedName.endsWith(`(${normalizedCode})`)) {
+      return normalizedName;
+    }
+    return `${normalizedName} (${normalizedCode})`;
+  }
+
+  return normalizedName || normalizedCode || 'N/A';
+}
+
+function resolveBookingRoute(offer = {}) {
+  const segments = Array.isArray(offer?.segments) ? offer.segments.filter(Boolean) : [];
+  const firstSegment = segments[0] || null;
+  const lastSegment = segments[segments.length - 1] || null;
+
+  const originCode = firstSegment?.departure_airport?.code || offer?.origin || '';
+  const originName = firstSegment?.departure_airport?.name || offer?.origin_name || offer?.origin || '';
+  const destinationCode = lastSegment?.arrival_airport?.code || offer?.destination || '';
+  const destinationName = lastSegment?.arrival_airport?.name || offer?.destination_name || offer?.destination || '';
+
+  if (!originCode && !originName && !destinationCode && !destinationName) {
+    return null;
+  }
+
+  return {
+    origin: formatAirportDisplayName(originName, originCode),
+    destination: formatAirportDisplayName(destinationName, destinationCode),
+  };
+}
 
 function App() {
+  const isDevEnvironment = import.meta.env.DEV;
   const [isLoading, setIsLoading] = useState(false);
   const [flights, setFlights] = useState([]);
   const [error, setError] = useState(null);
@@ -39,6 +127,7 @@ function App() {
   const [lastSearchData, setLastSearchData] = useState(null);
   const [suggestedDates, setSuggestedDates] = useState([]);
   const profileRefreshInFlightRef = useRef({});
+  const bookingRoute = useMemo(() => resolveBookingRoute(booking?.offer), [booking?.offer]);
 
   const normalizeRole = (role) => {
     const normalized = String(role || 'user').trim().toLowerCase().replace(/-/g, '_');
@@ -60,6 +149,42 @@ function App() {
     role,
     roleFetchedAt: roleFetchedAt || Date.now()
   });
+
+  const buildLocalDevUser = () => ({
+    id: 'local-dev-user',
+    email: 'local-dev@aviaframe.test',
+    name: 'Local Dev User',
+    provider: 'local-dev',
+    role: 'user',
+    roleFetchedAt: Date.now(),
+  });
+
+  const buildLocalDevOffer = () => ({
+    ...mockFlightData.offers[0],
+    passenger_counts: { adults: 2, children: 1, infants: 1 },
+    _searchDepartDate: '2026-08-10',
+    _searchReturnDate: '2026-08-17',
+    selected_at: new Date().toISOString(),
+  });
+
+  const buildLocalDevPassengerParty = () => {
+    const seeded = buildInitialPassengerFormData({ adults: 2, children: 1, infants: 1 }, 'local-dev@aviaframe.test');
+    const sampleData = [
+      { firstName: 'SERGII', lastName: 'DANYLIUK', dateOfBirth: '1990-04-10', passportNumber: 'AA123456', passportExpiry: '2032-08-01', nationality: 'US', gender: 'male' },
+      { firstName: 'ANNA', lastName: 'DANYLIUK', dateOfBirth: '1992-06-11', passportNumber: 'BB123456', passportExpiry: '2032-08-01', nationality: 'US', gender: 'female' },
+      { firstName: 'MARK', lastName: 'DANYLIUK', dateOfBirth: '2018-03-05', passportNumber: 'CC123456', passportExpiry: '2032-08-01', nationality: 'US', gender: 'male' },
+      { firstName: 'LIA', lastName: 'DANYLIUK', dateOfBirth: '2025-01-12', passportNumber: 'DD123456', passportExpiry: '2032-08-01', nationality: 'US', gender: 'female' },
+    ];
+
+    return {
+      ...seeded,
+      baggage: '20kg',
+      passengers: seeded.passengers.map((passenger, index) => ({
+        ...passenger,
+        ...sampleData[index],
+      })),
+    };
+  };
 
   // Returns user view immediately from cache; refreshes role in background if stale.
   const getSessionUserView = (sessionUser, cachedUser = null) => {
@@ -113,6 +238,15 @@ function App() {
     window.history.replaceState({}, '', window.location.pathname);
     if (paymentResult === 'success') {
       const orderId = params.get('order_id');
+      localStorage.removeItem('selectedOffer');
+      localStorage.removeItem('passengerData');
+      localStorage.removeItem('pendingOffer');
+      sessionStorage.removeItem('selectedOffer');
+      sessionStorage.removeItem('passengerData');
+      sessionStorage.removeItem('pendingOffer');
+      setSelectedOffer(null);
+      setPassengerData(null);
+      setCurrentOrderId(orderId || null);
       // Restore full booking data saved before 3DS redirect
       // Try sessionStorage first (more reliable for 3DS redirect in same tab), then localStorage
       let restoredBooking = null;
@@ -125,7 +259,7 @@ function App() {
           sessionStorage.removeItem('moyasarPendingBooking');
           localStorage.removeItem('moyasarPendingBooking');
         }
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
       setBooking(
         restoredBooking
           ? { ...restoredBooking, status: 'paid' }
@@ -133,9 +267,109 @@ function App() {
       );
       setCurrentStep('success');
     } else {
+      localStorage.removeItem('pendingOffer');
+      sessionStorage.removeItem('pendingOffer');
       setError('Payment was not completed. Please try again.');
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const tamaraReturn = getTamaraReturnState(typeof window !== 'undefined' ? window.location : null);
+    if (!tamaraReturn.isTamaraReturn || !tamaraReturn.orderId) return;
+
+    let cancelled = false;
+
+    const resetUrl = buildPaymentReturnUrl(typeof window !== 'undefined' ? window.location : null);
+    const restorePendingBooking = () => {
+      try {
+        const fromSession = sessionStorage.getItem('tamaraPendingBooking');
+        const fromLocal = localStorage.getItem('tamaraPendingBooking');
+        const saved = fromSession || fromLocal;
+        if (!saved) return null;
+        const parsed = JSON.parse(saved);
+        sessionStorage.removeItem('tamaraPendingBooking');
+        localStorage.removeItem('tamaraPendingBooking');
+        return parsed;
+      } catch {
+        return null;
+      }
+    };
+
+    const isSuccessState = (data) => {
+      const providerStatus = String(data?.payment_provider_status || '').toLowerCase();
+      const orderStatus = String(data?.status || '').toLowerCase();
+      return providerStatus === 'tamara_captured' || orderStatus === 'issued';
+    };
+
+    const isFailureState = (data) => {
+      const providerStatus = String(data?.payment_provider_status || '').toLowerCase();
+      const orderStatus = String(data?.status || '').toLowerCase();
+      return ['tamara_cancelled', 'tamara_failed', 'tamara_expired'].includes(providerStatus)
+        || ['cancelled', 'issue_failed'].includes(orderStatus);
+    };
+
+    const handleTamaraReturn = async () => {
+      if (tamaraReturn.result === 'cancel' || tamaraReturn.result === 'failure') {
+        window.history.replaceState({}, '', resetUrl);
+        setError('Tamara payment was not completed. Please try again or choose a different payment method.');
+        return;
+      }
+
+      setIsLoading(true);
+
+      try {
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const response = await fetch(`/api/backend/payments/tamara/status/${tamaraReturn.orderId}`);
+          const result = await response.json().catch(() => ({}));
+
+          if (cancelled) return;
+
+          if (response.ok && isSuccessState(result)) {
+            const restoredBooking = restorePendingBooking();
+            setBooking(
+              restoredBooking
+                ? { ...restoredBooking, status: 'paid' }
+                : {
+                    orderNumber: result.order_number || null,
+                    bookingReference: result.order_number || tamaraReturn.orderId,
+                    orderId: tamaraReturn.orderId,
+                    status: 'paid',
+                  }
+            );
+            setCurrentOrderId(tamaraReturn.orderId);
+            setCurrentStep('success');
+            window.history.replaceState({}, '', resetUrl);
+            return;
+          }
+
+          if (response.ok && isFailureState(result)) {
+            window.history.replaceState({}, '', resetUrl);
+            setError('Tamara payment was not completed. Please try again or choose a different payment method.');
+            return;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        window.history.replaceState({}, '', resetUrl);
+        setError('Tamara approved the payment, but final booking confirmation is still pending. Please check My bookings in a moment.');
+      } catch (error) {
+        console.error('Tamara return handling failed:', error);
+        window.history.replaceState({}, '', resetUrl);
+        setError('We could not verify the Tamara payment result yet. Please refresh My bookings in a moment.');
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    handleTamaraReturn();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Check for existing user session on mount
   useEffect(() => {
@@ -173,7 +407,6 @@ function App() {
 
         const { data, error } = await readSessionWithRetry(3);
         if (error || !data?.session?.user) {
-          const msg = String(error?.message || '').toLowerCase();
           if (storedUser?.id) {
             if (mounted) setUser({ ...storedUser, role: normalizeRole(storedUser.role) });
             return;
@@ -209,6 +442,44 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isDevEnvironment) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const devMockFlow = params.get('devMockFlow');
+    if (!devMockFlow) return;
+
+    const devUser = buildLocalDevUser();
+    const devOffer = buildLocalDevOffer();
+    const devPassengerParty = buildLocalDevPassengerParty();
+    const devBooking = {
+      orderNumber: 'MOCK-LOCAL-1001',
+      bookingReference: 'MOCK-PNR-1001',
+      status: devMockFlow === 'success' ? 'paid' : 'pending_payment',
+      offer: devOffer,
+      passengerParty: devPassengerParty,
+      totalPrice: Number(devOffer.price?.total || 0) + 500,
+      currency: devOffer.price?.currency || 'UAH',
+      payment_id: devMockFlow === 'success' ? 'mock-payment-seeded' : undefined,
+    };
+
+    localStorage.setItem('user', JSON.stringify(devUser));
+    setUser(devUser);
+    setUseMockData(true);
+    setSelectedOffer(devOffer);
+    setPassengerData(devPassengerParty);
+    setCurrentOrderId('mock-order-seeded');
+    setBooking(devBooking);
+
+    if (devMockFlow === 'passenger') {
+      setCurrentStep('passenger');
+    } else if (devMockFlow === 'payment') {
+      setCurrentStep('payment');
+    } else if (devMockFlow === 'success') {
+      setCurrentStep('success');
+    }
+  }, [isDevEnvironment]);
+
   // Listen for auth state changes (Magic Link callback)
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -232,6 +503,7 @@ function App() {
           localStorage.setItem('user', JSON.stringify(nextUser));
           setUser(nextUser);
           setIsAuthModalOpen(false);
+          resumePendingOfferAfterAuth();
         }
 
         if (event === 'SIGNED_OUT') {
@@ -279,6 +551,31 @@ function App() {
     } catch {
       return null;
     }
+  };
+
+  const isValidIsoDateString = (value) => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return false;
+    }
+
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime());
+  };
+
+  const resolvePassengerCountsForOffer = (offer = {}) => {
+    if (offer?.passenger_counts) {
+      return normalizePassengerCounts(offer.passenger_counts);
+    }
+
+    if (offer?._searchPassengerCounts) {
+      return normalizePassengerCounts(offer._searchPassengerCounts);
+    }
+
+    if (lastSearchData) {
+      return normalizePassengerCounts(lastSearchData);
+    }
+
+    return normalizePassengerCounts({ adults: 1, children: 0, infants: 0 });
   };
 
   const buildOffersFromRawDRCT = (rawPayload, searchData) => {
@@ -365,7 +662,9 @@ function App() {
           segments: allSegs.map(toSegmentVm),
           _searchOrigin: toCode(searchData?.origin) || null,
           _searchDestination: toCode(searchData?.destination) || null,
+          _searchDepartDate: searchData?.depart_date || null,
           _searchReturnDate: searchData?.return_date || null,
+          _searchPassengerCounts: normalizePassengerCounts(searchData),
         });
       });
     });
@@ -433,19 +732,11 @@ function App() {
     return arr;
   }, [filteredFlights, resultsSort]);
 
-  // Handle offer selection - check auth first, then proceed to passenger form
-  const handleOfferSelect = (offer) => {
-    if (!user) {
-      // Not authenticated - show auth modal
-      setIsAuthModalOpen(true);
-      // Store selected offer for later
-      localStorage.setItem('pendingOffer', JSON.stringify(offer));
-      return;
-    }
-
-    // Authenticated - save offer and go to passenger form
+  const proceedToPassengerStep = (offer) => {
     const selectedOfferData = {
       ...offer,
+      passenger_counts: resolvePassengerCountsForOffer(offer),
+      _searchDepartDate: offer?._searchDepartDate || lastSearchData?.depart_date || null,
       selected_at: new Date().toISOString()
     };
 
@@ -453,29 +744,46 @@ function App() {
     localStorage.setItem('selectedOffer', JSON.stringify(selectedOfferData));
 
     console.log('Offer selected:', offer.offer_id);
-
-    // Navigate to passenger form
     setCurrentStep('passenger');
-
-    // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    return selectedOfferData;
+  };
+
+  const resumePendingOfferAfterAuth = () => {
+    const pendingOffer = localStorage.getItem('pendingOffer');
+    if (!pendingOffer) return;
+
+    try {
+      const offer = JSON.parse(pendingOffer);
+      proceedToPassengerStep(offer);
+      localStorage.removeItem('pendingOffer');
+    } catch {
+      console.error('Failed to parse pending offer');
+    }
+  };
+
+  // Handle offer selection - check auth first, then proceed to passenger form
+  const handleOfferSelect = (offer) => {
+    const authRequiredForCheckout = shouldRequireAuthForCheckout(
+      typeof window !== 'undefined' ? window.location.hostname : ''
+    );
+
+    if (authRequiredForCheckout && !user) {
+      // Not authenticated - show auth modal
+      setIsAuthModalOpen(true);
+      // Store selected offer for later
+      localStorage.setItem('pendingOffer', JSON.stringify(offer));
+      return;
+    }
+
+    proceedToPassengerStep(offer);
   };
 
   // Handle successful authentication
   const handleAuthSuccess = (userData) => {
     setUser(userData);
-
-    // Check if there's a pending offer
-    const pendingOffer = localStorage.getItem('pendingOffer');
-    if (pendingOffer) {
-      try {
-        const offer = JSON.parse(pendingOffer);
-        handleOfferSelect(offer);
-        localStorage.removeItem('pendingOffer');
-      } catch {
-        console.error('Failed to parse pending offer');
-      }
-    }
+    resumePendingOfferAfterAuth();
   };
 
   // Handle logout
@@ -488,155 +796,114 @@ function App() {
     setPassengerData(null);
   };
 
+  const handleLocalDevSignIn = () => {
+    if (!isDevEnvironment) return;
+    const localDevUser = buildLocalDevUser();
+    localStorage.setItem('user', JSON.stringify(localDevUser));
+    setUser(localDevUser);
+    setIsAuthModalOpen(false);
+  };
+
   // Handle passenger form submission - create order in DRCT and Supabase
   const handlePassengerSubmit = async (data) => {
     try {
       setIsLoading(true);
+      setError(null);
       setPassengerData(data);
 
-      console.log('Creating Hold Booking via n8n webhook with passenger data:', data);
+      console.log('Creating hold booking via backend order flow with passenger data:', data);
       console.log('Current user:', user);
 
       // Calculate baggage price
       const baggagePrice = calculateBaggagePrice(data.baggage);
+      const orderPayload = buildOrderPayloadForDRCT({
+        selectedOffer,
+        passengerFormData: data,
+        user,
+        baggagePrice,
+      });
 
-      // Prepare complete order payload for n8n webhook
-      // n8n will handle: DRCT API call + Supabase writes (orders + passengers)
-      const orderPayload = {
-        // ============================================
-        // DRCT API Required Fields (критически важно!)
-        // ============================================
+      if (isDevEnvironment && useMockData) {
+        const mockResponse = {
+          order_id: `mock-order-${Date.now()}`,
+          order_number: `MOCK-${Date.now()}`,
+          drct_order_id: `MOCK-DRCT-${Date.now()}`,
+          success: true,
+        };
 
-        // 1. offer_id - на верхнем уровне (обязательно!)
-        offer_id: selectedOffer.offer_id,
+        const bookingData = buildPendingBookingData({
+          n8nResponse: mockResponse,
+          selectedOffer,
+          passengerFormData: data,
+          baggagePrice,
+        });
 
-        // 2. passengers - массив с данными пассажиров (обязательно!)
-        passengers: [{
-          type: 'ADT', // Adult passenger type
-          first_name: data.firstName,
-          last_name: data.lastName,
-          date_of_birth: data.dateOfBirth,
-          gender: data.gender === 'male' ? 'M' : 'F', // DRCT expects M/F, not 'male'/'female'
-          document: {
-            type: 'passport',
-            number: data.passportNumber,
-            expiry_date: data.passportExpiry,
-            issuing_country: data.nationality || 'SA'
-          }
-        }],
+        const cachedOrder = buildCachedOrderRecord({
+          n8nResponse: mockResponse,
+          selectedOffer,
+          passengerFormData: data,
+          user,
+          baggagePrice,
+        });
 
-        // 3. contacts - email и phone (обязательно!)
-        contacts: {
-          email: data.email,
-          phone: data.phone
-        },
+        const currentCache = readOrdersCache();
+        writeOrdersCache([cachedOrder, ...currentCache].slice(0, 200));
 
-        // ============================================
-        // Дополнительные данные для n8n → Supabase
-        // ============================================
+        setBooking(bookingData);
+        setCurrentOrderId(mockResponse.order_id);
 
-        // User info (для связи с пользователем)
-        user_id: user?.id,
-        user_email: user?.email,
+        const pendingStr = JSON.stringify(bookingData);
+        localStorage.setItem('moyasarPendingBooking', pendingStr);
+        sessionStorage.setItem('moyasarPendingBooking', pendingStr);
 
-        // Full offer details (для записи в таблицу orders)
-        offer: {
-          origin: selectedOffer.origin,
-          destination: selectedOffer.destination,
-          departure_time: selectedOffer.departure_time,
-          arrival_time: selectedOffer.arrival_time,
-          airline_code: selectedOffer.airline_code,
-          airline_name: selectedOffer.airline_name,
-          flight_number: selectedOffer.flight_number,
-          base_price: selectedOffer.price?.total || 0,
-          taxes: selectedOffer.price?.taxes || 0,
-          currency: selectedOffer.price?.currency || 'UAH'
-        },
-
-        // Additional passenger info (для таблицы passengers в Supabase)
-        passenger_details: {
-          baggage_allowance: data.baggage,
-          nationality: data.nationality,
-          passport_number: data.passportNumber,
-          passport_expiry: data.passportExpiry
-        },
-
-        // Pricing breakdown (для расчета итоговой стоимости)
-        pricing: {
-          base_price: selectedOffer.price?.total || 0,
-          taxes: selectedOffer.price?.taxes || 0,
-          baggage_price: baggagePrice.amount,
-          total_price: (selectedOffer.price?.total || 0) + baggagePrice.amount,
-          currency: selectedOffer.price?.currency || 'UAH'
-        },
-
-        // Raw offer data for backup
-        raw_offer_data: selectedOffer
-      };
-
-      console.log('Sending complete order to n8n webhook:', orderPayload);
-
-      // Send to n8n webhook - it will handle everything
-      const { data: n8nResponse, error: n8nError } = await drctApi.createOrder(orderPayload);
-
-      if (n8nError) {
-        console.error('n8n order creation failed:', n8nError);
-        setError(formatDRCTError(n8nError));
+        setCurrentStep('payment');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         setIsLoading(false);
         return;
       }
 
-      // n8n may return HTTP 200 but with success: false (application-level error from DRCT)
-      if (n8nResponse?.success === false) {
-        const errMsg = n8nResponse.error || n8nResponse.message || 'Order creation failed. Please try again.';
-        console.error('n8n order creation app error:', errMsg);
+      console.log('Sending complete order to backend order flow:', orderPayload);
+
+      const { data: orderCreateResponse, error: orderCreateError } = await createPortalOrder(orderPayload);
+
+      if (orderCreateError) {
+        console.error('backend order creation failed:', orderCreateError);
+        setError(formatDRCTError(orderCreateError));
+        setIsLoading(false);
+        return;
+      }
+
+      if (orderCreateResponse?.success === false) {
+        const errMsg = orderCreateResponse.error || orderCreateResponse.message || 'Order creation failed. Please try again.';
+        console.error('backend order creation app error:', errMsg);
         setError(errMsg);
         setIsLoading(false);
         return;
       }
 
-      console.log('Order created successfully via n8n:', n8nResponse);
+      console.log('Order created successfully via backend:', orderCreateResponse);
 
-      // n8n may return direct order fields OR a notification event {entity_id, metadata, ...}
-      const bookingData = {
-        orderNumber: n8nResponse.order_number || n8nResponse.metadata?.order_number || null,
-        bookingReference: n8nResponse.booking_reference || n8nResponse.drct_order_id || n8nResponse.metadata?.drct_order_id || null,
-        status: 'pending_payment',
-        offer: selectedOffer,
-        passenger: data,
-        totalPrice: (selectedOffer.price?.total || 0) + baggagePrice.amount,
-        currency: selectedOffer.price?.currency || 'UAH'
-      };
+      const bookingData = buildPendingBookingData({
+        n8nResponse: orderCreateResponse,
+        selectedOffer,
+        passengerFormData: data,
+        baggagePrice,
+      });
 
       // Local fallback cache (used when Supabase list is slow/unavailable)
       // n8n may return a notification event {entity_type:'order', entity_id:'<order uuid>', id:'<event uuid>'}
       // or a direct order response {order_id, order_number, ...}
-      const resolvedOrderId = n8nResponse?.order_id
-        || (n8nResponse?.entity_type === 'order' ? n8nResponse?.entity_id : null)
-        || n8nResponse?.entity_id
+      const resolvedOrderId = orderCreateResponse?.order_id
+        || (orderCreateResponse?.entity_type === 'order' ? orderCreateResponse?.entity_id : null)
+        || orderCreateResponse?.entity_id
         || null;
-      const cachedOrder = {
-        id: resolvedOrderId || `local_${Date.now()}`,
-        order_number: n8nResponse.order_number || n8nResponse.booking_reference || `ORD-${Date.now()}`,
-        drct_order_id: n8nResponse.drct_order_id || n8nResponse.booking_reference || null,
-        user_id: user?.id || null,
-        contact_email: data.email,
-        contact_phone: data.phone,
-        passenger_count: 1,
-        origin: selectedOffer.origin,
-        destination: selectedOffer.destination,
-        departure_time: selectedOffer.departure_time,
-        arrival_time: selectedOffer.arrival_time,
-        airline_code: selectedOffer.airline_code || selectedOffer.airline,
-        airline_name: selectedOffer.airline_name,
-        flight_number: selectedOffer.flight_number || null,
-        total_price: (selectedOffer.price?.total || 0) + baggagePrice.amount,
-        currency: selectedOffer.price?.currency || 'UAH',
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        raw_offer_data: selectedOffer
-      };
+      const cachedOrder = buildCachedOrderRecord({
+        n8nResponse: orderCreateResponse,
+        selectedOffer,
+        passengerFormData: data,
+        user,
+        baggagePrice,
+      });
       const currentCache = readOrdersCache();
       const nextCache = [cachedOrder, ...currentCache];
       const uniq = [];
@@ -661,7 +928,7 @@ function App() {
 
       // Guard: if order ID missing, show error instead of proceeding to payment
       if (!resolvedOrderId) {
-        console.error('Order created but no ID returned from n8n:', n8nResponse);
+        console.error('Order created but no ID returned from backend:', orderCreateResponse);
         setError('Order was created but booking reference is missing. Please contact support or try again.');
         setIsLoading(false);
         return;
@@ -688,6 +955,7 @@ function App() {
   // Handle payment success
   const handlePaymentSuccess = (paymentData) => {
     // booking state already has orderNumber from handlePassengerSubmit — preserve it
+    setError(null);
     setBooking(prev => ({ ...(prev || {}), status: 'paid', payment_id: paymentData?.payment_id }));
     setCurrentStep('success');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -833,11 +1101,10 @@ function App() {
       if (typeof response.data === 'string') {
         console.warn('⚠️ Response is a STRING, attempting to parse...');
         if (response.data.trim() === '') {
-          console.warn('⚠️ Empty string response from n8n. Treating as empty offers list.');
-          parsedData = { offers: [] };
+          throw new Error('Search service returned an empty response. Please retry the search.');
         } else {
-        try {
-          parsedData = JSON.parse(response.data);
+          try {
+            parsedData = JSON.parse(response.data);
           console.log('✅ Successfully parsed JSON string');
         } catch (e) {
           console.error('❌ Failed to parse response:', e);
@@ -869,6 +1136,12 @@ function App() {
 
       // Handle the response from n8n workflow
       let resultFlights = [];
+
+      if (parsedData?.error) {
+        const providerMessage = parsedData.error.message || 'Search provider error';
+        const providerCode = parsedData.error.code ? ` (${parsedData.error.code})` : '';
+        throw new Error(`${providerMessage}${providerCode}`);
+      }
 
       if (parsedData && parsedData.offers) {
         console.log(`✅ Found ${parsedData.offers.length} offers`);
@@ -966,7 +1239,9 @@ function App() {
               : offer?.logo_url || null,
           _searchOrigin: searchData.origin || null,
           _searchDestination: searchData.destination || null,
+          _searchDepartDate: searchData.depart_date || null,
           _searchReturnDate: searchData.return_date || null,
+          _searchPassengerCounts: normalizePassengerCounts(searchData),
         };
       });
 
@@ -1033,29 +1308,37 @@ function App() {
 
       // Если нет результатов - предложить альтернативные даты
       if (resultFlights.length === 0) {
-        const departDate = new Date(searchData.depart_date);
         const alternatives = [];
 
-        // Предложить ±2 дня от выбранной даты
-        for (let offset = -2; offset <= 2; offset++) {
-          if (offset === 0) continue; // Пропускаем оригинальную дату
-          const newDate = new Date(departDate);
-          newDate.setDate(departDate.getDate() + offset);
+        if (isValidIsoDateString(searchData.depart_date)) {
+          const departDate = new Date(`${searchData.depart_date}T00:00:00Z`);
 
-          const dayLabel = Math.abs(offset) === 1 ? 'day' : 'days';
-          alternatives.push({
-            date: newDate.toISOString().split('T')[0],
-            label: offset > 0 ? `+${offset} ${dayLabel}` : `${offset} ${dayLabel}`,
-            displayDate: newDate.toLocaleDateString('ru-RU', {
-              day: 'numeric',
-              month: 'long',
-              weekday: 'short'
-            })
-          });
+          // Предложить ±2 дня от выбранной даты
+          for (let offset = -2; offset <= 2; offset++) {
+            if (offset === 0) continue; // Пропускаем оригинальную дату
+            const newDate = new Date(departDate);
+            newDate.setUTCDate(departDate.getUTCDate() + offset);
+
+            const dayLabel = Math.abs(offset) === 1 ? 'day' : 'days';
+            alternatives.push({
+              date: newDate.toISOString().split('T')[0],
+              label: offset > 0 ? `+${offset} ${dayLabel}` : `${offset} ${dayLabel}`,
+              displayDate: newDate.toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'long',
+                weekday: 'short',
+                timeZone: 'UTC'
+              })
+            });
+          }
         }
 
         setSuggestedDates(alternatives);
-        setError('No flights were found for selected dates. Try nearby dates:');
+        setError(
+          alternatives.length > 0
+            ? 'No flights were found for selected dates. Try nearby dates:'
+            : 'No flights were found for the selected route and passenger mix.'
+        );
       }
 
       setSearchPerformed(true);
@@ -1099,6 +1382,16 @@ function App() {
                 <TestTube2 size={18} />
                 {useMockData ? 'Test Mode ON' : 'Test Mode OFF'}
               </button>
+
+              {isDevEnvironment && useMockData && !user && (
+                <button
+                  onClick={handleLocalDevSignIn}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-md text-sm font-medium transition-colors"
+                >
+                  <User size={18} />
+                  Local Test Sign-In
+                </button>
+              )}
 
               {/* Navigation buttons */}
               {user && (
@@ -1181,17 +1474,58 @@ function App() {
 
         {/* Page: Admin Dashboard */}
         {currentPage === 'admin' && (
-          <AdminDashboard user={user} onBackToHome={handleBackToHome} />
+          <AdminErrorBoundary>
+            <AdminDashboard user={user} onBackToHome={handleBackToHome} />
+          </AdminErrorBoundary>
         )}
 
         {/* Page: Agency Admin View (under same super-admin creds) */}
         {currentPage === 'adminAgency' && (
-          <AdminDashboard user={user} onBackToHome={handleBackToHome} viewMode="agency_admin" />
+          <AdminErrorBoundary>
+            <AdminDashboard user={user} onBackToHome={handleBackToHome} viewMode="agency_admin" />
+          </AdminErrorBoundary>
         )}
 
         {/* Page: Search/Booking Flow */}
         {currentPage === 'search' && (
           <>
+            {error && (
+              <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 flex-shrink-0 text-red-600" size={20} />
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-red-800">
+                      {currentStep === 'search' ? 'Search Error' : currentStep === 'payment' ? 'Payment Error' : 'Booking Error'}
+                    </h3>
+                    <p className="mt-1 text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+
+                {currentStep === 'search' && suggestedDates.length > 0 && (
+                  <div className="mt-4 border-t border-red-200 pt-4">
+                    <p className="mb-3 text-sm font-medium text-gray-700">
+                      Try nearby travel dates:
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                      {suggestedDates.map((suggestion, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleRetryWithDate(suggestion.date)}
+                          className="group flex flex-col items-center justify-center rounded-lg border-2 border-blue-200 bg-white p-3 transition-all hover:border-blue-400 hover:bg-blue-50"
+                        >
+                          <span className="mb-1 text-xs text-gray-500">{suggestion.label}</span>
+                          <span className="text-sm font-semibold text-gray-800 group-hover:text-blue-700">
+                            {suggestion.displayDate}
+                          </span>
+                          <span className="mt-1 text-xs text-gray-400">{suggestion.date}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Step: Search */}
             {currentStep === 'search' && (
           <>
@@ -1199,43 +1533,6 @@ function App() {
             <div className="mb-8">
               <SearchForm onSearch={handleSearch} isLoading={isLoading} />
             </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
-              <div>
-                <h3 className="text-red-800 font-semibold">Search Error</h3>
-                <p className="text-red-700 text-sm mt-1">{error}</p>
-              </div>
-            </div>
-
-            {/* Suggested Dates */}
-            {suggestedDates.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-red-200">
-                <p className="text-sm text-gray-700 mb-3 font-medium">
-                  Try nearby travel dates:
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {suggestedDates.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleRetryWithDate(suggestion.date)}
-                      className="flex flex-col items-center justify-center p-3 bg-white border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 rounded-lg transition-all group"
-                    >
-                      <span className="text-xs text-gray-500 mb-1">{suggestion.label}</span>
-                      <span className="text-sm font-semibold text-gray-800 group-hover:text-blue-700">
-                        {suggestion.displayDate}
-                      </span>
-                      <span className="text-xs text-gray-400 mt-1">{suggestion.date}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Loading State */}
         {isLoading && <LoadingScreen />}
@@ -1379,7 +1676,11 @@ function App() {
         {/* Step: Passenger Form */}
         {currentStep === 'passenger' && selectedOffer && (
           <PassengerForm
+            key={`${selectedOffer.offer_id || selectedOffer.id || 'offer'}-${selectedOffer.passenger_counts?.adults || 1}-${selectedOffer.passenger_counts?.children || 0}-${selectedOffer.passenger_counts?.infants || 0}-${passengerData?.passengers?.map((passenger) => passenger.id).join(',') || 'empty'}-${passengerData?.contacts?.email || user?.email || 'no-email'}`}
             selectedOffer={selectedOffer}
+            passengerCounts={selectedOffer.passenger_counts || resolvePassengerCountsForOffer(selectedOffer)}
+            departureDate={selectedOffer._searchDepartDate}
+            initialFormData={passengerData}
             onSubmit={handlePassengerSubmit}
             onBack={handleBackToSearch}
             userEmail={user?.email}
@@ -1396,6 +1697,7 @@ function App() {
             orderNumber={booking?.orderNumber}
             onBack={() => setCurrentStep('passenger')}
             onPaymentSuccess={handlePaymentSuccess}
+            isDevMockMode={isDevEnvironment && useMockData}
           />
         )}
 
@@ -1463,10 +1765,10 @@ function App() {
                 <div className="text-left mb-6 p-6 bg-gray-50 rounded-lg">
                   <h3 className="font-semibold text-gray-800 mb-4">Flight details</h3>
                   <div className="space-y-2 text-sm">
-                    {(booking.offer.origin || booking.offer.destination) && (
+                    {bookingRoute && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Route:</span>
-                        <span className="font-semibold">{booking.offer.origin} → {booking.offer.destination}</span>
+                        <span className="font-semibold">{bookingRoute.origin} → {bookingRoute.destination}</span>
                       </div>
                     )}
                     {booking.offer.airline_name && (
@@ -1481,10 +1783,10 @@ function App() {
                         <span className="font-semibold">{booking.offer.departure_time}</span>
                       </div>
                     )}
-                    {booking.passenger && (
+                    {booking.passengerParty?.passengers?.length > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Passenger:</span>
-                        <span className="font-semibold">{booking.passenger.firstName} {booking.passenger.lastName}</span>
+                        <span className="text-gray-600">Travelers:</span>
+                        <span className="font-semibold">{buildPassengerSummary(booking.passengerParty.passengers)}</span>
                       </div>
                     )}
                     {booking.totalPrice != null && (
@@ -1502,7 +1804,7 @@ function App() {
               {/* Actions */}
               <div className="space-y-3">
                 <p className="text-sm text-gray-500 mb-4">
-                  Booking details were sent to <strong>{user?.email || booking.passenger?.email}</strong>
+                  Booking details were sent to <strong>{user?.email || booking.passengerParty?.contacts?.email}</strong>
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <button

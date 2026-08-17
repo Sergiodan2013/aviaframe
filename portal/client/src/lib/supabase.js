@@ -1073,11 +1073,18 @@ export const publishAdminAgencySite = async (agencyId) => {
   return { data: data || null, error };
 };
 
-export const listAgencyApiKeys = async (agencyId) =>
-  backendApiRequest(`/admin/agencies/${agencyId}/api-keys`);
+export const listAgencyApiKeys = async (agencyId) => {
+  const result = await backendApiRequest(`/admin/agencies/${agencyId}/api-keys`);
+  if (result.error) return { data: null, error: result.error };
+  const keys = Array.isArray(result.data?.data) ? result.data.data : [];
+  return { data: keys, error: null };
+};
 
-export const createAgencyApiKey = async (agencyId, name = 'Reporting Key') =>
-  backendApiRequest(`/admin/agencies/${agencyId}/api-keys`, { method: 'POST', body: { name } });
+export const createAgencyApiKey = async (agencyId, name = 'Reporting Key') => {
+  const result = await backendApiRequest(`/admin/agencies/${agencyId}/api-keys`, { method: 'POST', body: { name } });
+  if (result.error) return { data: null, error: result.error };
+  return { data: result.data?.data || null, error: null };
+};
 
 export const revokeAgencyApiKey = async (agencyId, keyId) =>
   backendApiRequest(`/admin/agencies/${agencyId}/api-keys/${keyId}`, { method: 'DELETE' });

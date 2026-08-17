@@ -2598,7 +2598,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                                     const file = e.target.files?.[0];
                                     if (!file) return;
                                     setEditMediaUploading(true);
-                                    const { url, error } = await uploadAgencyMedia(file, openAgencyId);
+                                    const { url, error } = await uploadAgencyMedia(file, a.id);
                                     setEditMediaUploading(false);
                                     if (url) setAgencyEditForm((p) => ({ ...p, hero_image_url: url }));
                                     else alert(error?.message || 'Upload failed');
