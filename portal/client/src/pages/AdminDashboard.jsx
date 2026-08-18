@@ -1191,25 +1191,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
-  const handleAddDestinationPreset = () => {
-    if (!selectedDestinationPreset) {
-      setNotice({ type: 'error', text: 'Select a destination preset first' });
-      return;
-    }
-
-    setAgencyEditForm((prev) => ({
-      ...prev,
-      destinations: [
-        ...(prev.destinations || []),
-        buildDestinationPresetEntry(selectedDestinationPreset)
-      ]
-    }));
-    setNotice({
-      type: 'success',
-      text: `Added preset: ${selectedDestinationPreset.city}, ${selectedDestinationPreset.country}`
-    });
-  };
-
   const handleReplaceDestinationWithPreset = (index) => {
     if (!selectedDestinationPreset) {
       setNotice({ type: 'error', text: 'Select a destination preset first' });
@@ -2644,27 +2625,30 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                             </select>
                             <select
                               value={destinationPresetId}
-                              onChange={(e) => setDestinationPresetId(e.target.value)}
-                              className="border rounded px-2 py-1 text-sm md:col-span-2"
+                              onChange={(e) => {
+                                const presetId = e.target.value;
+                                if (!presetId) { setDestinationPresetId(''); return; }
+                                const preset = DESTINATION_PRESETS.find((p) => p.id === presetId);
+                                if (!preset) { setDestinationPresetId(presetId); return; }
+                                setAgencyEditForm((prev) => ({
+                                  ...prev,
+                                  destinations: [...(prev.destinations || []), buildDestinationPresetEntry(preset)]
+                                }));
+                                setNotice({ type: 'success', text: `Added: ${preset.city}, ${preset.country}` });
+                                setDestinationPresetId('');
+                              }}
+                              className="border rounded px-2 py-1 text-sm md:col-span-3"
                             >
-                              <option value="">Select destination preset</option>
+                              <option value="">— pick a city to add it —</option>
                               {filteredDestinationPresets.map((preset) => (
                                 <option key={preset.id} value={preset.id}>
                                   {preset.city}, {preset.country} · from SAR {preset.price}
                                 </option>
                               ))}
                             </select>
-                            <button
-                              type="button"
-                              onClick={handleAddDestinationPreset}
-                              disabled={!selectedDestinationPreset}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded px-3 py-2 text-sm font-semibold disabled:opacity-50"
-                            >
-                              + Add preset
-                            </button>
                           </div>
                           <p className="text-xs text-indigo-900/75 mt-2">
-                            Preset fills city, country, image and starting fare automatically. After that you can replace the image with a real city photo using `Photo URL`, `Upload` or the shared `Library`.
+                            Pick a city — it's added instantly with a real photo. To replace a photo on an existing row: select preset above then click ↺ Replace preset on that row.
                           </p>
                         </div>
                         <div className="space-y-2">
