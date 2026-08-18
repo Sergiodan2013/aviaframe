@@ -15,6 +15,74 @@ const GODADDY_API_KEY = process.env.GODADDY_API_KEY || '';
 const GODADDY_API_SECRET = process.env.GODADDY_API_SECRET || '';
 const GODADDY_API = 'https://api.godaddy.com/v1';
 
+// Real Supabase photo URLs for known cities — used as fallback when stored image_url is a SVG data URI
+const CITY_PHOTO_LIBRARY = {
+  'Bangkok':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-bangkok-thailand.jpg',
+  'Manila':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-manila-philippines.jpg',
+  'Paris':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-paris-france.jpg',
+  'Prague':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-prague-czech-republic.jpg',
+  'Istanbul':      'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-istanbul-turkey.jpg',
+  'Singapore':     'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-singapore-singapore.jpg',
+  'Cairo':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-cairo-egypt.jpg',
+  'Dubai':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-dubai-uae.jpg',
+  'Doha':          'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-doha-qatar.jpg',
+  'Muscat':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-muscat-oman.png',
+  'Trabzon':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-trabzon-turkey.jpg',
+  'Antalya':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-antalya-turkey.jpg',
+  'Tbilisi':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-tbilisi-georgia.jpg',
+  'Baku':          'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-baku-azerbaijan.jpg',
+  'Yerevan':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-yerevan-armenia.jpg',
+  'Delhi':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-delhi-india.jpg',
+  'Mumbai':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-mumbai-india.jpg',
+  'Colombo':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-colombo-sri-lanka.jpg',
+  'Dhaka':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-dhaka-bangladesh.jpg',
+  'Kathmandu':     'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-kathmandu-nepal.jpg',
+  'Phuket':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-phuket-thailand.jpg',
+  'Kuala Lumpur':  'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-kuala-lumpur-malaysia.jpg',
+  'Jakarta':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-jakarta-indonesia.jpg',
+  'Bali':          'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-bali-indonesia.jpg',
+  'Hong Kong':     'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-hong-kong-hong-kong.jpg',
+  'Shanghai':      'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-shanghai-china.jpg',
+  'Seoul':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-seoul-south-korea.jpg',
+  'Tokyo':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-tokyo-japan.jpg',
+  'Osaka':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-osaka-japan.jpg',
+  'London':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-london-united-kingdom.jpg',
+  'Milan':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-milan-italy.jpg',
+  'Rome':          'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-rome-italy.jpg',
+  'Madrid':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-madrid-spain.jpg',
+  'Barcelona':     'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-barcelona-spain.jpg',
+  'Vienna':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-vienna-austria.jpg',
+  'Munich':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-munich-germany.jpg',
+  'Zurich':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-zurich-switzerland.jpg',
+  'Budapest':      'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-budapest-hungary.jpg',
+  'Athens':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-athens-greece.jpg',
+  'Amsterdam':     'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-amsterdam-netherlands.jpg',
+  'Berlin':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-berlin-germany.jpg',
+  'Geneva':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-geneva-switzerland.jpg',
+  'Lisbon':        'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-lisbon-portugal.jpg',
+  'Casablanca':    'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-casablanca-morocco.jpg',
+  'Marrakech':     'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-marrakech-morocco.png',
+  'Tunis':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-tunis-tunisia.jpg',
+  'Zanzibar':      'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-zanzibar-tanzania.jpg',
+  'Nairobi':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-nairobi-kenya.jpg',
+  'New York':      'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-new-york-united-states.jpg',
+  'Toronto':       'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-toronto-canada.jpg',
+  'Los Angeles':   'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-los-angeles-united-states.jpg',
+  'Abu Dhabi':     'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-abu-dhabi-uae.jpg',
+  'Kuwait City':   'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-kuwait-city-kuwait.jpg',
+  'Amman':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-amman-jordan.jpg',
+  'Kochi':         'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-kochi-india.jpg',
+  'Washington':    'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-washington-united-states.jpg',
+};
+
+function resolveDestPhoto(dest) {
+  if (!dest) return null;
+  const url = dest.image_url;
+  // Use real https:// URL as-is; only fall back to library if it's a data URI or empty
+  if (url && url.startsWith('https://')) return url;
+  return CITY_PHOTO_LIBRARY[dest.city] || null;
+}
+
 // ── Default content (used when agency hasn't configured their own) ─────────────
 const DEFAULT_DESTINATIONS = [
   { city: 'Dubai', country: 'UAE', price: '450', emoji: '🏙️', gradient: 'linear-gradient(160deg,#c8a44a 0%,#7a4f10 50%,#3d2007 100%)', image_url: null },
@@ -94,9 +162,73 @@ function resolveSiteTemplateDir() {
 }
 
 const SITE_TEMPLATE_DIR = resolveSiteTemplateDir();
+const REQUIRED_SITE_TEMPLATE_FILES = [
+  'booking.html',
+  'display-currency.js',
+  'aviaframe-widget.js',
+  'assets/style.css',
+  'images/favicon.svg'
+];
+
+function resolveLegalTemplateDir() {
+  const candidates = [
+    SITE_TEMPLATE_DIR,
+    path.resolve(__dirname, '../../../aviaframe-site'),
+    path.resolve(__dirname, '../../aviaframe-site'),
+    path.resolve(process.cwd(), 'aviaframe-site'),
+    path.resolve(process.cwd(), '../aviaframe-site'),
+    '/app/aviaframe-site'
+  ];
+
+  return candidates.find((candidate) => {
+    try { return fs.existsSync(path.join(candidate, 'legal/privacy-policy.html')); } catch (_) { return false; }
+  }) || SITE_TEMPLATE_DIR;
+}
+
+const LEGAL_TEMPLATE_DIR = resolveLegalTemplateDir();
+const REQUIRED_LEGAL_TEMPLATE_FILES = [
+  'legal/index.html',
+  'legal/terms-and-conditions.html',
+  'legal/refund-and-cancellation-policy.html',
+  'legal/privacy-policy.html',
+  'legal/contact-information.html',
+  'legal/pricing.html',
+  'legal/legal.css',
+  'legal/legal-lang.js'
+];
 const DEFAULT_LIVE_MOYASAR_PUBLIC_KEY = process.env.MOYASAR_PUBLIC_KEY
   || process.env.MOYASAR_PUBLISHABLE_KEY
   || 'pk_live_iXhEB7xrWqPoh2SMRBt45fA73mVoKKa8EjZt5end';
+
+function assertDeployAssetBundleReady() {
+  const missingSiteFiles = REQUIRED_SITE_TEMPLATE_FILES.filter((relativePath) => (
+    !fs.existsSync(path.join(SITE_TEMPLATE_DIR, relativePath))
+  ));
+  if (missingSiteFiles.length > 0) {
+    const error = new Error(
+      `Agency site template bundle is incomplete. Missing site assets: ${missingSiteFiles.join(', ')}`
+    );
+    error.code = 'SITE_TEMPLATE_BUNDLE_INCOMPLETE';
+    error.templateDir = SITE_TEMPLATE_DIR;
+    error.missingFiles = missingSiteFiles;
+    throw error;
+  }
+
+  const missingLegalFiles = REQUIRED_LEGAL_TEMPLATE_FILES.filter((relativePath) => (
+    !fs.existsSync(path.join(LEGAL_TEMPLATE_DIR, relativePath))
+  ));
+  if (missingLegalFiles.length > 0) {
+    const error = new Error(
+      `Agency site template bundle is incomplete. Missing legal assets: ${missingLegalFiles.join(', ')}`
+    );
+    error.code = 'LEGAL_TEMPLATE_BUNDLE_INCOMPLETE';
+    error.templateDir = LEGAL_TEMPLATE_DIR;
+    error.missingFiles = missingLegalFiles;
+    throw error;
+  }
+}
+
+assertDeployAssetBundleReady();
 
 // ── Main template generator ───────────────────────────────────────────────────
 function generateAgencySiteFiles(opts) {
@@ -211,17 +343,29 @@ function generateAgencySiteFiles(opts) {
 
   // ── Destinations HTML ───────────────────────────────────────────────────
   const destinationsHtml = effectiveDestinations.slice(0, 6).map(d => {
-    const bgStyle = d.image_url
-      ? `background-image:url('${d.image_url}');background-size:cover;background-position:center`
+    const city = d.city || '';
+    const country = d.country || '';
+    const landmark = d.landmark || country;
+    const resolvedPhoto = resolveDestPhoto(d);
+    const priceLabel = d.price
+      ? `<span class="av-dest-price-kicker">From SAR</span><span class="av-dest-price-value">${d.price}</span>`
+      : '<span class="av-dest-price-fallback">Fare on request</span>';
+    const bgStyle = resolvedPhoto
+      ? `background-image:url('${resolvedPhoto}');background-size:cover;background-position:center`
       : `background:${d.gradient || 'linear-gradient(160deg,#1a3c8e,#0d2355)'}`;
-    return `<div class="av-dest-card">
+    return `<div class="av-dest-card${resolvedPhoto ? ' av-dest-card--photo' : ''}">
         <div class="av-dest-bg" style="${bgStyle}"></div>
         <div class="av-dest-overlay"></div>
-        <div class="av-dest-icon">${d.emoji || '✈️'}</div>
+        <div class="av-dest-top">
+          <span class="av-dest-badge">${landmark}</span>
+        </div>
         <div class="av-dest-content">
-          <div class="av-dest-city">${d.city || ''}</div>
-          <div class="av-dest-price">${d.country ? d.country + ' · ' : ''}From SAR ${d.price || '—'}</div>
-          <a href="#aviaframe-widget" class="av-dest-btn">Search Flights</a>
+          <div class="av-dest-country">${country}</div>
+          <div class="av-dest-city">${city}</div>
+          <div class="av-dest-footer">
+            <span class="av-dest-price">${priceLabel}</span>
+            <a href="#aviaframe-widget" class="av-dest-btn">View</a>
+          </div>
         </div>
       </div>`;
   }).join('\n');
@@ -553,9 +697,9 @@ function generateAgencySiteFiles(opts) {
         <div class="av-footer-col">
           <h4>Legal</h4>
           <ul>
-            <li><a href="#">Privacy Policy</a></li>
-            <li><a href="#">Terms &amp; Conditions</a></li>
-            <li><a href="#">Refund Policy</a></li>
+            <li><a href="/legal/privacy-policy.html">Privacy Policy</a></li>
+            <li><a href="/legal/terms-and-conditions.html">Terms &amp; Conditions</a></li>
+            <li><a href="/legal/refund-and-cancellation-policy.html">Refund Policy</a></li>
           </ul>
         </div>
       </div>
@@ -622,11 +766,11 @@ a{text-decoration:none;color:inherit}
 
 /* Header */
 .av-header{position:sticky;top:0;z-index:100;background:var(--av-header-bg);backdrop-filter:blur(12px);border-bottom:1px solid rgba(var(--av-brand-rgb),.12);box-shadow:0 2px 8px rgba(0,0,0,.06)}
-.av-header-inner{max-width:1240px;margin:0 auto;padding:0 24px;height:68px;display:flex;align-items:center;gap:24px}
+.av-header-inner{max-width:1240px;margin:0 auto;padding:8px 24px;min-height:104px;display:flex;align-items:center;gap:24px}
 .av-logo{display:flex;align-items:center;gap:12px;flex-shrink:0}
 .av-logo-icon{height:48px;min-width:48px;border-radius:10px;background:var(--av-brand);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.av-logo-icon.av-logo-icon--img{background:transparent;border-radius:0;min-width:0;height:48px}
-.av-logo-img{height:48px;width:auto;max-width:220px;object-fit:contain;display:block}
+.av-logo-icon.av-logo-icon--img{background:transparent;border-radius:0;min-width:0;height:96px}
+.av-logo-img{height:96px;width:auto;max-width:440px;object-fit:contain;display:block}
 .av-logo-icon-text{font-size:20px;font-weight:800;color:#fff}
 .av-logo-name{font-size:17px;font-weight:700;color:var(--av-header-logo);letter-spacing:-0.3px}
 .av-logo-ar{font-size:15px;font-weight:700;color:var(--av-header-logo)}
@@ -659,19 +803,26 @@ a{text-decoration:none;color:inherit}
 .av-section-sub{font-size:1rem;color:#5a6b8a;margin-top:8px}
 
 /* Destinations */
-.av-dest-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
-.av-dest-card{border-radius:14px;overflow:hidden;cursor:pointer;position:relative;aspect-ratio:3/4;transition:transform .22s,box-shadow .22s;box-shadow:0 2px 12px rgba(0,0,0,.08)}
-.av-dest-card:hover{transform:translateY(-5px);box-shadow:0 16px 48px rgba(0,0,0,.16)}
-.av-dest-bg{position:absolute;inset:0;background-size:cover;background-position:center}
-.av-dest-bg::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 20px,rgba(255,255,255,.02) 20px,rgba(255,255,255,.02) 40px)}
-.av-dest-overlay{position:absolute;inset:0;background:rgba(var(--av-brand-rgb),.12);opacity:0;transition:opacity .22s}
+.av-dest-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
+.av-dest-card{border-radius:22px;overflow:hidden;cursor:pointer;position:relative;aspect-ratio:3/4;transition:transform .28s ease,box-shadow .28s ease;box-shadow:0 10px 30px rgba(15,23,42,.10);background:#0f172a}
+.av-dest-card:hover{transform:translateY(-7px);box-shadow:0 22px 56px rgba(15,23,42,.18)}
+.av-dest-bg{position:absolute;inset:0;background-size:cover;background-position:center;transform:scale(1.01);transition:transform .45s ease}
+.av-dest-card:hover .av-dest-bg{transform:scale(1.07)}
+.av-dest-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,10,20,.12) 0%,rgba(5,10,20,.22) 28%,rgba(5,10,20,.52) 66%,rgba(5,10,20,.84) 100%)}
+.av-dest-overlay{position:absolute;inset:0;background:radial-gradient(circle at top right,rgba(var(--av-accent-rgb),.26),transparent 42%),linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));opacity:.88;transition:opacity .22s}
 .av-dest-card:hover .av-dest-overlay{opacity:1}
-.av-dest-content{position:absolute;bottom:0;left:0;right:0;padding:14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.72))}
-.av-dest-city{font-size:14px;font-weight:700;color:#fff;margin-bottom:2px}
-.av-dest-price{font-size:11px;color:rgba(255,255,255,.8);margin-bottom:6px}
-.av-dest-btn{display:block;padding:5px 0;background:rgba(var(--av-accent-rgb),.92);color:#fff;border-radius:6px;font-size:11px;font-weight:700;text-align:center}
+.av-dest-top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:flex-start;z-index:2}
+.av-dest-badge{display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(14px);color:#fff;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.av-dest-content{position:absolute;left:0;right:0;bottom:0;padding:18px 16px 16px;z-index:2}
+.av-dest-country{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(202,223,255,.9);margin-bottom:8px}
+.av-dest-city{font-size:clamp(1.45rem,2vw,1.95rem);font-weight:800;line-height:.96;color:#fff;letter-spacing:-.04em;text-shadow:0 8px 22px rgba(0,0,0,.35);margin-bottom:14px}
+.av-dest-footer{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
+.av-dest-price{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:5px 10px 6px;border-radius:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(12px);color:#fff;flex-shrink:0}
+.av-dest-price-kicker{display:block;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(235,244,255,.76);line-height:1}
+.av-dest-price-value{display:block;font-size:13px;font-weight:800;line-height:1.1;letter-spacing:-.02em;color:#fff;margin-top:2px;white-space:nowrap}
+.av-dest-price-fallback{display:block;font-size:10px;font-weight:700;line-height:1.2;color:#fff}
+.av-dest-btn{display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 11px;background:rgba(var(--av-accent-rgb),.96);color:#fff;border-radius:99px;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;box-shadow:0 4px 12px rgba(var(--av-accent-rgb),.35);flex-shrink:0;white-space:nowrap}
 .av-dest-card:hover .av-dest-btn{background:var(--av-accent)}
-.av-dest-icon{position:absolute;top:10px;right:10px;font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
 
 /* Why */
 .av-why-section{background:#f4f7fc}
@@ -762,7 +913,14 @@ a{text-decoration:none;color:inherit}
 @media(max-width:1100px){.av-dest-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:900px){.av-why-grid{grid-template-columns:repeat(2,1fr)}.av-footer-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:680px){
-  .av-dest-grid{grid-template-columns:repeat(2,1fr)}
+  .av-header-inner{padding:10px 16px;min-height:82px;gap:14px}
+  .av-logo-icon.av-logo-icon--img{height:72px}
+  .av-logo-img{height:72px;max-width:260px}
+  .av-dest-grid{grid-template-columns:repeat(2,1fr);gap:14px}
+  .av-dest-content{padding:15px 13px 13px}
+  .av-dest-city{font-size:1.25rem;margin-bottom:10px}
+  .av-dest-footer{flex-direction:column;align-items:flex-start;gap:6px}
+  .av-dest-btn{align-self:flex-start}
   .av-reviews-grid{grid-template-columns:1fr}
   .av-review:nth-child(2){margin-top:0!important}
   .av-stats-grid{grid-template-columns:repeat(2,1fr)}
@@ -793,6 +951,26 @@ function readTemplateAsset(relativePath, encoding = null) {
   return fs.readFileSync(assetPath, encoding);
 }
 
+function readLegalTemplateAsset(relativePath, encoding = null) {
+  const assetPath = path.join(LEGAL_TEMPLATE_DIR, relativePath);
+  if (!fs.existsSync(assetPath)) {
+    const error = new Error(`Legal template asset is missing: ${relativePath}`);
+    error.code = 'LEGAL_TEMPLATE_ASSET_MISSING';
+    error.assetPath = assetPath;
+    error.templateDir = LEGAL_TEMPLATE_DIR;
+    throw error;
+  }
+  return fs.readFileSync(assetPath, encoding);
+}
+
+function buildLegalDeployFiles() {
+  return REQUIRED_LEGAL_TEMPLATE_FILES.reduce((acc, relativePath) => {
+    const isTextFile = /\.(html|css|js)$/i.test(relativePath);
+    acc[relativePath] = readLegalTemplateAsset(relativePath, isTextFile ? 'utf8' : null);
+    return acc;
+  }, {});
+}
+
 function buildAgencyRuntimeConfig({ apiKey, subdomain }) {
   const siteUrl = `https://${subdomain}.${AVIAFRAME_DOMAIN}`;
   const runtimeConfig = {
@@ -806,6 +984,9 @@ function buildAgencyRuntimeConfig({ apiKey, subdomain }) {
     showTestPaymentCards: false,
     enableCardFeePreview: true,
     enableOfferPriceFlow: true,
+    displayCurrencyEnabled: true,
+    defaultDisplayCurrency: 'SAR',
+    supportedDisplayCurrencies: ['SAR', 'USD', 'EUR'],
     paymentReturnUrl: `${siteUrl}/booking.html`
   };
   return `(() => {
@@ -823,11 +1004,18 @@ function normalizeLandingHtml(html, { apiKey, assetVersion }) {
   next = next.replace(/data-checkout-url="[^"]*"/g, 'data-checkout-url="/booking.html"');
   next = next.replace(/data-agency-key="[^"]*"/g, `data-agency-key="${apiKey}"`);
   next = next.replace(
+    /<script\s+src=["'](?:\.\/)?\/?display-currency\.js(?:\?[^"']*)?["']><\/script>\s*/gi,
+    ''
+  );
+  next = next.replace(
     /<script\s+src=["'](?:\.\/)?\/?aviaframe-widget\.js(?:\?[^"']*)?["']><\/script>/gi,
-    `<script src="/aviaframe-widget.js?v=${assetVersion}"></script>`
+    `<script src="/display-currency.js?v=${assetVersion}"></script>\n  <script src="/aviaframe-widget.js?v=${assetVersion}"></script>`
   );
   if (!/aviaframe-widget\.js\?v=/i.test(next) && /<\/body>/i.test(next)) {
-    next = next.replace(/<\/body>/i, `  <script src="/aviaframe-widget.js?v=${assetVersion}"></script>\n</body>`);
+    next = next.replace(
+      /<\/body>/i,
+      `  <script src="/display-currency.js?v=${assetVersion}"></script>\n  <script src="/aviaframe-widget.js?v=${assetVersion}"></script>\n</body>`
+    );
   }
   return next;
 }
@@ -846,11 +1034,13 @@ function buildAgencyDeployFiles({ subdomain, apiKey, landingHtml, landingCss }) 
     'styles.css': normalizedLandingCss,
     'booking.html': readTemplateAsset('booking.html', 'utf8'),
     'config.js': buildAgencyRuntimeConfig({ apiKey, subdomain }),
+    'display-currency.js': readTemplateAsset('display-currency.js', 'utf8'),
     'aviaframe-widget.js': readTemplateAsset('aviaframe-widget.js', 'utf8'),
     'assets/style.css': readTemplateAsset('assets/style.css', 'utf8'),
     'images/favicon.svg': readTemplateAsset('images/favicon.svg'),
     'images/payments/mada-badge.png': readTemplateAsset('images/payments/mada-badge.png'),
-    'images/payments/mada.png': readTemplateAsset('images/payments/mada.png')
+    'images/payments/mada.png': readTemplateAsset('images/payments/mada.png'),
+    ...buildLegalDeployFiles()
   };
 }
 
@@ -1083,6 +1273,7 @@ async function deleteGodaddyCname({ subdomain }) {
 }
 
 module.exports = {
+  assertDeployAssetBundleReady,
   generateAgencySiteFiles,
   buildAgencyDeployFiles,
   fetchExistingAgencySiteFiles,
