@@ -2647,16 +2647,28 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                                 if (!presetId) { setDestinationPresetId(''); return; }
                                 const preset = DESTINATION_PRESETS.find((p) => p.id === presetId);
                                 if (!preset) { setDestinationPresetId(presetId); return; }
-                                setAgencyEditForm((prev) => ({
-                                  ...prev,
-                                  destinations: [...(prev.destinations || []), buildDestinationPresetEntry(preset)]
-                                }));
-                                setNotice({ type: 'success', text: `Added: ${preset.city}, ${preset.country}` });
+                                const entry = buildDestinationPresetEntry(preset);
+                                setAgencyEditForm((prev) => {
+                                  const dests = prev.destinations || [];
+                                  const existingIdx = dests.findIndex(
+                                    (d) => d.city && d.city.toLowerCase() === preset.city.toLowerCase()
+                                  );
+                                  if (existingIdx >= 0) {
+                                    // Update photo in the existing row
+                                    const next = [...dests];
+                                    next[existingIdx] = { ...next[existingIdx], image_url: entry.image_url };
+                                    setNotice({ type: 'success', text: `Photo updated: ${preset.city}` });
+                                    return { ...prev, destinations: next };
+                                  }
+                                  // City not in list yet — add new row
+                                  setNotice({ type: 'success', text: `Added: ${preset.city}, ${preset.country}` });
+                                  return { ...prev, destinations: [...dests, entry] };
+                                });
                                 setDestinationPresetId('');
                               }}
-                              className="border rounded px-2 py-1 text-sm md:col-span-3"
+                              className="border rounded px-2 py-1 text-sm md:col-span-4"
                             >
-                              <option value="">— pick a city to add it —</option>
+                              <option value="">— выбери город чтобы привязать фото —</option>
                               {filteredDestinationPresets.map((preset) => (
                                 <option key={preset.id} value={preset.id}>
                                   {preset.city}, {preset.country} · from SAR {preset.price}
@@ -2665,7 +2677,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                             </select>
                           </div>
                           <p className="text-xs text-indigo-900/75 mt-2">
-                            Pick a city — it's added instantly with a real photo. To replace a photo on an existing row: select preset above then click ↺ Replace preset on that row.
+                            Выбери город из списка — если он уже есть в таблице ниже, фото обновится автоматически. Если нет — добавится новая строка.
                           </p>
                         </div>
                         <div className="space-y-2">
