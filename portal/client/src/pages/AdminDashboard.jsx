@@ -42,6 +42,23 @@ import {
   buildDestinationPresetEntry
 } from '../lib/destinationPresets';
 
+// Build a lookup: city name → real https:// URL from PRESET_SEED
+const PRESET_PHOTO_BY_CITY = Object.fromEntries(
+  DESTINATION_PRESETS
+    .filter(p => p.image_url && p.image_url.startsWith('https://'))
+    .map(p => [p.city, p.image_url])
+);
+
+function sanitizeDestinations(destinations) {
+  if (!Array.isArray(destinations)) return [];
+  return destinations.map(d => {
+    if (d.image_url && d.image_url.startsWith('data:')) {
+      return { ...d, image_url: PRESET_PHOTO_BY_CITY[d.city] || null };
+    }
+    return d;
+  });
+}
+
 export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_admin' }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1097,7 +1114,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         : ['flights_domestic','flights_intl','hotels','visa','insurance','umrah','tours','corporate'],
       hero_tagline: site.hero_tagline || '',
       hero_description: site.hero_description || '',
-      destinations: Array.isArray(site.destinations) ? site.destinations : [],
+      destinations: sanitizeDestinations(site.destinations),
       reviews: Array.isArray(site.reviews) ? site.reviews : [],
       featured_airlines: Array.isArray(site.featured_airlines) ? site.featured_airlines : [],
       hero_image_url: site.hero_image_url || '',
