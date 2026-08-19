@@ -47,6 +47,13 @@
         searching_flights: "Searching for flights...",
         no_results_title: "No flights found",
         no_results_body: "Try adjusting your search criteria.",
+        filter_all: "All",
+        filter_nonstop: "Non-stop",
+        filter_one_stop: "1 stop",
+        filter_with_baggage: "With baggage",
+        badge_no_checked_bag: "No checked bag",
+        badge_checked_bag_included: "1 checked bag included",
+        badge_checked_bags_included: "{count} checked bags included",
         sandbox_no_results_title: "No sandbox offers for this route or date",
         sandbox_no_results_body:
           "DRCT sandbox inventory is limited and does not mirror full live availability. Try another route or date, or use the production domain for live search results.",
@@ -95,6 +102,13 @@
         searching_flights: "جارٍ البحث عن الرحلات...",
         no_results_title: "لم يتم العثور على رحلات",
         no_results_body: "يرجى تعديل معايير البحث والمحاولة مرة أخرى.",
+        filter_all: "الكل",
+        filter_nonstop: "مباشر",
+        filter_one_stop: "توقف واحد",
+        filter_with_baggage: "مع الأمتعة",
+        badge_no_checked_bag: "بدون أمتعة مسجلة",
+        badge_checked_bag_included: "حقيبة مسجلة واحدة مشمولة",
+        badge_checked_bags_included: "{count} حقائب مسجلة مشمولة",
         sandbox_no_results_title:
           "لا توجد عروض sandbox لهذا المسار أو التاريخ",
         sandbox_no_results_body:
@@ -175,6 +189,13 @@
         : _wLabels.en[key] !== void 0
           ? _wLabels.en[key]
           : key;
+    }
+    function widgetInterpolate(key, vars = {}) {
+      return Object.entries(vars).reduce(
+        (text, [name, value]) =>
+          String(text).replaceAll(`{${name}}`, String(value)),
+        widgetLabel(key),
+      );
     }
     function setWidgetFieldError(input, errorNode, message) {
       input &&
@@ -3058,6 +3079,63 @@
                       o && (o.style.display = ""));
                   }));
           }));
+      // Autofill: look up saved passenger profile when email is entered
+      if ($) {
+        const _afEmailEl = $.querySelector('input[name="email"]');
+        if (_afEmailEl) {
+          _afEmailEl.addEventListener('blur', async function () {
+            const _afEmail = this.value.trim();
+            if (!_afEmail || !_afEmail.includes('@')) return;
+            try {
+              const _afWidgetEl = document.getElementById('aviaframe-widget');
+              const _afApiUrl = _afWidgetEl ? (_afWidgetEl.dataset.apiUrl || '') : '';
+              if (!_afApiUrl) return;
+              const _afBase = new URL(_afApiUrl).origin;
+              const _afDomain = window.location.hostname;
+              const _afResp = await fetch(
+                `${_afBase}/public/customer-profile?email=${encodeURIComponent(_afEmail)}&agency_domain=${encodeURIComponent(_afDomain)}`
+              );
+              if (!_afResp.ok) return;
+              const _afData = await _afResp.json();
+              if (!_afData.found || !_afData.profile) return;
+              // Remove previous banner
+              const _afPrev = $.querySelector('#_af_banner');
+              if (_afPrev) _afPrev.remove();
+              // Build banner
+              const _afBanner = document.createElement('div');
+              _afBanner.id = '_af_banner';
+              _afBanner.style.cssText = 'grid-column:1/-1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px';
+              const _afFirst = _afData.profile.first_name || '';
+              const _afIsAr = _wLang === 'ar';
+              _afBanner.innerHTML = `<div style="font-size:14px;color:#1e40af"><strong>${_afIsAr ? 'مرحباً' : 'Welcome back'}${_afFirst ? ', ' + _afFirst : ''}!</strong><br><span style="color:#3b82f6;font-size:13px">${_afIsAr ? 'تعبئة البيانات المحفوظة؟' : 'Use your saved details?'}</span></div><button type="button" id="_af_fill_btn" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-size:13px;flex-shrink:0">${_afIsAr ? '✓ تعبئة' : '✓ Fill details'}</button>`;
+              const _afEmailLabel = _afEmailEl.closest('label');
+              if (_afEmailLabel) _afEmailLabel.insertAdjacentElement('afterend', _afBanner);
+              else $.insertBefore(_afBanner, $.firstChild);
+              _afBanner.querySelector('#_af_fill_btn').addEventListener('click', () => {
+                const _p = _afData.profile;
+                const _afMap = {
+                  phone: _p.phone,
+                  gender: _p.gender,
+                  dateOfBirth: _p.date_of_birth,
+                  firstName: _p.first_name,
+                  lastName: _p.last_name,
+                  passportNumber: _p.passport_number,
+                  passportExpiry: _p.passport_expiry,
+                };
+                Object.entries(_afMap).forEach(([_afName, _afVal]) => {
+                  if (!_afVal) return;
+                  const _afEl = $.querySelector(`[name="${_afName}"]`);
+                  if (!_afEl) return;
+                  _afEl.value = _afVal;
+                  _afEl.dispatchEvent(new Event('input', { bubbles: true }));
+                  _afEl.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+                _afBanner.innerHTML = `<span style="color:#059669;font-size:13px;font-weight:600">✓ ${_afIsAr ? 'تم تعبئة البيانات. يرجى المراجعة.' : 'Details filled in. Please review and continue.'}</span>`;
+              });
+            } catch (_afErr) { /* fail silently */ }
+          });
+        }
+      }
     }
     function S(e, n = 0) {
       const r = Number(e);
@@ -3201,6 +3279,27 @@
     function ie(e) {
       return e <= 0 ? "Non-stop" : e === 1 ? "1 stop" : `${e} stops`;
     }
+    function checkedBagCount(e) {
+      const n = Array.isArray(e == null ? void 0 : e.baggage) ? e.baggage : [],
+        r = n.find((o) => (o == null ? void 0 : o.type) === "checked"),
+        o = Number(r == null ? void 0 : r.quantity);
+      return Number.isFinite(o) ? o : 0;
+    }
+    function baggageBadgeText(e) {
+      const n = checkedBagCount(e);
+      return n > 1
+        ? widgetInterpolate("badge_checked_bags_included", { count: n })
+        : n === 1
+          ? widgetLabel("badge_checked_bag_included")
+          : e != null && e.with_baggage === false
+            ? widgetLabel("badge_no_checked_bag")
+            : typeof (e == null ? void 0 : e.baggage_text) == "string" &&
+                e.baggage_text.trim()
+              ? e.baggage_text.trim()
+              : e != null && e.with_baggage
+                ? widgetLabel("filter_with_baggage")
+                : widgetLabel("badge_no_checked_bag");
+    }
     function re(e) {
       const n = (e.airline_code || e.airline || "").toString().trim();
       return n ? n.slice(0, 2).toUpperCase() : "NA";
@@ -3295,8 +3394,7 @@
         priceTotal: n,
         priceCurrency: r,
         with_baggage: e.with_baggage === true,
-        baggageText:
-          e.baggage_text || (e.with_baggage ? "With baggage" : "No baggage"),
+        baggageText: baggageBadgeText(e),
         segments: t,
         hasReturnData: s,
         returnRoute: m,
@@ -3712,10 +3810,10 @@
         k = () => {
           const a = g();
           f.innerHTML = [
-            y("all", "All", a.all),
-            y("nonstop", "Non-stop", a.nonstop),
-            y("one_stop", "1 stop", a.one_stop),
-            y("baggage", "With baggage", a.baggage),
+            y("all", widgetLabel("filter_all"), a.all),
+            y("nonstop", widgetLabel("filter_nonstop"), a.nonstop),
+            y("one_stop", widgetLabel("filter_one_stop"), a.one_stop),
+            y("baggage", widgetLabel("filter_with_baggage"), a.baggage),
           ].join("");
           const l = _();
           h.innerHTML = i(l);

@@ -6,6 +6,7 @@ const supabase = require('../lib/supabase');
 const logger = require('../lib/logger');
 const drctDirectClient = require('../services/drctDirectClient');
 const { config, VALID_PAYMENT_METHODS, ORDERS_LIST_COLUMNS } = require('../config');
+const { createMemoryRateLimiter, hasValidInternalToken } = require('../middleware/requestGuards');
 const {
   normalizeHost,
   getRequestOriginHost,
@@ -14,6 +15,7 @@ const {
   parseWidgetToken,
   generateOrderNumber
 } = require('../utils/helpers');
+const { saveCustomerProfile } = require('../services/customerProfile');
 
 function isMissingColumnError(error, columnName) {
   const message = String(error?.message || '').toLowerCase();
@@ -21,6 +23,31 @@ function isMissingColumnError(error, columnName) {
 }
 
 const SANDBOX_WIDGET_HOSTS = new Set(['sandbox.aviaframe.com']);
+const widgetSessionRateLimiter = createMemoryRateLimiter({
+  bucket: 'widget-session',
+  max: config.widgetSessionRateLimitMax,
+  windowMs: config.publicRateLimitWindowMs,
+  skip: hasValidInternalToken,
+});
+const widgetPriceRateLimiter = createMemoryRateLimiter({
+  bucket: 'widget-price-offer',
+  max: config.widgetPriceRateLimitMax,
+  windowMs: config.publicRateLimitWindowMs,
+  skip: hasValidInternalToken,
+});
+const widgetOrderRateLimiter = createMemoryRateLimiter({
+  bucket: 'widget-orders',
+  max: config.widgetOrderRateLimitMax,
+  windowMs: config.publicRateLimitWindowMs,
+  skip: hasValidInternalToken,
+});
+
+function getClientDryRunAllowedHosts() {
+  if (Array.isArray(config.clientDryRunAllowedHosts) && config.clientDryRunAllowedHosts.length) {
+    return new Set(config.clientDryRunAllowedHosts.map((value) => normalizeHost(value)).filter(Boolean));
+  }
+  return new Set(['aviaframe.com', 'www.aviaframe.com', 'sandbox.aviaframe.com', 'testenvavia.netlify.app', 'localhost', '127.0.0.1']);
+}
 
 function hasDrctSandboxConfig() {
   return Boolean(
@@ -46,12 +73,64 @@ function normalizePassengerType(type) {
   return ['ADT', 'CHD', 'INF'].includes(value) ? value : 'ADT';
 }
 
+function normalizePassengerTitle(title, gender, type = 'ADT') {
+  const normalizedType = normalizePassengerType(type);
+  const normalizedGender = normalizePassengerGender(gender);
+  const value = String(title || '').trim().toLowerCase().replace(/\.+$/g, '');
+
+  const explicitMap = {
+    mr: 'Mr',
+    mister: 'Mr',
+    mrs: 'Mrs',
+    miss: 'Miss',
+    ms: 'Ms',
+    mx: 'Mx',
+    mstr: 'Mstr',
+    master: 'Mstr'
+  };
+
+  if (explicitMap[value]) return explicitMap[value];
+
+  if (normalizedType === 'CHD' || normalizedType === 'INF') {
+    return normalizedGender === 'F' ? 'Miss' : 'Mstr';
+  }
+
+  return normalizedGender === 'F' ? 'Ms' : 'Mr';
+}
+
 function shouldUseOfferPriceForHost(host) {
   return SANDBOX_WIDGET_HOSTS.has(normalizeHost(host || ''));
 }
 
 function shouldUseDrctSandboxForHost(host) {
   return SANDBOX_WIDGET_HOSTS.has(normalizeHost(host || '')) && hasDrctSandboxConfig();
+}
+
+function isClientDryRunAllowedForHost(host) {
+  const normalizedHost = normalizeHost(host || '');
+  if (!normalizedHost) return false;
+  return getClientDryRunAllowedHosts().has(normalizedHost);
+}
+
+function summarizePassengerInput(passengers = []) {
+  if (!Array.isArray(passengers) || passengers.length === 0) {
+    return { count: 0, passenger_types: [] };
+  }
+  return {
+    count: passengers.length,
+    passenger_types: passengers.map((passenger) => normalizePassengerType(passenger?.type))
+  };
+}
+
+function summarizeDrctPassengers(passengers = []) {
+  if (!Array.isArray(passengers) || passengers.length === 0) {
+    return { count: 0, passenger_refs: [], passenger_types: [] };
+  }
+  return {
+    count: passengers.length,
+    passenger_refs: passengers.map((passenger) => passenger?.id || null).filter(Boolean),
+    passenger_types: passengers.map((passenger) => normalizePassengerType(passenger?.type))
+  };
 }
 
 function isPlaceholderPassengerValue(value) {
@@ -144,6 +223,7 @@ function buildDrctPassengers(passengers, contacts = {}, passengerRefs = []) {
       individual: {
         first_name: String(p.first_name || p.firstName || '').trim(),
         last_name: String(p.last_name || p.lastName || '').trim(),
+        title: normalizePassengerTitle(p.title, p.gender, type),
         date_of_birth: p.date_of_birth || p.dateOfBirth || null,
         gender: normalizePassengerGender(p.gender)
       },
@@ -170,12 +250,29 @@ function buildDrctPassengers(passengers, contacts = {}, passengerRefs = []) {
 
 function buildDrctPricePassengers(passengers) {
   return passengers.map((p, index) => {
+    const type = normalizePassengerType(p.passenger_type || p.type);
     const passenger = {
       id: `T${index + 1}`,
-      type: normalizePassengerType(p.passenger_type || p.type)
+      type
     };
+    const firstName = String(p.first_name || p.firstName || '').trim();
+    const lastName = String(p.last_name || p.lastName || '').trim();
     const dateOfBirth = p.date_of_birth || p.dateOfBirth || null;
-    if (dateOfBirth) passenger.date_of_birth = dateOfBirth;
+    const normalizedGender = normalizePassengerGender(p.gender);
+    const hasIndividual = firstName || lastName || dateOfBirth || p.gender || p.title;
+
+    if (hasIndividual) {
+      passenger.individual = {
+        first_name: firstName || null,
+        last_name: lastName || null,
+        title: normalizePassengerTitle(p.title, p.gender, type),
+        gender: normalizedGender,
+        date_of_birth: dateOfBirth
+      };
+    } else if (dateOfBirth) {
+      passenger.date_of_birth = dateOfBirth;
+    }
+
     return passenger;
   });
 }
@@ -257,7 +354,7 @@ async function requestOfferPrice({ offer, passengers, originHost, idempotencyKey
   };
 }
 
-router.post('/api/widget/session', async (req, res) => {
+router.post('/api/widget/session', widgetSessionRateLimiter, async (req, res) => {
   const {
     agency_key: agencyKey,
     agency_domain: agencyDomain,
@@ -363,7 +460,7 @@ router.post('/api/widget/session', async (req, res) => {
   }
 });
 
-router.post('/api/widget/price-offer', async (req, res) => {
+router.post('/api/widget/price-offer', widgetPriceRateLimiter, async (req, res) => {
   const authHeader = req.headers.authorization || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const token = bearerToken || req.body?.widget_token;
@@ -454,7 +551,7 @@ router.post('/api/widget/price-offer', async (req, res) => {
   }
 });
 
-router.post('/api/widget/orders', async (req, res) => {
+router.post('/api/widget/orders', widgetOrderRateLimiter, async (req, res) => {
   const authHeader = req.headers.authorization || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const token = bearerToken || req.body?.widget_token;
@@ -568,7 +665,14 @@ router.post('/api/widget/orders', async (req, res) => {
 
     const effectiveOriginHost = payload.origin_host || clientOriginHost || normalizeHost(metadata?.origin_host || '');
     const offerPriceFlowEnabled = shouldUseOfferPriceForHost(effectiveOriginHost);
-    const dryRunIssue = Boolean(metadata?.dry_run_issue);
+    const requestedDryRunIssue = Boolean(metadata?.dry_run_issue);
+    const dryRunIssue = requestedDryRunIssue && isClientDryRunAllowedForHost(effectiveOriginHost);
+    if (requestedDryRunIssue && !dryRunIssue) {
+      logger.warn({
+        origin_host: effectiveOriginHost,
+        agency_id: payload.agency_id
+      }, '[widget/orders] client dry_run_issue ignored for non-demo host');
+    }
     const onlinePayment = paymentMethod === 'online' || paymentMethod === 'tamara';
     let effectiveOffer = offer;
     let effectiveBasePrice = Number.isFinite(basePrice) ? basePrice : 0;
@@ -623,6 +727,7 @@ router.post('/api/widget/orders', async (req, res) => {
         logger.error({
           err: priceErr.message,
           code: priceErr.code || null,
+          trace_id: priceErr.traceId || null,
           statusCode: priceErr.statusCode || null,
           responseBody: priceErr.responseBody || null,
           offer_id: offer.offer_id || offer.id || null
@@ -634,6 +739,20 @@ router.post('/api/widget/orders', async (req, res) => {
           }
         });
       }
+    }
+
+    const nextRawOfferMetadata = {
+      ...metadata,
+      source: 'widget',
+      origin_host: effectiveOriginHost,
+      offer_price_confirmed: Boolean(priceConfirmationMeta),
+      offer_price_data: priceConfirmationMeta
+    };
+    if (dryRunIssue) {
+      nextRawOfferMetadata.dry_run_issue = true;
+    } else {
+      delete nextRawOfferMetadata.dry_run_issue;
+      delete nextRawOfferMetadata.dry_run_reason;
     }
 
     const orderInsert = {
@@ -669,13 +788,7 @@ router.post('/api/widget/orders', async (req, res) => {
           total_price: effectiveTotalPrice,
           currency: effectiveCurrency
         },
-        metadata: {
-          ...metadata,
-          source: 'widget',
-          origin_host: effectiveOriginHost,
-          offer_price_confirmed: Boolean(priceConfirmationMeta),
-          offer_price_data: priceConfirmationMeta
-        }
+        metadata: nextRawOfferMetadata
       },
       notes: metadata?.notes || null
     };
@@ -772,8 +885,7 @@ router.post('/api/widget/orders', async (req, res) => {
       try {
         drctResp = await drctDirectClient.createOrder({
           offer_id: offerIdForDrct,
-          passengers: drctCreatePassengers,
-          payment_method: 'CARD'
+          passengers: drctCreatePassengers
         }, {
           idempotencyKey: `order-create-${createdOrder.id}`,
           sandbox: useSandbox
@@ -782,18 +894,17 @@ router.post('/api/widget/orders', async (req, res) => {
         logger.error({
           err: drctErr.message,
           code: drctErr.code || null,
+          trace_id: drctErr.traceId || null,
           statusCode: drctErr.statusCode || null,
           responseBody: drctErr.responseBody || null,
           order_id: createdOrder.id,
           order_number: createdOrder.order_number,
           offer_id: offerIdForDrct,
-          // TEMP debug: dump exact payload we sent to DRCT so we can diagnose 404s
-          _debug_drct_payload: {
+          drct_payload_summary: {
             offer_id: offerIdForDrct,
-            passengers: drctCreatePassengers,
-            payment_method: 'CARD'
+            ...summarizeDrctPassengers(drctCreatePassengers)
           },
-          _debug_widget_input_passengers: passengers
+          widget_passenger_summary: summarizePassengerInput(passengers)
         }, '[widget/orders] DRCT createOrder FAILED — rolling back order + passengers');
         // Rollback: delete passengers first (FK), then order
         try { await supabase.from('passengers').delete().eq('order_id', createdOrder.id); } catch (_) {}
@@ -926,6 +1037,17 @@ router.post('/api/widget/orders', async (req, res) => {
         });
       }
     }
+
+    // Save customer profile asynchronously — non-blocking, does not affect booking result
+    setImmediate(() => {
+      const pax0 = Array.isArray(passengers) && passengers.length > 0 ? passengers[0] : null;
+      saveCustomerProfile({
+        agencyId: agency.id,
+        contactEmail,
+        contactPhone,
+        passenger: pax0,
+      }).catch(e => console.error('[customerProfile] widget save failed:', e.message));
+    });
 
     return res.status(201).json({
       order: createdOrder,

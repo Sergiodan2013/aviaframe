@@ -4,9 +4,175 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { config } = require('../config');
+const logger = require('../lib/logger');
+const drctService = require('../services/drctService');
+const { getAirportAutocomplete } = require('../services/airportAutocompleteService');
+const { getDisplayFxSnapshot } = require('../services/displayFxService');
+const { createMemoryRateLimiter, hasValidInternalToken } = require('../middleware/requestGuards');
+const { lookupCustomerProfile } = require('../services/customerProfile');
+
+const PUBLIC_SEARCH_CACHE_TTL_MS = Number(process.env.PUBLIC_SEARCH_CACHE_TTL_MS || 90 * 1000);
+const PUBLIC_SEARCH_MAX_PAIRS = Number(process.env.PUBLIC_SEARCH_MAX_PAIRS || 25);
+const PUBLIC_SEARCH_CONCURRENCY = Number(process.env.PUBLIC_SEARCH_CONCURRENCY || 5);
+const searchCache = new Map();
+const publicAutocompleteRateLimiter = createMemoryRateLimiter({
+  bucket: 'public-autocomplete',
+  max: config.publicAutocompleteRateLimitMax,
+  windowMs: config.publicRateLimitWindowMs,
+  skip: hasValidInternalToken,
+});
+const publicSearchRateLimiter = createMemoryRateLimiter({
+  bucket: 'public-search',
+  max: config.publicSearchRateLimitMax,
+  windowMs: config.publicRateLimitWindowMs,
+  skip: hasValidInternalToken,
+});
+
+function normalizeCodeList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function buildSearchCacheKey(params) {
+  return JSON.stringify(params);
+}
+
+function getCachedSearch(key) {
+  const entry = searchCache.get(key);
+  if (!entry) return null;
+  if ((Date.now() - entry.createdAt) > PUBLIC_SEARCH_CACHE_TTL_MS) {
+    searchCache.delete(key);
+    return null;
+  }
+  return entry.payload;
+}
+
+function setCachedSearch(key, payload) {
+  searchCache.set(key, {
+    createdAt: Date.now(),
+    payload,
+  });
+}
+
+router.get('/fx-rates', async (_req, res) => {
+  try {
+    return res.json(await getDisplayFxSnapshot());
+  } catch (error) {
+    logger.error({ err: error.message }, 'public-fx-rates failed');
+    return res.status(500).json({
+      error: {
+        code: 'FX_RATES_UNAVAILABLE',
+        message: config.nodeEnv === 'development' ? error.message : 'Display FX rates are temporarily unavailable',
+      }
+    });
+  }
+});
+
+function dedupeOffers(offers) {
+  const seen = new Map();
+  for (const offer of offers) {
+    const key = offer.offer_id || [
+      offer.origin,
+      offer.destination,
+      offer.departure_time,
+      offer.arrival_time,
+      offer.airline_code,
+      offer.flight_number,
+      offer.price?.total,
+    ].join('|');
+
+    if (!seen.has(key)) {
+      seen.set(key, offer);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => Number(a?.price?.total || 0) - Number(b?.price?.total || 0));
+}
+
+async function runWithConcurrency(items, limit, worker) {
+  const results = [];
+  for (let index = 0; index < items.length; index += limit) {
+    const chunk = items.slice(index, index + limit);
+    const chunkResults = await Promise.all(chunk.map(worker));
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
+async function saveSearchRecord({
+  tenantId,
+  origin,
+  destination,
+  departDate,
+  returnDate,
+  adults,
+  children,
+  infants,
+  cabinClass,
+  offersCount,
+  searchDuration,
+  metadata = {}
+}) {
+  try {
+    const { data } = await supabase
+      .from('searches')
+      .insert([
+        {
+          tenant_id: tenantId,
+          origin,
+          destination,
+          depart_date: departDate,
+          return_date: returnDate,
+          adults,
+          children,
+          infants,
+          cabin_class: cabinClass,
+          offers_count: offersCount,
+          search_duration_ms: searchDuration,
+          source: 'api',
+          metadata,
+        }
+      ])
+      .select()
+      .single();
+    return data || null;
+  } catch (error) {
+    logger.warn({ err: error.message }, 'public-search failed to save search record');
+    return null;
+  }
+}
+
+router.get('/airports/autocomplete', publicAutocompleteRateLimiter, async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  const locale = String(req.query.locale || 'en').trim().toLowerCase();
+  const limit = Number(req.query.limit || 12);
+
+  if (!query) {
+    return res.status(400).json({
+      error: {
+        code: 'INVALID_INPUT',
+        message: 'q is required',
+      }
+    });
+  }
+
+  try {
+    const payload = await getAirportAutocomplete({ query, locale, limit });
+    return res.json(payload);
+  } catch (error) {
+    logger.error({ err: error.message, query }, 'airport-autocomplete failed');
+    return res.status(502).json({
+      error: {
+        code: 'AUTOCOMPLETE_FAILED',
+        message: config.nodeEnv === 'development' ? error.message : 'Autocomplete is temporarily unavailable'
+      }
+    });
+  }
+});
 
 // POST /search (mounted at /public)
-router.post('/search', async (req, res) => {
+router.post('/search', publicSearchRateLimiter, async (req, res) => {
   const startTime = Date.now();
 
   // Extract search parameters
@@ -19,6 +185,8 @@ router.post('/search', async (req, res) => {
     children = 0,
     infants = 0,
     cabin_class = 'economy',
+    origin_city = null,
+    destination_city = null,
     tenant_id // For demo, we'll use a default tenant if not provided
   } = req.body || {};
 
@@ -36,67 +204,268 @@ router.post('/search', async (req, res) => {
   try {
     // Use demo tenant ID if not provided (from .env)
     const searchTenantId = tenant_id || process.env.DEMO_TENANT_ID;
+    const originCodes = normalizeCodeList(origin);
+    const destinationCodes = normalizeCodeList(destination);
 
-    // Mock search results (DRCT adapter not yet implemented)
-    const mockOffers = [];
-    const searchDuration = Date.now() - startTime;
-
-    // Save search to database
-    const { data: searchRecord, error: dbError } = await supabase
-      .from('searches')
-      .insert([
-        {
-          tenant_id: searchTenantId,
-          origin: origin.toUpperCase(),
-          destination: destination.toUpperCase(),
-          depart_date,
-          return_date,
-          adults,
-          children,
-          infants,
-          cabin_class,
-          offers_count: mockOffers.length,
-          search_duration_ms: searchDuration,
-          source: 'api',
-          metadata: {
-            user_agent: req.headers['user-agent'],
-            ip: req.ip
-          }
+    if (!originCodes.length || !destinationCodes.length) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'origin and destination must contain at least one valid airport code'
         }
-      ])
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('Database error:', dbError);
-      // Continue even if database save fails (don't break user experience)
+      });
     }
 
-    // Return search results
-    res.json({
-      search_id: searchRecord?.id || `search-${Date.now()}`,
-      origin: origin.toUpperCase(),
-      destination: destination.toUpperCase(),
+    if (!config.publicSearchDrctEnabled) {
+      const mockOffers = [];
+      const searchDuration = Date.now() - startTime;
+      const searchRecord = await saveSearchRecord({
+        tenantId: searchTenantId,
+        origin: originCodes[0],
+        destination: destinationCodes[0],
+        departDate: depart_date,
+        returnDate: return_date,
+        adults,
+        children,
+        infants,
+        cabinClass: cabin_class,
+        offersCount: mockOffers.length,
+        searchDuration,
+        metadata: {
+          user_agent: req.headers['user-agent'],
+          ip: req.ip,
+          origin_city,
+          destination_city,
+          fanout_disabled: true,
+          origin_airports: originCodes,
+          destination_airports: destinationCodes,
+        }
+      });
+
+      return res.json({
+        search_id: searchRecord?.id || `search-${Date.now()}`,
+        origin: originCodes[0],
+        destination: destinationCodes[0],
+        origin_city,
+        destination_city,
+        origin_airports: originCodes,
+        destination_airports: destinationCodes,
+        depart_date,
+        return_date,
+        adults,
+        children,
+        infants,
+        cabin_class,
+        offers: mockOffers,
+        offers_count: mockOffers.length,
+        message: 'DRCT public search is disabled. Placeholder response preserved until feature flag is enabled.',
+        partial: false,
+        saved_to_db: Boolean(searchRecord)
+      });
+    }
+
+    const pairs = [];
+    for (const originCode of originCodes) {
+      for (const destinationCode of destinationCodes) {
+        pairs.push({ origin: originCode, destination: destinationCode });
+      }
+    }
+
+    if (pairs.length > PUBLIC_SEARCH_MAX_PAIRS) {
+      return res.status(400).json({
+        error: {
+          code: 'FANOUT_LIMIT_EXCEEDED',
+          message: `Too many airport pairs requested: ${pairs.length}. Maximum is ${PUBLIC_SEARCH_MAX_PAIRS}.`
+        }
+      });
+    }
+
+    const cacheKey = buildSearchCacheKey({
+      originCodes,
+      destinationCodes,
       depart_date,
       return_date,
       adults,
       children,
       infants,
       cabin_class,
-      offers: mockOffers,
-      offers_count: mockOffers.length,
-      message: 'DRCT adapter not yet implemented. This is a placeholder response.',
-      saved_to_db: !dbError
+    });
+    const cached = getCachedSearch(cacheKey);
+    if (cached) {
+      return res.json({ ...cached, cached: true });
+    }
+
+    const pairResults = await runWithConcurrency(pairs, PUBLIC_SEARCH_CONCURRENCY, async (pair) => {
+      const result = await drctService.searchOffers({
+        origin: pair.origin,
+        destination: pair.destination,
+        depart_date,
+        return_date,
+        adults,
+        children,
+        infants,
+        cabin_class,
+      }, searchTenantId);
+
+      if (!result?.success) {
+        return {
+          pair,
+          success: false,
+          error: result?.error?.message || 'Search failed',
+          offers: [],
+        };
+      }
+
+      const rawOffers = Array.isArray(result.data?.offers) ? result.data.offers : [];
+      return {
+        pair,
+        success: true,
+        offers: rawOffers.map((offer) => {
+          const bags = Array.isArray(offer.baggage) ? offer.baggage : [];
+          // drctDirectClient already sets with_baggage correctly; compute as fallback
+          const withBaggage = typeof offer.with_baggage === 'boolean'
+            ? offer.with_baggage
+            : bags.some((b) => b?.type === 'checked' && Number(b?.quantity || 0) > 0);
+          const checkedBag = bags.find((b) => b?.type === 'checked') || bags[0];
+          const baggageText = offer.baggage_text || (withBaggage
+            ? (checkedBag?.quantity ? `${checkedBag.quantity} PC` : 'Included')
+            : null);
+          return {
+            ...offer,
+            with_baggage: withBaggage,
+            baggage_text: baggageText,
+            _searchOrigin: pair.origin,
+            _searchDestination: pair.destination,
+            _searchReturnDate: return_date || null,
+          };
+        }),
+      };
+    });
+
+    const successes = pairResults.filter((entry) => entry.success);
+    const failures = pairResults.filter((entry) => !entry.success);
+    const mergedOffers = dedupeOffers(successes.flatMap((entry) => entry.offers));
+    const partial = failures.length > 0;
+    const searchDuration = Date.now() - startTime;
+
+    if (!successes.length) {
+      logger.error({ failures }, 'public-search all fanout calls failed');
+      return res.status(503).json({
+        error: {
+          code: 'PUBLIC_SEARCH_FAILED',
+          message: 'All provider search calls failed',
+          details: { pair_failures: failures }
+        }
+      });
+    }
+
+    const searchRecord = await saveSearchRecord({
+      tenantId: searchTenantId,
+      origin: originCodes[0],
+      destination: destinationCodes[0],
+      departDate: depart_date,
+      returnDate: return_date,
+      adults,
+      children,
+      infants,
+      cabinClass: cabin_class,
+      offersCount: mergedOffers.length,
+      searchDuration,
+      metadata: {
+        user_agent: req.headers['user-agent'],
+        ip: req.ip,
+        origin_city,
+        destination_city,
+        origin_airports: originCodes,
+        destination_airports: destinationCodes,
+        pair_count: pairs.length,
+        partial,
+        pair_failures: failures,
+      }
+    });
+
+    const payload = {
+      search_id: searchRecord?.id || `search-${Date.now()}`,
+      origin: originCodes[0],
+      destination: destinationCodes[0],
+      origin_city,
+      destination_city,
+      origin_airports: originCodes,
+      destination_airports: destinationCodes,
+      depart_date,
+      return_date,
+      adults,
+      children,
+      infants,
+      cabin_class,
+      offers: mergedOffers,
+      offers_count: mergedOffers.length,
+      partial,
+      pair_count: pairs.length,
+      pair_failures: failures,
+      saved_to_db: Boolean(searchRecord)
+    };
+
+    setCachedSearch(cacheKey, payload);
+
+    res.json({
+      ...payload,
+      cached: false,
     });
 
   } catch (err) {
-    console.error('Search endpoint error:', err);
+    logger.error({ err: err.message }, 'public-search endpoint error');
     res.status(500).json({
       error: {
         code: 'INTERNAL_ERROR',
         message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
       }
     });
+  }
+});
+
+const profileLookupLimiter = createMemoryRateLimiter({
+  bucket: 'public-profile-lookup',
+  max: 10,
+  windowMs: 60_000,
+});
+
+// GET /public/customer-profile?email=X&agency_domain=Y
+// Used by the widget to autofill passenger form for returning customers.
+router.get('/customer-profile', profileLookupLimiter, async (req, res) => {
+  const { email, agency_domain } = req.query;
+  if (!email || !agency_domain) {
+    return res.json({ found: false });
+  }
+
+  try {
+    const { data: agency } = await supabase
+      .from('agencies')
+      .select('id')
+      .eq('domain', String(agency_domain).toLowerCase().trim())
+      .maybeSingle();
+
+    if (!agency) return res.json({ found: false });
+
+    const profile = await lookupCustomerProfile({ agencyId: agency.id, email: String(email) });
+    if (!profile) return res.json({ found: false });
+
+    return res.json({
+      found: true,
+      profile: {
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        phone: profile.phone,
+        gender: profile.gender,
+        date_of_birth: profile.date_of_birth,
+        passport_number: profile.passport_number,
+        passport_expiry: profile.passport_expiry,
+        nationality: profile.nationality,
+      },
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, 'customer-profile lookup failed');
+    return res.json({ found: false });
   }
 });
 
