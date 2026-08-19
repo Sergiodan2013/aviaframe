@@ -3107,30 +3107,39 @@
               _afBanner.style.cssText = 'grid-column:1/-1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px';
               const _afFirst = _afData.profile.first_name || '';
               const _afIsAr = _wLang === 'ar';
-              _afBanner.innerHTML = `<div style="font-size:14px;color:#1e40af"><strong>${_afIsAr ? 'مرحباً' : 'Welcome back'}${_afFirst ? ', ' + _afFirst : ''}!</strong><br><span style="color:#3b82f6;font-size:13px">${_afIsAr ? 'تعبئة البيانات المحفوظة؟' : 'Use your saved details?'}</span></div><button type="button" id="_af_fill_btn" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-size:13px;flex-shrink:0">${_afIsAr ? '✓ تعبئة' : '✓ Fill details'}</button>`;
+              _afBanner.innerHTML = `<span style="font-size:13px;color:#1e40af">⏳ ${_afIsAr ? 'جارٍ تعبئة البيانات...' : 'Prefilling your saved details...'}</span>`;
               const _afEmailLabel = _afEmailEl.closest('label');
               if (_afEmailLabel) _afEmailLabel.insertAdjacentElement('afterend', _afBanner);
               else $.insertBefore(_afBanner, $.firstChild);
-              _afBanner.querySelector('#_af_fill_btn').addEventListener('click', () => {
-                const _p = _afData.profile;
-                const _afMap = {
-                  phone: _p.phone,
-                  gender: _p.gender,
-                  dateOfBirth: _p.date_of_birth,
-                  firstName: _p.first_name,
-                  lastName: _p.last_name,
-                  passportNumber: _p.passport_number,
-                  passportExpiry: _p.passport_expiry,
-                };
-                Object.entries(_afMap).forEach(([_afName, _afVal]) => {
-                  if (!_afVal) return;
-                  const _afEl = $.querySelector(`[name="${_afName}"]`);
-                  if (!_afEl) return;
-                  _afEl.value = _afVal;
-                  _afEl.dispatchEvent(new Event('input', { bubbles: true }));
-                  _afEl.dispatchEvent(new Event('change', { bubbles: true }));
+              // Auto-fill immediately on profile found
+              const _afForm = document.getElementById('aviaframe-passenger-form') || $;
+              const _afFieldMap = {
+                phone: _afData.profile.phone,
+                gender: _afData.profile.gender,
+                dateOfBirth: _afData.profile.date_of_birth,
+                firstName: _afData.profile.first_name,
+                lastName: _afData.profile.last_name,
+                passportNumber: _afData.profile.passport_number,
+                passportExpiry: _afData.profile.passport_expiry,
+              };
+              const _afPrevVals = {};
+              Object.entries(_afFieldMap).forEach(([_afName, _afVal]) => {
+                if (!_afVal) return;
+                const _afEl = _afForm.querySelector(`[name="${_afName}"]`);
+                if (!_afEl) return;
+                _afPrevVals[_afName] = _afEl.value;
+                _afEl.value = _afVal;
+                _afEl.dispatchEvent(new Event('input', { bubbles: true }));
+                _afEl.dispatchEvent(new Event('change', { bubbles: true }));
+              });
+              // Update banner: show confirmation with undo option
+              _afBanner.innerHTML = `<span style="font-size:13px;color:#1e40af">${_afIsAr ? '✓ تم تعبئة بياناتك المحفوظة' : `✓ Prefilled your saved details${_afFirst ? ', ' + _afFirst : ''}`}</span><button type="button" id="_af_undo_btn" style="background:none;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;font-size:12px;color:#3b82f6;cursor:pointer;flex-shrink:0">${_afIsAr ? 'تراجع' : 'Undo'}</button>`;
+              _afBanner.querySelector('#_af_undo_btn').addEventListener('click', () => {
+                Object.entries(_afPrevVals).forEach(([_afName, _afOld]) => {
+                  const _afEl = _afForm.querySelector(`[name="${_afName}"]`);
+                  if (_afEl) { _afEl.value = _afOld; _afEl.dispatchEvent(new Event('input', { bubbles: true })); }
                 });
-                _afBanner.innerHTML = `<span style="color:#059669;font-size:13px;font-weight:600">✓ ${_afIsAr ? 'تم تعبئة البيانات. يرجى المراجعة.' : 'Details filled in. Please review and continue.'}</span>`;
+                _afBanner.remove();
               });
             } catch (_afErr) { /* fail silently */ }
           });
