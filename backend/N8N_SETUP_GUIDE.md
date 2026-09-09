@@ -113,13 +113,18 @@ All tests passed! 🎉
 
 После активации workflows будут доступны по адресам:
 
-| Workflow | URL | Метод |
-|----------|-----|-------|
-| Search | http://localhost:5678/webhook/drct/search | POST |
-| Price | http://localhost:5678/webhook/drct/price | POST |
-| Order Create | http://localhost:5678/webhook/drct/order/create | POST |
-| Order Issue | http://localhost:5678/webhook/drct/order/issue | POST |
-| Order Cancel | http://localhost:5678/webhook/drct/order/cancel | POST |
+| Workflow | URL | Метод | Статус |
+|----------|-----|-------|--------|
+| Search | http://localhost:5678/webhook/drct/search | POST | ✅ Актуально |
+| Price | http://localhost:5678/webhook/drct/price | POST | ✅ Актуально |
+| Order Create | http://localhost:5678/webhook/drct/order/create | POST | ⚠️ Deprecated |
+| Order Issue | http://localhost:5678/webhook/drct/order/issue | POST | ⚠️ Deprecated |
+| Order Cancel | http://localhost:5678/webhook/drct/order/cancel | POST | ⚠️ Deprecated |
+
+> ⚠️ **DEPRECATED — `/webhook/drct/order/create`, `/webhook/drct/order/issue`, `/webhook/drct/order/cancel`**
+> Это legacy mutating proxy пути, которые выводятся из эксплуатации. Используйте вместо них:
+> - Portal/admin: `POST /api/orders` · `POST /api/orders/:orderId/issue` · `POST /api/orders/:orderId/cancel`
+> - Widget/customer: `POST /api/widget/session` → `POST /api/widget/orders`
 
 ---
 
@@ -214,7 +219,10 @@ Webhook (POST)
   → Return Response
 ```
 
-### drct_order_create.json
+### drct_order_create.json ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/create`. Замена: `POST /api/orders`
+
 ```
 Webhook (POST)
   → Validate Passengers & Documents
@@ -223,7 +231,10 @@ Webhook (POST)
   → Return Response
 ```
 
-### drct_order_issue.json
+### drct_order_issue.json ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/issue`. Замена: `POST /api/orders/:orderId/issue`
+
 ```
 Webhook (POST)
   → Validate order_id
@@ -232,7 +243,10 @@ Webhook (POST)
   → Return Response
 ```
 
-### drct_order_cancel.json
+### drct_order_cancel.json ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/cancel`. Замена: `POST /api/orders/:orderId/cancel`
+
 ```
 Webhook (POST)
   → Validate order_id

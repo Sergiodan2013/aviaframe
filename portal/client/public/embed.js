@@ -22,12 +22,16 @@
   var locale = script.getAttribute('data-locale') || 'en';
   var height = script.getAttribute('data-height') || '760px';
   var radius = script.getAttribute('data-radius') || '14px';
+  var originHost = script.getAttribute('data-origin-host') || '';
+  var previewMode = script.getAttribute('data-preview-mode') || '';
 
   var frameUrl = new URL('/widget-frame.html', widgetBase);
   frameUrl.searchParams.set('agency_key', agencyKey);
   frameUrl.searchParams.set('backend_base', backendBase);
   frameUrl.searchParams.set('theme', theme);
   frameUrl.searchParams.set('locale', locale);
+  if (originHost) frameUrl.searchParams.set('origin_host', originHost);
+  if (previewMode) frameUrl.searchParams.set('preview_mode', previewMode);
 
   var iframe = document.createElement('iframe');
   iframe.src = frameUrl.toString();

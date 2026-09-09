@@ -28,6 +28,7 @@ const rules = [];
 if (backendUrl) {
   rules.push(`/api/backend/* ${backendUrl}/api/:splat 200`);
   rules.push(`/api/n8n/webhook-test/* ${backendUrl}/webhook/:splat 200`);
+  rules.push(`/partner/v1/* ${backendUrl}/partner/v1/:splat 200`);
   console.log(`[write-redirects] Backend proxy → ${backendUrl}`);
 } else {
   console.warn(

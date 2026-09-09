@@ -28,7 +28,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://sandbox-api.drct.aero/offers/{{ $json.offer_id }}/price",
+        "url": "=https://api.drct.aero/offers/{{ $json.offer_id }}/price",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -65,7 +65,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Transform DRCT price response to Aviaframe format\nconst response = $input.item.json;\n\nconsole.log('[Transform] DRCT price response received');\n\nreturn {\n  offer_id: response.offer_id || response.id,\n  price: {\n    total: response.price?.total || 0,\n    currency: response.price?.currency || 'USD',\n    breakdown: {\n      base_fare: response.price?.base_fare || response.price?.base || 0,\n      taxes: response.price?.taxes || 0,\n      fees: response.price?.fees || 0,\n      surcharges: response.price?.surcharges || 0\n    },\n    per_passenger: response.price?.per_passenger || []\n  },\n  expiration: response.expiration || response.expires_at || null,\n  rules: response.rules || {},\n  fare_details: response.fare_details || {},\n  timestamp: new Date().toISOString()\n};"
+        "jsCode": "// Transform DRCT price response to Aviaframe format\nconst response = $input.item.json;\n\nconsole.log('[Transform] DRCT price response received');\n\nconst perPassenger = Array.isArray(response.price_details)\n  ? response.price_details.map((item) => ({\n      type: item.type || null,\n      count: Number(item.count || 0),\n      total: Number(item.price?.amount || item.price?.total || 0),\n      currency: item.price?.currency || response.price?.currency || 'USD',\n      fare: Number(item.fare?.amount || item.fare?.total || 0),\n      taxes: Number(item.taxes?.amount || item.taxes?.total || 0)\n    }))\n  : [];\n\nreturn {\n  offer_id: response.offer_id || response.id,\n  price: {\n    total: Number(response.price?.amount || response.price?.total || 0),\n    currency: response.price?.currency || 'USD',\n    breakdown: {\n      base_fare: Number(response.price_details?.[0]?.fare?.amount || response.price?.base_fare || response.price?.base || 0),\n      taxes: Number(response.price_details?.[0]?.taxes?.amount || response.price?.taxes || 0),\n      fees: Number(response.price?.fees || 0),\n      surcharges: Number(response.price?.surcharges || 0)\n    },\n    per_passenger: perPassenger\n  },\n  expiration: response.expire_at || response.expiration || response.expires_at || null,\n  rules: response.rules || response.fares?.[0] || {},\n  fare_details: response.fare_details || response.fares || [],\n  passengers: response.passengers || [],\n  flights: response.flights || [],\n  timestamp: new Date().toISOString()\n};"
       },
       "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
       "name": "Transform Price Response",

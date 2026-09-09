@@ -144,7 +144,10 @@ n8n будет доступен на `http://localhost:5678`
 
 Аналогично search, но вызывает `POST /offers/price`
 
-#### 3. **DRCT Order Create Workflow**
+#### 3. **DRCT Order Create Workflow** ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/create` — legacy mutating proxy, выводится из эксплуатации.
+> Замена: `POST /api/orders` (требует auth)
 
 **Webhook path:** `/webhook/drct/order/create`
 
@@ -153,13 +156,19 @@ n8n будет доступен на `http://localhost:5678`
 - Генерация idempotency key
 - Rate limiting (1 RPS для DRCT)
 
-#### 4. **DRCT Issue Workflow**
+#### 4. **DRCT Issue Workflow** ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/issue` — legacy mutating proxy, выводится из эксплуатации.
+> Замена: `POST /api/orders/:orderId/issue` (требует auth-токен staff/admin)
 
 **Webhook path:** `/webhook/drct/order/issue`
 
 Вызывает `POST /orders/{id}/issue`
 
-#### 5. **DRCT Cancel Workflow**
+#### 5. **DRCT Cancel Workflow** ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/cancel` — legacy mutating proxy, выводится из эксплуатации.
+> Замена: `POST /api/orders/:orderId/cancel` (требует auth-токен staff/admin)
 
 **Webhook path:** `/webhook/drct/order/cancel`
 

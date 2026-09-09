@@ -1,7 +1,8 @@
-FROM node:18-alpine
+FROM node:22-alpine
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --production || true
+COPY package.json ./
+RUN npm install --omit=dev
 COPY src ./src
+COPY agency-site-assets ./agency-site-assets
 EXPOSE 3000
 CMD ["node", "src/index.js"]

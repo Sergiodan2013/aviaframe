@@ -19,6 +19,10 @@
 ## 🎯 Формат данных для n8n Webhook
 
 ### Endpoint
+
+> ⚠️ **DEPRECATED** — `/webhook-test/drct/order/create` (и `/webhook/drct/order/create`) — legacy mutating proxy, выводится из эксплуатации.
+> Замена: `POST /api/orders` (portal/admin, auth required) · `POST /api/widget/session` → `POST /api/widget/orders` (widget flow)
+
 ```
 POST /webhook-test/drct/order/create
 ```

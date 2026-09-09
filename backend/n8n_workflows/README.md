@@ -33,7 +33,10 @@
   }
   ```
 
-### 3. drct_order_create.json - Создание заказа
+### 3. drct_order_create.json - Создание заказа ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/create` — legacy mutating proxy. Замена: `POST /api/orders`
+
 - **Webhook**: `POST /webhook/drct/order/create`
 - **Описание**: Создание заказа с данными пассажиров
 - **Входные данные**:
@@ -63,7 +66,10 @@
   }
   ```
 
-### 4. drct_order_issue.json - Выпуск билетов
+### 4. drct_order_issue.json - Выпуск билетов ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/issue` — legacy mutating proxy. Замена: `POST /api/orders/:orderId/issue`
+
 - **Webhook**: `POST /webhook/drct/order/issue`
 - **Описание**: Выпуск электронных билетов после оплаты
 - **Входные данные**:
@@ -74,7 +80,10 @@
   }
   ```
 
-### 5. drct_order_cancel.json - Отмена заказа
+### 5. drct_order_cancel.json - Отмена заказа ⚠️ DEPRECATED
+
+> **DEPRECATED** — `/webhook/drct/order/cancel` — legacy mutating proxy. Замена: `POST /api/orders/:orderId/cancel`
+
 - **Webhook**: `POST /webhook/drct/order/cancel`
 - **Описание**: Отмена заказа и возврат средств
 - **Входные данные**:
@@ -189,12 +198,14 @@ n8n import:workflow --input=drct_order_cancel.json
 
 Пример URLs:
 ```
-POST http://localhost:5678/webhook/drct/search
-POST http://localhost:5678/webhook/drct/price
-POST http://localhost:5678/webhook/drct/order/create
-POST http://localhost:5678/webhook/drct/order/issue
-POST http://localhost:5678/webhook/drct/order/cancel
+POST http://localhost:5678/webhook/drct/search        ✅ актуально
+POST http://localhost:5678/webhook/drct/price         ✅ актуально
+POST http://localhost:5678/webhook/drct/order/create  ⚠️ DEPRECATED
+POST http://localhost:5678/webhook/drct/order/issue   ⚠️ DEPRECATED
+POST http://localhost:5678/webhook/drct/order/cancel  ⚠️ DEPRECATED
 ```
+
+> ⚠️ Три нижних пути — legacy mutating proxy. Замена: `POST /api/orders`, `/api/orders/:id/issue`, `/api/orders/:id/cancel`
 
 ## Тестирование
 
@@ -235,7 +246,10 @@ curl -X POST http://localhost:5678/webhook/drct/price \
   }'
 ```
 
-#### Тест 3: Создание заказа
+#### Тест 3: Создание заказа ⚠️ DEPRECATED
+
+> **DEPRECATED** — используйте `POST /api/orders` вместо этого curl-примера.
+
 ```bash
 curl -X POST http://localhost:5678/webhook/drct/order/create \
   -H "Content-Type: application/json" \
@@ -310,11 +324,13 @@ class N8NClient {
     return response.data;
   }
 
+  // DEPRECATED: legacy mutating proxy. Replacement: POST /api/orders
   async createOrder(orderData) {
     const response = await axios.post(`${this.baseURL}/drct/order/create`, orderData);
     return response.data;
   }
 
+  // DEPRECATED: legacy mutating proxy. Replacement: POST /api/orders/:orderId/issue
   async issueOrder(orderId, paymentConfirmation = null) {
     const response = await axios.post(`${this.baseURL}/drct/order/issue`, {
       order_id: orderId,
@@ -323,6 +339,7 @@ class N8NClient {
     return response.data;
   }
 
+  // DEPRECATED: legacy mutating proxy. Replacement: POST /api/orders/:orderId/cancel
   async cancelOrder(orderId, reason = 'USER_REQUEST') {
     const response = await axios.post(`${this.baseURL}/drct/order/cancel`, {
       order_id: orderId,
