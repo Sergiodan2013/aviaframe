@@ -113,6 +113,30 @@
       color: #94a3b8;
       line-height: 1.4;
     }
+    .field-error {
+      font-size: 12px;
+      color: #dc2626;
+      line-height: 1.4;
+      display: none;
+    }
+    .field-error:not(:empty) { display: block; }
+    .logo-preview {
+      max-width: 160px;
+      max-height: 80px;
+      object-fit: contain;
+      border: 1.5px solid #dbe7ff;
+      border-radius: 8px;
+      padding: 6px;
+      background: #fff;
+    }
+    input[type="file"] {
+      border: 1.5px solid #dbe7ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: #0f172a;
+      background: #f8fbff;
+    }
     .color-row {
       display: flex;
       align-items: center;
@@ -322,9 +346,11 @@
     <div class="card-body">
       <div class="grid">
         <div class="field">
-          <label>Logo URL <span class="req">*</span></label>
-          <input type="url" name="Logo URL" required placeholder="https://example.com/logo.png" />
-          <span class="hint">PNG or SVG, transparent background preferred. Ratio 2:1–4:1, min 200px height.</span>
+          <label>Logo <span class="req">*</span></label>
+          <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" required />
+          <span class="hint">PNG, JPG, WebP or SVG, transparent background preferred. Ratio 2:1–4:1, min 200px height. Max file size: 5MB.</span>
+          <span id="logoFileError" class="field-error"></span>
+          <img id="logoPreview" class="logo-preview" alt="Logo preview" hidden />
         </div>
         <div class="grid grid-2">
           <div class="field">
@@ -578,6 +604,50 @@
         if (field.value) field.value = normalizeUrl(field.value);
       });
     });
+    var logoInput = document.getElementById('logoFile');
+    var logoError = document.getElementById('logoFileError');
+    var logoPreview = document.getElementById('logoPreview');
+    var logoDataUrl = '';
+    var LOGO_MAX_BYTES = 5 * 1024 * 1024;
+    var LOGO_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+    function formatBytes(bytes) {
+      if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+      return Math.round(bytes / 1024) + 'KB';
+    }
+    function resetLogoState(message) {
+      logoDataUrl = '';
+      logoPreview.hidden = true;
+      logoPreview.src = '';
+      logoInput.setCustomValidity(message || '');
+      logoError.textContent = message || '';
+    }
+    logoInput.addEventListener('change', function () {
+      var file = logoInput.files && logoInput.files[0];
+      if (!file) { resetLogoState(''); return; }
+      if (LOGO_ALLOWED_TYPES.indexOf(file.type) === -1) {
+        logoInput.value = '';
+        resetLogoState('Logo must be PNG, JPG, WebP or SVG (got ' + (file.type || 'unknown type') + ').');
+        return;
+      }
+      if (file.size > LOGO_MAX_BYTES) {
+        logoInput.value = '';
+        resetLogoState('Logo file is ' + formatBytes(file.size) + ' — max allowed is 5MB. Please compress or resize it.');
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function () {
+        logoDataUrl = reader.result;
+        logoInput.setCustomValidity('');
+        logoError.textContent = '';
+        logoPreview.src = logoDataUrl;
+        logoPreview.hidden = false;
+      };
+      reader.onerror = function () {
+        logoInput.value = '';
+        resetLogoState('Could not read that file — please try a different one.');
+      };
+      reader.readAsDataURL(file);
+    });
     function update() {
       btn.disabled = !(c1.checked && c2.checked);
     }
@@ -618,6 +688,7 @@
 
       try {
         var formData = Object.fromEntries(new FormData(form).entries());
+        formData['Logo URL'] = logoDataUrl;
         var backendUrl = (window.AVIAFRAME_RUNTIME_CONFIG && window.AVIAFRAME_RUNTIME_CONFIG.backendUrl)
           || 'https://peaceful-amazement-production-629f.up.railway.app';
         var response = await fetch(backendUrl.replace(/\/$/, '') + '/api/agency-leads', {
