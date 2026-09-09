@@ -14,6 +14,7 @@ const APP_URL = process.env.APP_URL || 'https://admin.aviaframe.com';
 const GODADDY_API_KEY = process.env.GODADDY_API_KEY || '';
 const GODADDY_API_SECRET = process.env.GODADDY_API_SECRET || '';
 const GODADDY_API = 'https://api.godaddy.com/v1';
+const { resolveAgencyPaymentMode } = require('./agencyPaymentMode');
 
 // Real Supabase photo URLs for known cities — used as fallback when stored image_url is a SVG data URI
 const CITY_PHOTO_LIBRARY = {
@@ -145,6 +146,11 @@ function getContrastColor(hex) {
   return getLuminance(hex) > 0.5 ? '#0a1628' : '#ffffff';
 }
 
+function safeThemeColor(value, fallback) {
+  const color = String(value || '').trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+
 // ── Site template resolver ────────────────────────────────────────────────────
 function resolveSiteTemplateDir() {
   const candidates = [
@@ -164,6 +170,8 @@ function resolveSiteTemplateDir() {
 const SITE_TEMPLATE_DIR = resolveSiteTemplateDir();
 const REQUIRED_SITE_TEMPLATE_FILES = [
   'booking.html',
+  'my-bookings.html',
+  'customer-account.js',
   'display-currency.js',
   'aviaframe-widget.js',
   'assets/style.css',
@@ -199,6 +207,8 @@ const REQUIRED_LEGAL_TEMPLATE_FILES = [
 const DEFAULT_LIVE_MOYASAR_PUBLIC_KEY = process.env.MOYASAR_PUBLIC_KEY
   || process.env.MOYASAR_PUBLISHABLE_KEY
   || 'pk_live_iXhEB7xrWqPoh2SMRBt45fA73mVoKKa8EjZt5end';
+const DEFAULT_TEST_MOYASAR_PUBLIC_KEY = process.env.MOYASAR_TEST_PUBLIC_KEY
+  || 'pk_test_8FRQCpWq1UkQ55WexM6UEZ2moe711bwveGhyjg8i';
 
 function assertDeployAssetBundleReady() {
   const missingSiteFiles = REQUIRED_SITE_TEMPLATE_FILES.filter((relativePath) => (
@@ -286,6 +296,8 @@ function generateAgencySiteFiles(opts) {
   const brandDark = darkenHex(brandColor, 45);
   const brandRgb = hexToRgb(brandColor);
   const accentRgb = hexToRgb(accentColor);
+  const widgetPrimary = safeThemeColor(accentColor, '#2468c4');
+  const widgetPrimaryHover = safeThemeColor(brandDark, '#1a3c8e');
 
   // ── Header / footer computed colors ─────────────────────────────────────
   const effectiveHeaderBg = headerBg || 'rgba(255,255,255,0.97)';
@@ -462,6 +474,8 @@ function generateAgencySiteFiles(opts) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${agencyName} | Flights &amp; Travel</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+  <script src="/config.js"></script>
   <link rel="stylesheet" href="./styles.css" />
   <style>
     :root {
@@ -495,6 +509,9 @@ function generateAgencySiteFiles(opts) {
           <div class="av-logo-name">${agencyName}</div>
         </div>
       </a>
+      <div class="av-header-nav">
+        <div id="customer-auth-nav"></div>
+      </div>
       <div class="av-header-contacts">
         ${contactPhone ? `<span class="av-phone-display">${contactPhone}</span>` : ''}
         ${waPhone ? `<a class="av-wa-btn" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer">
@@ -537,6 +554,7 @@ function generateAgencySiteFiles(opts) {
         data-accent-color="${accentColor}"
         data-title="Search Flights"
         data-primary-color="${accentColor}"
+        style="--af-primary:${widgetPrimary};--af-primary-hover:${widgetPrimaryHover};--af-radius:12px;--af-font:inherit"
       ></div>
     </div>
   </div>
@@ -710,8 +728,13 @@ function generateAgencySiteFiles(opts) {
     </div>
   </footer>
 
+  <script src="/customer-account.js?v=2026-09-04-2"></script>
   <script src="/aviaframe-widget.js"></script>
   <script>
+    if (window.AviaframeCustomerAuth) {
+      window.AviaframeCustomerAuth.mountNav('customer-auth-nav');
+    }
+
     // Language switcher
     var _avLang = localStorage.getItem('aviaframe_lang') || '${language}';
     function avApplyLang(lang) {
@@ -774,11 +797,13 @@ a{text-decoration:none;color:inherit}
 .av-logo-icon-text{font-size:20px;font-weight:800;color:#fff}
 .av-logo-name{font-size:17px;font-weight:700;color:var(--av-header-logo);letter-spacing:-0.3px}
 .av-logo-ar{font-size:15px;font-weight:700;color:var(--av-header-logo)}
+.av-header-nav{display:flex;align-items:center;gap:14px;margin-left:auto}
 .av-header-contacts{margin-left:auto;display:flex;align-items:center;gap:12px;flex-shrink:0}
 .av-phone-display{font-size:14px;font-weight:600;color:var(--av-header-text)}
 .av-wa-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:99px;background:#25D366;color:#fff;font-size:13px;font-weight:600;transition:opacity .2s}
 .av-wa-btn:hover{opacity:.88}
-[dir=rtl] .av-header-contacts{margin-left:0;margin-right:auto}
+[dir=rtl] .av-header-nav{margin-left:0;margin-right:auto}
+[dir=rtl] .av-header-contacts{margin-left:0}
 
 /* Hero */
 .av-hero{position:relative;overflow:hidden;min-height:380px;background:radial-gradient(ellipse 90% 50% at 50% 110%,rgba(var(--av-accent-rgb),.4) 0%,transparent 65%),linear-gradient(175deg,var(--av-brand-dark) 0%,var(--av-brand) 50%,color-mix(in srgb,var(--av-brand) 80%,#fff 20%) 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:52px 24px 82px}
@@ -916,6 +941,7 @@ a{text-decoration:none;color:inherit}
   .av-header-inner{padding:10px 16px;min-height:82px;gap:14px}
   .av-logo-icon.av-logo-icon--img{height:72px}
   .av-logo-img{height:72px;max-width:260px}
+  .av-header-nav{order:3;width:100%;justify-content:space-between;gap:10px}
   .av-dest-grid{grid-template-columns:repeat(2,1fr);gap:14px}
   .av-dest-content{padding:15px 13px 13px}
   .av-dest-city{font-size:1.25rem;margin-bottom:10px}
@@ -971,17 +997,20 @@ function buildLegalDeployFiles() {
   }, {});
 }
 
-function buildAgencyRuntimeConfig({ apiKey, subdomain }) {
+function buildAgencyRuntimeConfig({ apiKey, subdomain, paymentMode = 'demo' }) {
   const siteUrl = `https://${subdomain}.${AVIAFRAME_DOMAIN}`;
+  const livePayments = paymentMode === 'live';
   const runtimeConfig = {
     environment: 'production',
     backendUrl: BACKEND_URL,
     agencyKey: apiKey,
-    moyasarPublicKey: DEFAULT_LIVE_MOYASAR_PUBLIC_KEY,
+    moyasarPublicKey: livePayments ? DEFAULT_LIVE_MOYASAR_PUBLIC_KEY : DEFAULT_TEST_MOYASAR_PUBLIC_KEY,
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
     siteOriginHost: `${subdomain}.${AVIAFRAME_DOMAIN}`,
     portalUrl: APP_URL,
-    defaultDryRunIssue: false,
-    showTestPaymentCards: false,
+    defaultDryRunIssue: !livePayments,
+    showTestPaymentCards: !livePayments,
     enableCardFeePreview: true,
     enableOfferPriceFlow: true,
     displayCurrencyEnabled: true,
@@ -1020,7 +1049,7 @@ function normalizeLandingHtml(html, { apiKey, assetVersion }) {
   return next;
 }
 
-function buildAgencyDeployFiles({ subdomain, apiKey, landingHtml, landingCss }) {
+function buildAgencyDeployFiles({ subdomain, apiKey, landingHtml, landingCss, paymentMode = 'demo' }) {
   const assetVersion = `agency-${subdomain}-${Date.now()}`;
   const normalizedLandingHtml = normalizeLandingHtml(landingHtml, { apiKey, assetVersion });
   const normalizedLandingCss = String(landingCss || '');
@@ -1033,7 +1062,9 @@ function buildAgencyDeployFiles({ subdomain, apiKey, landingHtml, landingCss }) 
     'widget-demo.html': normalizedLandingHtml,
     'styles.css': normalizedLandingCss,
     'booking.html': readTemplateAsset('booking.html', 'utf8'),
-    'config.js': buildAgencyRuntimeConfig({ apiKey, subdomain }),
+    'my-bookings.html': readTemplateAsset('my-bookings.html', 'utf8'),
+    'config.js': buildAgencyRuntimeConfig({ apiKey, subdomain, paymentMode }),
+    'customer-account.js': readTemplateAsset('customer-account.js', 'utf8'),
     'display-currency.js': readTemplateAsset('display-currency.js', 'utf8'),
     'aviaframe-widget.js': readTemplateAsset('aviaframe-widget.js', 'utf8'),
     'assets/style.css': readTemplateAsset('assets/style.css', 'utf8'),

@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Agency Onboarding — AviaFrame</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f4ff;
+      color: #0f172a;
+      min-height: 100vh;
+      padding: 32px 16px 64px;
+    }
+    .header {
+      max-width: 740px;
+      margin: 0 auto 32px;
+    }
+    .logo {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1d4ed8;
+      letter-spacing: -.5px;
+      margin-bottom: 20px;
+    }
+    .logo span { color: #0ea5e9; }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: #475569;
+      line-height: 1.6;
+    }
+    .card {
+      max-width: 740px;
+      margin: 0 auto 24px;
+      background: #fff;
+      border: 1px solid #dbe7ff;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+      color: #fff;
+      padding: 16px 24px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-header .num {
+      background: rgba(255,255,255,.2);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .card-body { padding: 24px; }
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    @media (max-width: 600px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    label .req { color: #ef4444; margin-left: 2px; }
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="number"],
+    textarea,
+    select {
+      border: 1.5px solid #dbe7ff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #0f172a;
+      background: #f8fbff;
+      transition: border-color .15s, box-shadow .15s;
+      font-family: inherit;
+      width: 100%;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    .hint {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    input[type="color"] {
+      width: 44px;
+      height: 40px;
+      border: 1.5px solid #dbe7ff;
+      border-radius: 8px;
+      padding: 2px;
+      cursor: pointer;
+      background: #f8fbff;
+      flex-shrink: 0;
+    }
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+    }
+    .svc-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      padding: 8px 10px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color .12s, background .12s;
+    }
+    .svc-check:has(input:checked) {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+    .svc-check input { accent-color: #2563eb; width: 15px; height: 15px; }
+    .submit-wrap { max-width: 740px; margin: 0 auto; }
+    button[type="submit"] {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s;
+      letter-spacing: .01em;
+    }
+    button[type="submit"]:hover { opacity: .9; }
+    .note {
+      max-width: 740px;
+      margin: 16px auto 0;
+      font-size: 12px;
+      color: #94a3b8;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .divider { height: 1px; background: #f0f4ff; margin: 4px 0 16px; }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 12px;
+    }
+    .consent-checks { display: flex; flex-direction: column; gap: 14px; }
+    .consent-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      font-size: 13.5px;
+      color: #334155;
+      line-height: 1.6;
+    }
+    .consent-check:has(input:checked) {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+    .consent-check input[type="checkbox"] {
+      accent-color: #2563eb;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      cursor: pointer;
+    }
+    .consent-check a { color: #2563eb; text-decoration: underline; }
+    .consent-check strong { color: #0f172a; }
+    .consent-notice {
+      background: #fffbeb;
+      border: 1.5px solid #fcd34d;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 12.5px;
+      color: #78350f;
+      line-height: 1.6;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    button[type="submit"]:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+    .validation-summary {
+      max-width: 740px;
+      margin: 0 auto 14px;
+      display: none;
+      padding: 12px 16px;
+      border: 1px solid #fca5a5;
+      border-radius: 10px;
+      background: #fef2f2;
+      color: #991b1b;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .validation-summary.is-visible { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">Avia<span>Frame</span></div>
+  <h1>New Agency Onboarding</h1>
+  <p class="subtitle">Fill in this form to register a new agency partner. Required fields are marked with <span style="color:#ef4444">*</span>. All data goes directly to the AviaFrame team.</p>
+</div>
+
+<form id="agencyOnboardingForm" action="https://peaceful-amazement-production-629f.up.railway.app/api/agency-leads" method="POST">
+
+  <!-- Block 1: Agency basics -->
+  <div class="card">
+    <div class="card-header">
+      <div class="num">1</div>
+      Agency Basics — Required
+    </div>
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div class="field">
+          <label>Agency name (English) <span class="req">*</span></label>
+          <input type="text" name="Agency Name (EN)" required placeholder="e.g. Sky Travel" />
+        </div>
+        <div class="field">
+          <label>Agency name (Arabic)</label>
+          <input type="text" name="Agency Name (AR)" placeholder="اسم الوكالة بالعربي" dir="auto" />
+        </div>
+        <div class="field">
+          <label>Admin email (login) <span class="req">*</span></label>
+          <input type="email" name="Admin Email" required placeholder="manager@agency.com" />
+          <span class="hint">This email will be used to log in to the admin portal</span>
+        </div>
+        <div class="field">
+          <label>Contact phone <span class="req">*</span></label>
+          <input type="tel" name="Contact Phone" required placeholder="+966 5X XXX XXXX" />
+        </div>
+        <div class="field">
+          <label>Preferred subdomain <span class="req">*</span></label>
+          <input type="text" name="Subdomain" required placeholder="skytravel"
+            pattern="[a-z0-9\-]+" title="Lowercase letters, numbers and hyphens only" />
+          <span class="hint">Will become <strong>[subdomain].aviaframe.com</strong> — lowercase, no spaces</span>
+        </div>
+        <div class="field">
+          <label>Country <span class="req">*</span></label>
+          <select name="Country" required>
+            <option value="">— select —</option>
+            <option>Saudi Arabia</option>
+            <option>UAE</option>
+            <option>Kuwait</option>
+            <option>Bahrain</option>
+            <option>Qatar</option>
+            <option>Oman</option>
+            <option>Jordan</option>
+            <option>Egypt</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Commission rate (%) <span class="req">*</span></label>
+          <input type="number" name="Commission Rate %" required min="0" max="30" step="0.1" placeholder="e.g. 5" />
+          <span class="hint">Percentage added on top of ticket price</span>
+        </div>
+        <div class="field">
+          <label>Agency language <span class="req">*</span></label>
+          <select name="Site Language" required>
+            <option value="en">English</option>
+            <option value="ar">Arabic</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 2: Branding -->
+  <div class="card">
+    <div class="card-header">
+      <div class="num">2</div>
+      Branding — Logo &amp; Colors
+    </div>
+    <div class="card-body">
+      <div class="grid">
+        <div class="field">
+          <label>Logo URL <span class="req">*</span></label>
+          <input type="url" name="Logo URL" required placeholder="https://example.com/logo.png" />
+          <span class="hint">PNG or SVG, transparent background preferred. Ratio 2:1–4:1, min 200px height.</span>
+        </div>
+        <div class="grid grid-2">
+          <div class="field">
+            <label>Primary brand color <span class="req">*</span></label>
+            <div class="color-row">
+              <input type="color" id="c1" value="#1a3c8e"
+                oninput="document.getElementById('c1t').value=this.value" />
+              <input type="text" id="c1t" name="Primary Color" value="#1a3c8e" placeholder="#1a3c8e" required
+                oninput="document.getElementById('c1').value=this.value" />
+            </div>
+            <span class="hint">Main color — used for header, footer, buttons</span>
+          </div>
+          <div class="field">
+            <label>Accent color <span class="req">*</span></label>
+            <div class="color-row">
+              <input type="color" id="c2" value="#2468c4"
+                oninput="document.getElementById('c2t').value=this.value" />
+              <input type="text" id="c2t" name="Accent Color" value="#2468c4" placeholder="#2468c4" required
+                oninput="document.getElementById('c2').value=this.value" />
+            </div>
+            <span class="hint">Secondary color — hover states, highlights</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 3: Site Content -->
+  <div class="card">
+    <div class="card-header">
+      <div class="num">3</div>
+      Site Content
+    </div>
+    <div class="card-body">
+      <div class="grid">
+        <div class="section-label">Hero Section</div>
+        <div class="grid grid-2">
+          <div class="field">
+            <label>Hero headline <span class="req">*</span></label>
+            <input type="text" name="Hero Headline" required placeholder="e.g. Fly Anywhere, Book with Confidence" />
+          </div>
+          <div class="field">
+            <label>Hero subtext <span class="req">*</span></label>
+            <input type="text" name="Hero Subtext" required placeholder="Short tagline or description" />
+          </div>
+          <div class="field">
+            <label>Hero background image URL <span class="req">*</span></label>
+            <input type="url" name="Hero Image URL" required placeholder="https://... (1920×600px min, JPG/WebP)" />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="section-label">About the Agency</div>
+        <div class="grid grid-2">
+          <div class="field">
+            <label>About us (English) <span class="req">*</span></label>
+            <textarea name="About (EN)" required placeholder="2–4 sentences about the agency..."></textarea>
+          </div>
+          <div class="field">
+            <label>About us (Arabic)</label>
+            <textarea name="About (AR)" placeholder="نص عن الوكالة..." dir="auto"></textarea>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="section-label">Contact &amp; Location</div>
+        <div class="grid grid-2">
+          <div class="field">
+            <label>Address <span class="req">*</span></label>
+            <input type="text" name="Address" required placeholder="City, Street, Building" />
+          </div>
+          <div class="field">
+            <label>Working hours (English) <span class="req">*</span></label>
+            <input type="text" name="Working Hours (EN)" required placeholder="Sun–Thu 9:00–18:00" />
+          </div>
+          <div class="field">
+            <label>Working hours (Arabic)</label>
+            <input type="text" name="Working Hours (AR)" placeholder="الأحد–الخميس ٩:٠٠–١٨:٠٠" dir="auto" />
+          </div>
+          <div class="field">
+            <label>Google Maps embed URL <span class="req">*</span></label>
+            <input type="url" name="Google Maps URL" required placeholder="https://www.google.com/maps/embed?pb=..." />
+            <span class="hint">Google Maps → Share → Embed map → copy src="..." URL</span>
+          </div>
+          <div class="field">
+            <label>Secondary phone</label>
+            <input type="tel" name="Secondary Phone" placeholder="+966 5X XXX XXXX" />
+          </div>
+          <div class="field">
+            <label>WhatsApp number <span class="req">*</span></label>
+            <input type="tel" name="WhatsApp" required placeholder="+966 5X XXX XXXX" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 4: Social Media -->
+  <div class="card">
+    <div class="card-header">
+      <div class="num">4</div>
+      Social Media
+    </div>
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div class="field">
+          <label>Instagram</label>
+          <input type="text" name="Instagram" placeholder="@handle or full URL" />
+        </div>
+        <div class="field">
+          <label>Twitter / X</label>
+          <input type="text" name="Twitter" placeholder="@handle or full URL" />
+        </div>
+        <div class="field">
+          <label>Snapchat</label>
+          <input type="text" name="Snapchat" placeholder="@handle or full URL" />
+        </div>
+        <div class="field">
+          <label>Facebook</label>
+          <input type="text" name="Facebook" placeholder="Page URL" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 5: Services & Destinations -->
+  <div class="card">
+    <div class="card-header">
+      <div class="num">5</div>
+      Services &amp; Destinations
+    </div>
+    <div class="card-body">
+      <div class="grid">
+        <div>
+          <div class="section-label">Services offered (tick at least one) <span class="req">*</span></div>
+          <div class="services-grid">
+            <label class="svc-check"><input type="checkbox" name="Service: Flights" value="Flights" /> ✈ Flights</label>
+            <label class="svc-check"><input type="checkbox" name="Service: Hotels" value="Hotels" /> 🏨 Hotels</label>
+            <label class="svc-check"><input type="checkbox" name="Service: Car Rental" value="Car Rental" /> 🚗 Car Rental</label>
+            <label class="svc-check"><input type="checkbox" name="Service: Tours" value="Tours" /> 🗺 Tours</label>
+            <label class="svc-check"><input type="checkbox" name="Service: Visa" value="Visa" /> 📋 Visa</label>
+            <label class="svc-check"><input type="checkbox" name="Service: Insurance" value="Insurance" /> 🛡 Insurance</label>
+            <label class="svc-check"><input type="checkbox" name="Service: Hajj Umrah" value="Hajj & Umrah" /> 🕌 Hajj &amp; Umrah</label>
+            <label class="svc-check"><input type="checkbox" name="Service: Groups" value="Groups" /> 👥 Groups</label>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="field">
+          <label>Top Destinations (3–6 cities) <span class="req">*</span></label>
+          <textarea name="Top Destinations" rows="5" required
+            placeholder="Format one per line: City, Country, From price (SAR), Image URL&#10;e.g. Dubai, UAE, 450, https://...&#10;Istanbul, Turkey, 650, https://..."></textarea>
+          <span class="hint">City, Country, starting price (SAR), image URL (optional). One destination per line.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 6: Credentials & Notes -->
+  <div class="card">
+    <div class="card-header">
+      <div class="num">6</div>
+      Credentials &amp; Notes
+    </div>
+    <div class="card-body">
+      <div class="grid grid-3">
+        <div class="field">
+          <label>License number <span class="req">*</span></label>
+          <input type="text" name="License Number" required placeholder="e.g. TA-12345" />
+        </div>
+        <div class="field">
+          <label>IATA number</label>
+          <input type="text" name="IATA Number" placeholder="e.g. 57-3 0001 4" />
+        </div>
+        <div class="field">
+          <label>Founded year <span class="req">*</span></label>
+          <input type="number" name="Founded Year" required placeholder="e.g. 2015" min="1900" max="2030" />
+        </div>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label>Supervisor / Manager name <span class="req">*</span></label>
+        <input type="text" name="Supervisor Name" required placeholder="Full name" />
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label>Additional notes for the team</label>
+        <textarea name="Notes" placeholder="Any special requirements, deadline, or context..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 7: Legal Consent -->
+  <div class="card">
+    <div class="card-header" style="background: linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 100%);">
+      <div class="num">7</div>
+      Consent &amp; Confirmation — Required
+    </div>
+    <div class="card-body">
+      <div class="consent-notice">
+        <span style="font-size:16px; flex-shrink:0;">⚠️</span>
+        <span>Please read both statements carefully before submitting. By ticking the boxes you confirm you have understood and agreed to these terms.</span>
+      </div>
+      <div class="consent-checks">
+        <label class="consent-check">
+          <input type="checkbox" name="Consent: Subagency Agreement & Paid Service" value="Agreed" id="consent1" required />
+          <span>
+            I have read and agree to the <a href="https://travel-point.me/terms-csa" target="_blank" rel="noopener">Subagency Agreement</a>.
+            I understand that AviaFrame is a <strong>paid platform</strong> — access requires a
+            <strong>monthly subscription fee</strong> (due by the 3rd of each month).
+            I acknowledge that failure to pay on time results in <strong>immediate platform suspension</strong>.
+          </span>
+        </label>
+        <label class="consent-check">
+          <input type="checkbox" name="Consent: Personal Data Processing" value="Agreed" id="consent2" required />
+          <span>
+            I consent to Aviatech Limited processing the personal data submitted in this form
+            for the purpose of evaluating my accession application and establishing a subagency relationship,
+            in accordance with the <a href="/legal/privacy-policy.html" target="_blank" rel="noopener">Privacy Policy</a>.
+          </span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div id="validationSummary" class="validation-summary" role="alert"></div>
+  <div class="submit-wrap">
+    <button type="submit" id="submitBtn" disabled>Submit Agency Onboarding →</button>
+  </div>
+</form>
+
+<script src="/config.js"></script>
+<script>
+  (function () {
+    var c1 = document.getElementById('consent1');
+    var c2 = document.getElementById('consent2');
+    var btn = document.getElementById('submitBtn');
+    var form = document.getElementById('agencyOnboardingForm');
+    var summary = document.getElementById('validationSummary');
+    var services = Array.prototype.slice.call(form.querySelectorAll('input[name^="Service:"]'));
+    function update() {
+      btn.disabled = !(c1.checked && c2.checked);
+    }
+    function validateServices() {
+      var selected = services.some(function (service) { return service.checked; });
+      services[0].setCustomValidity(selected ? '' : 'Select at least one service offered by the agency.');
+      return selected;
+    }
+    services.forEach(function (service) {
+      service.addEventListener('change', function () {
+        validateServices();
+        summary.classList.remove('is-visible');
+      });
+    });
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var servicesValid = validateServices();
+      if (!servicesValid || !form.checkValidity()) {
+        summary.textContent = 'Please complete all required fields and select at least one service before submitting.';
+        summary.classList.add('is-visible');
+        var firstInvalid = form.querySelector(':invalid');
+        if (firstInvalid) {
+          firstInvalid.focus();
+          firstInvalid.reportValidity();
+        }
+        return;
+      }
+
+      var originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Sending application...';
+      summary.classList.remove('is-visible');
+
+      try {
+        var formData = Object.fromEntries(new FormData(form).entries());
+        var backendUrl = (window.AVIAFRAME_RUNTIME_CONFIG && window.AVIAFRAME_RUNTIME_CONFIG.backendUrl)
+          || 'https://peaceful-amazement-production-629f.up.railway.app';
+        var response = await fetch(backendUrl.replace(/\/$/, '') + '/api/agency-leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ form: formData })
+        });
+        var payload = await response.json().catch(function () { return {}; });
+        if (!response.ok) {
+          throw new Error(payload.error && payload.error.message ? payload.error.message : 'Temporary connection error. Please try again.');
+        }
+        window.location.assign('/onboard-thanks.html');
+      } catch (error) {
+        summary.textContent = error.message || 'Temporary connection error. Please try again.';
+        summary.classList.add('is-visible');
+        btn.textContent = originalLabel;
+        update();
+      }
+    });
+    c1.addEventListener('change', update);
+    c2.addEventListener('change', update);
+  })();
+</script>
+
+<p class="note">
+  This form is for internal use only. Responses are sent to the AviaFrame team.<br />
+  Questions? Contact <a href="mailto:sergiodan2013@gmail.com" style="color:#2563eb">sergiodan2013@gmail.com</a>
+</p>
+
+</body>
+</html>

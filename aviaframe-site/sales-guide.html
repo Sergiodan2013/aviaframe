@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Guide — AviaFrame Partner Program</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue: #1d4ed8;
+      --blue-light: #2563eb;
+      --sky: #0ea5e9;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #dbe7ff;
+      --bg: #f0f4ff;
+      --card: #ffffff;
+      --green: #059669;
+      --amber: #d97706;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    /* ─── Header ─── */
+    .topbar {
+      background: linear-gradient(135deg, var(--blue) 0%, var(--blue-light) 100%);
+      color: #fff;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
+    .logo span { color: #7dd3fc; }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: rgba(255,255,255,.15);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    /* ─── Hero ─── */
+    .hero {
+      background: linear-gradient(135deg, var(--blue) 0%, #1e40af 100%);
+      color: #fff;
+      padding: 56px 32px 48px;
+      text-align: center;
+    }
+    .hero h1 { font-size: 36px; font-weight: 800; margin-bottom: 12px; line-height: 1.15; }
+    .hero p { font-size: 16px; opacity: .85; max-width: 560px; margin: 0 auto; }
+    .hero .cta {
+      display: inline-block;
+      margin-top: 28px;
+      padding: 14px 28px;
+      background: #fff;
+      color: var(--blue);
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: none;
+      transition: transform .15s;
+    }
+    .hero .cta:hover { transform: translateY(-2px); }
+    /* ─── Layout ─── */
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .section { padding: 48px 0; }
+    .section + .section { border-top: 1px solid var(--border); }
+    /* ─── Section headings ─── */
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--blue-light);
+      margin-bottom: 8px;
+    }
+    h2 { font-size: 26px; font-weight: 700; margin-bottom: 16px; }
+    h3 { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+    p { color: var(--muted); margin-bottom: 12px; }
+    p:last-child { margin-bottom: 0; }
+    ul, ol { padding-left: 20px; color: var(--muted); }
+    li { margin-bottom: 8px; line-height: 1.6; }
+    strong { color: var(--text); }
+    /* ─── Cards ─── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .card-icon { font-size: 28px; margin-bottom: 10px; }
+    .card h3 { font-size: 15px; margin-bottom: 6px; }
+    .card p { font-size: 13px; }
+    /* ─── Steps ─── */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex;
+      gap: 20px;
+      padding: 20px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .step:last-child { border-bottom: none; }
+    .step-num {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--blue) 0%, var(--blue-light) 100%);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 16px;
+      margin-top: 2px;
+    }
+    .step-body h3 { margin-bottom: 6px; }
+    .step-body p { font-size: 14px; margin-bottom: 0; }
+    /* ─── Pill tags ─── */
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .tag {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1.5px solid;
+    }
+    .tag-blue { color: var(--blue); border-color: #bfdbfe; background: #eff6ff; }
+    .tag-green { color: var(--green); border-color: #a7f3d0; background: #ecfdf5; }
+    .tag-amber { color: var(--amber); border-color: #fcd34d; background: #fffbeb; }
+    /* ─── Info box ─── */
+    .infobox {
+      background: #eff6ff;
+      border-left: 4px solid var(--blue-light);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+    .infobox p { font-size: 14px; margin: 0; }
+    .warnbox {
+      background: #fffbeb;
+      border-left: 4px solid var(--amber);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+    .warnbox p { font-size: 14px; margin: 0; color: #92400e; }
+    /* ─── Two-column ─── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+    /* ─── Checklist ─── */
+    .checklist { list-style: none; padding: 0; }
+    .checklist li {
+      padding: 10px 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 14px;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .checklist li::before { content: "✓"; color: var(--green); font-weight: 700; flex-shrink: 0; }
+    /* ─── Email preview ─── */
+    .email-preview {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      font-size: 14px;
+    }
+    .email-header {
+      background: linear-gradient(135deg, var(--blue) 0%, var(--blue-light) 100%);
+      color: #fff;
+      padding: 20px 24px;
+    }
+    .email-header .eyebrow { color: rgba(255,255,255,.7); font-size: 10px; }
+    .email-header h3 { font-size: 20px; color: #fff; margin-bottom: 4px; }
+    .email-header p { color: rgba(255,255,255,.85); font-size: 13px; margin: 0; }
+    .email-body { padding: 20px 24px; }
+    .email-body p { font-size: 13px; }
+    .email-step {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 6px 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .email-step .n {
+      width: 20px;
+      height: 20px;
+      background: #eff6ff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--blue);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .email-pill {
+      display: inline-block;
+      background: var(--blue);
+      color: #fff;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      margin: 4px 4px 4px 0;
+    }
+    .email-pill-outline {
+      display: inline-block;
+      background: #eff6ff;
+      color: var(--blue);
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      margin: 4px 4px 4px 0;
+    }
+    /* ─── Table ─── */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #f1f5f9;
+      color: var(--muted);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    td strong { color: var(--text); }
+    /* ─── Footer ─── */
+    footer {
+      background: var(--text);
+      color: #94a3b8;
+      text-align: center;
+      padding: 32px;
+      font-size: 13px;
+      margin-top: 64px;
+    }
+    footer a { color: #7dd3fc; }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="logo">Avia<span>Frame</span></div>
+  <div class="badge">Sales Guide · Internal</div>
+</div>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="container">
+    <h1>AviaFrame Partner Sales Guide</h1>
+    <p>Everything you need to qualify, pitch, onboard, and hand off a new travel agency partner — from first contact to live site.</p>
+    <a href="https://aviaframe.com/agency-onboard.html" class="cta">Open Onboarding Form →</a>
+  </div>
+</div>
+
+<!-- What is AviaFrame -->
+<div class="container">
+  <div class="section">
+    <div class="eyebrow">The product</div>
+    <h2>What is AviaFrame?</h2>
+    <p>AviaFrame is a white-label flight booking platform for travel agencies in the Gulf and Middle East. Each agency gets their own branded website and booking widget that they embed on their existing site or share as a standalone link.</p>
+
+    <div class="cards" style="margin-top:24px">
+      <div class="card">
+        <div class="card-icon">🌐</div>
+        <h3>Branded agency site</h3>
+        <p>A fully customised website deployed at <strong>agencyname.aviaframe.com</strong> with their logo, colors, and content.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">✈️</div>
+        <h3>Booking widget</h3>
+        <p>An embeddable search &amp; booking widget they can place on any website — their own domain, social link-in-bio, or anywhere.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">💰</div>
+        <h3>Commission on every ticket</h3>
+        <p>They earn a configurable percentage on every ticket sold. They can adjust their rate anytime from the admin panel.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <h3>Orders dashboard</h3>
+        <p>Real-time view of all bookings — passenger details, status, ticket issuance — in one place.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Who to sell to -->
+  <div class="section">
+    <div class="eyebrow">Qualifying</div>
+    <h2>Who is a good fit?</h2>
+
+    <div class="two-col">
+      <div>
+        <h3 style="color:var(--green);margin-bottom:12px">✓ Good fit</h3>
+        <ul class="checklist">
+          <li>Existing travel agency with clients but no online booking</li>
+          <li>Agency with a website that wants to add a booking feature</li>
+          <li>New agency that needs a quick, professional web presence</li>
+          <li>Agency selling mostly domestic Gulf routes (Saudi, UAE, Kuwait, etc.)</li>
+          <li>Agency that needs Arabic-language support</li>
+          <li>Corporate travel desk wanting to brand a booking tool</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color:#ef4444;margin-bottom:12px">✗ Poor fit</h3>
+        <ul class="checklist" style="--green:#ef4444">
+          <li>Pure retail customer (not a business/agency)</li>
+          <li>Agency only doing hotel or package tours (we're flights-only for now)</li>
+          <li>Agency that already has a full booking engine integrated</li>
+          <li>Agency with no internet presence and no plan to build one</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- The pitch -->
+  <div class="section">
+    <div class="eyebrow">The pitch</div>
+    <h2>How to position AviaFrame</h2>
+
+    <div class="infobox">
+      <p><strong>One sentence:</strong> "AviaFrame gives your agency a professional branded booking website and widget in 24 hours — you earn commission on every ticket, we handle the tech."</p>
+    </div>
+
+    <h3 style="margin-top:24px;margin-bottom:12px">Key value points</h3>
+    <ol>
+      <li><strong>Ready in 24 hours.</strong> We build and deploy the site — they don't touch a line of code.</li>
+      <li><strong>Their brand, not ours.</strong> Logo, colors, content, custom subdomain — fully white-label.</li>
+      <li><strong>Earn on every ticket.</strong> They set their own commission rate; we collect and remit.</li>
+      <li><strong>Works on any website.</strong> The widget can be embedded on their existing site or used standalone.</li>
+      <li><strong>Arabic + English out of the box.</strong> Full bilingual support for Gulf markets.</li>
+      <li><strong>No IT required.</strong> They manage commissions and orders from a simple admin panel; we handle branding updates.</li>
+    </ol>
+
+    <div class="tags" style="margin-top:20px">
+      <span class="tag tag-blue">White-label</span>
+      <span class="tag tag-blue">Arabic support</span>
+      <span class="tag tag-green">Commission-based</span>
+      <span class="tag tag-green">No tech knowledge needed</span>
+      <span class="tag tag-amber">Gulf market focus</span>
+    </div>
+  </div>
+
+  <!-- Objection handling -->
+  <div class="section">
+    <div class="eyebrow">Objection handling</div>
+    <h2>Common objections</h2>
+
+    <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Objection</th>
+          <th>Response</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>"We already have a website"</strong></td>
+          <td>The widget embeds on your existing site — it adds a booking engine to whatever you already have, no rebuild needed.</td>
+        </tr>
+        <tr>
+          <td><strong>"How do we get paid?"</strong></td>
+          <td>Your commission is built into every ticket price. You set the percentage, customers pay the combined price, and we remit your earnings on agreed terms.</td>
+        </tr>
+        <tr>
+          <td><strong>"What does it cost?"</strong></td>
+          <td>Speak to the team for current pricing. Revenue share means your costs are aligned with sales volume.</td>
+        </tr>
+        <tr>
+          <td><strong>"We're not tech-savvy"</strong></td>
+          <td>You don't need to be. Your team only sees a simple dashboard with orders and commission. We manage all the technical setup.</td>
+        </tr>
+        <tr>
+          <td><strong>"Is the inventory good?"</strong></td>
+          <td>We access live fares via a major GDS/aggregator. The same inventory large OTAs use.</td>
+        </tr>
+        <tr>
+          <td><strong>"What if we want to change the site design later?"</strong></td>
+          <td>Contact us — we handle all branding updates. Your team focuses on sales, we maintain the platform.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- Onboarding flow -->
+  <div class="section">
+    <div class="eyebrow">The onboarding process</div>
+    <h2>Step-by-step: from deal to live site</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Deal is agreed → fill in the onboarding form</h3>
+          <p>Open <a href="https://aviaframe.com/agency-onboard.html" style="color:var(--blue);font-weight:600">aviaframe.com/agency-onboard.html</a> and fill in all required fields on behalf of the agency (or share the link for them to fill in). Collect logo, colors, about text, top destinations, and contact info. The more detail, the better the first site will look.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>AviaFrame team receives the form → creates the agency</h3>
+          <p>The super admin creates the agency in the system, uploads branding, sets up commission, and deploys the site. This typically takes <strong>1–4 hours</strong> during business hours.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Agency receives a welcome email</h3>
+          <p>Sent automatically to the admin email they provided. Contains login link, agency site URL, widget key, and quick-start instructions. See the email preview below.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Agency completes their own setup</h3>
+          <p>They sign in to <strong>admin.aviaframe.com</strong>, set their commission rate, add their website domain to the widget domains list, copy the embed snippet, and paste it on their site. This takes about 15 minutes.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h3>Test booking + go live</h3>
+          <p>Run a test booking with a real card (or use sandbox mode) to confirm everything works end to end. Once confirmed — they're live and ready to sell.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h3>Follow-up: branding updates</h3>
+          <p>If the agency wants to update their site (new logo, hero photo, destinations) they contact the AviaFrame team. We update and redeploy — usually within the same business day.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- What agency receives -->
+  <div class="section">
+    <div class="eyebrow">The welcome pack</div>
+    <h2>What the agency receives after setup</h2>
+    <p>As soon as the site is deployed, the agency admin email automatically receives:</p>
+
+    <div class="email-preview" style="margin-top:24px">
+      <div class="email-header">
+        <div class="eyebrow">Welcome to AviaFrame</div>
+        <h3>Sky Travel Agency</h3>
+        <p>Your agency workspace is ready. Set up commissions, add widget domains, and start accepting bookings.</p>
+      </div>
+      <div class="email-body">
+        <p style="margin-bottom:14px">Hello,<br/>Welcome to <strong>AviaFrame</strong>. Your agency workspace for <strong>Sky Travel</strong> is now ready.</p>
+        <div style="margin-bottom:16px">
+          <span class="email-pill">Open admin portal</span>
+          <span class="email-pill-outline">Open setup guide</span>
+        </div>
+        <div style="background:#f8fbff;border:1px solid #dbe7ff;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px">
+          <strong>Quick access</strong><br/><br/>
+          Admin portal: admin.aviaframe.com<br/>
+          Agency site: <strong>skytravel.aviaframe.com</strong><br/>
+          Widget key: <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px">af_xxxxxxxxxxxxxxxx</code>
+        </div>
+        <p style="margin-bottom:12px"><strong>What to do next:</strong></p>
+        <div class="email-step"><div class="n">1</div><span>Sign in to the admin portal with this email address</span></div>
+        <div class="email-step"><div class="n">2</div><span>Open the setup guide and follow the steps in order</span></div>
+        <div class="email-step"><div class="n">3</div><span>Set your commission rate and payment settings</span></div>
+        <div class="email-step"><div class="n">4</div><span>Add your website domain(s) to Widget domains and save</span></div>
+        <div class="email-step"><div class="n">5</div><span>Copy the embed snippet from Widget setup → paste it on your site</span></div>
+        <div class="email-step"><div class="n">6</div><span>Run an end-to-end booking test</span></div>
+        <div class="email-step"><div class="n">7</div><span>Contact AviaFrame team to update site branding anytime</span></div>
+        <div style="background:#eff6ff;border-left:4px solid var(--blue-light,#2563eb);border-radius:8px;padding:12px 14px;margin-top:16px;font-size:13px">
+          <strong>Recommended path:</strong><br/>
+          Set commission → configure payment → add widget domains → copy embed code → booking test → contact AviaFrame for site branding
+        </div>
+      </div>
+    </div>
+
+    <div class="infobox" style="margin-top:24px">
+      <p><strong>Note:</strong> The agency receives their own branded site URL immediately. They manage commission and orders independently. For any site content changes (logo, hero, destinations) they contact the AviaFrame team directly.</p>
+    </div>
+  </div>
+
+  <!-- What agency can do in portal -->
+  <div class="section">
+    <div class="eyebrow">Agency admin panel</div>
+    <h2>What the agency sees in their portal</h2>
+    <p>The agency admin at <strong>admin.aviaframe.com</strong> has a focused, simple view:</p>
+
+    <div class="cards" style="margin-top:20px">
+      <div class="card">
+        <div class="card-icon">📋</div>
+        <h3>Orders</h3>
+        <p>All bookings made through their widget or site. Passenger names, flight details, payment status, ticket issuance status.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">💸</div>
+        <h3>Commission settings</h3>
+        <p>Their current commission % — they can adjust it anytime. Change takes effect on the next booking immediately.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔗</div>
+        <h3>Widget domains</h3>
+        <p>Domains where the booking widget is allowed to load. They add their website domain here for the widget to work.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📦</div>
+        <h3>Widget embed code</h3>
+        <p>Ready-to-copy HTML snippet they paste on their website to add the booking widget. Read-only — just copy &amp; paste.</p>
+      </div>
+    </div>
+
+    <div class="warnbox" style="margin-top:24px">
+      <p><strong>Important:</strong> Agency admins cannot change their site branding (logo, colors, hero, destinations). All site updates go through the AviaFrame team. This keeps Netlify bandwidth within plan limits and ensures quality control.</p>
+    </div>
+  </div>
+
+  <!-- Checklist -->
+  <div class="section">
+    <div class="eyebrow">Quick reference</div>
+    <h2>Pre-submission checklist</h2>
+    <p>Before submitting the onboarding form, make sure you have:</p>
+    <ul class="checklist" style="margin-top:16px">
+      <li>Agency name in English (and Arabic if applicable)</li>
+      <li>Admin contact email — this becomes their login</li>
+      <li>Contact phone number</li>
+      <li>Agreed subdomain (e.g. <strong>agencyname</strong>.aviaframe.com)</li>
+      <li>Country</li>
+      <li>Agreed commission rate (%)</li>
+      <li>Logo URL (PNG/SVG, transparent background)</li>
+      <li>Primary brand color (hex code)</li>
+      <li>About us text in English (min 2 sentences)</li>
+    </ul>
+    <p style="margin-top:16px;font-size:13px">Everything else (hero, destinations, social, working hours) can be added later. The site will deploy with defaults if some fields are blank.</p>
+  </div>
+
+  <!-- Contact -->
+  <div class="section">
+    <div class="eyebrow">Questions?</div>
+    <h2>Contact the AviaFrame team</h2>
+    <p>For onboarding questions, escalations, or urgent requests:</p>
+    <p><strong>Email:</strong> <a href="mailto:sales@aviaframe.com" style="color:var(--blue)">sales@aviaframe.com</a></p>
+    <p style="margin-top:16px">
+      <a href="https://aviaframe.com/agency-onboard.html"
+        style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border-radius:12px;font-weight:700;font-size:15px;text-decoration:none">
+        Open Onboarding Form →
+      </a>
+    </p>
+  </div>
+
+</div>
+
+<footer>
+  <p>AviaFrame Partner Sales Guide · Internal use only · Not indexed</p>
+  <p style="margin-top:8px"><a href="https://aviaframe.com/agency-onboard.html">Onboarding Form</a> · <a href="mailto:sales@aviaframe.com">Contact team</a></p>
+</footer>
+
+</body>
+</html>

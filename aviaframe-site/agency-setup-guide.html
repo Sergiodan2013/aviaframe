@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AviaFrame | Agency Setup Guide</title>
+    <meta
+      name="description"
+      content="Step-by-step guide for AviaFrame agency managers: how to brand, configure, publish, and test your agency site."
+    />
+    <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/style.css" />
+    <style>
+      :root {
+        --guide-bg: #edf4ff;
+        --guide-panel: #ffffff;
+        --guide-line: #d5e4ff;
+        --guide-text: #0f172a;
+        --guide-muted: #52627d;
+        --guide-primary: #2152ff;
+        --guide-primary-dark: #173ec4;
+        --guide-accent: #00b8ff;
+        --guide-soft: #f5f9ff;
+        --guide-warning: #fff7dd;
+        --guide-warning-line: #facc15;
+      }
+
+      body.guide-body {
+        background:
+          radial-gradient(circle at top left, rgba(0, 184, 255, 0.12), transparent 28%),
+          radial-gradient(circle at top right, rgba(33, 82, 255, 0.12), transparent 28%),
+          var(--guide-bg);
+        color: var(--guide-text);
+      }
+
+      .guide-shell {
+        width: min(1100px, 94vw);
+        margin: 0 auto;
+        padding: 42px 0 80px;
+      }
+
+      .guide-hero {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 28px;
+        align-items: stretch;
+        margin-bottom: 26px;
+      }
+
+      .guide-card,
+      .guide-hero-main,
+      .guide-hero-side,
+      .guide-section,
+      .guide-step {
+        background: var(--guide-panel);
+        border: 1px solid var(--guide-line);
+        border-radius: 24px;
+        box-shadow: 0 24px 60px rgba(33, 82, 255, 0.08);
+      }
+
+      .guide-hero-main {
+        padding: 34px;
+        background:
+          linear-gradient(135deg, rgba(33, 82, 255, 0.98), rgba(0, 184, 255, 0.88)),
+          var(--guide-panel);
+        color: #fff;
+      }
+
+      .guide-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.24);
+      }
+
+      .guide-hero-main h1 {
+        margin: 16px 0 14px;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1.05;
+        color: #fff;
+      }
+
+      .guide-hero-main p {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.75;
+        color: rgba(255, 255, 255, 0.92);
+        max-width: 58ch;
+      }
+
+      .guide-hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .guide-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 14px;
+        border: 1px solid transparent;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      }
+
+      .guide-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .guide-btn-primary {
+        background: #fff;
+        color: var(--guide-primary-dark);
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
+      }
+
+      .guide-btn-secondary {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+
+      .guide-hero-side {
+        padding: 28px;
+      }
+
+      .guide-hero-side h2 {
+        margin: 0 0 18px;
+        font-size: 22px;
+      }
+
+      .guide-mini-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .guide-mini-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: var(--guide-soft);
+        border: 1px solid var(--guide-line);
+      }
+
+      .guide-mini-item strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+
+      .guide-mini-item span {
+        color: var(--guide-muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .guide-grid {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 24px;
+        align-items: start;
+      }
+
+      .guide-toc,
+      .guide-section {
+        padding: 26px;
+      }
+
+      .guide-toc {
+        position: sticky;
+        top: 92px;
+      }
+
+      .guide-toc h3 {
+        margin: 0 0 14px;
+        font-size: 18px;
+      }
+
+      .guide-toc a {
+        display: block;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        border-radius: 12px;
+        color: var(--guide-muted);
+        font-weight: 600;
+        background: transparent;
+        border: 1px solid transparent;
+      }
+
+      .guide-toc a:hover {
+        background: var(--guide-soft);
+        border-color: var(--guide-line);
+        color: var(--guide-text);
+      }
+
+      .guide-content {
+        display: grid;
+        gap: 24px;
+      }
+
+      .guide-section h2 {
+        margin: 0 0 10px;
+        font-size: 28px;
+      }
+
+      .guide-section p,
+      .guide-section li {
+        color: var(--guide-muted);
+        font-size: 15px;
+        line-height: 1.8;
+      }
+
+      .guide-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      .guide-kpi {
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid var(--guide-line);
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+      }
+
+      .guide-kpi strong {
+        display: block;
+        font-size: 28px;
+        color: var(--guide-primary-dark);
+        line-height: 1.1;
+      }
+
+      .guide-kpi span {
+        display: block;
+        margin-top: 6px;
+        color: var(--guide-muted);
+        font-size: 14px;
+      }
+
+      .guide-callout {
+        padding: 18px 20px;
+        border-radius: 18px;
+        background: var(--guide-warning);
+        border: 1px solid rgba(250, 204, 21, 0.45);
+        margin-top: 18px;
+      }
+
+      .guide-callout strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .guide-steps {
+        display: grid;
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .guide-step {
+        padding: 24px;
+      }
+
+      .guide-step-top {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 12px;
+      }
+
+      .guide-step-num {
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--guide-primary), var(--guide-accent));
+        color: #fff;
+        flex-shrink: 0;
+      }
+
+      .guide-step h3 {
+        margin: 0;
+        font-size: 20px;
+      }
+
+      .guide-step ul,
+      .guide-step ol {
+        margin: 14px 0 0;
+        padding-left: 20px;
+      }
+
+      .guide-shot {
+        margin-top: 18px;
+        border: 1px dashed #9db8ff;
+        background:
+          linear-gradient(135deg, rgba(33, 82, 255, 0.05), rgba(0, 184, 255, 0.05)),
+          #fbfdff;
+        border-radius: 18px;
+        padding: 16px;
+      }
+
+      .guide-shot strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--guide-primary-dark);
+      }
+
+      .guide-shot span {
+        display: block;
+        color: var(--guide-muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .guide-checklist {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .guide-check {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: var(--guide-soft);
+        border: 1px solid var(--guide-line);
+      }
+
+      .guide-check-dot {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        background: rgba(33, 82, 255, 0.12);
+        color: var(--guide-primary-dark);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 800;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+
+      .guide-footer {
+        margin-top: 26px;
+        padding: 22px 26px;
+        border-radius: 24px;
+        border: 1px solid var(--guide-line);
+        background: linear-gradient(180deg, #ffffff, #f7fbff);
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .guide-footer strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .guide-footer p {
+        margin: 0;
+        color: var(--guide-muted);
+        line-height: 1.7;
+      }
+
+      @media (max-width: 980px) {
+        .guide-hero,
+        .guide-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .guide-toc {
+          position: static;
+        }
+
+        .guide-kpis {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .guide-shell {
+          width: min(96vw, 96vw);
+          padding-top: 24px;
+        }
+
+        .guide-hero-main,
+        .guide-hero-side,
+        .guide-toc,
+        .guide-section,
+        .guide-step,
+        .guide-footer {
+          padding: 22px;
+          border-radius: 20px;
+        }
+
+        .guide-hero-actions {
+          flex-direction: column;
+        }
+
+        .guide-btn {
+          width: 100%;
+        }
+      }
+
+      @media print {
+        .site-nav,
+        .guide-hero-actions,
+        .guide-toc {
+          display: none !important;
+        }
+
+        body.guide-body {
+          background: #fff;
+        }
+
+        .guide-shell {
+          width: 100%;
+          max-width: none;
+          padding: 0;
+        }
+
+        .guide-hero,
+        .guide-grid,
+        .guide-content,
+        .guide-kpis,
+        .guide-steps {
+          display: block;
+        }
+
+        .guide-hero-main,
+        .guide-hero-side,
+        .guide-section,
+        .guide-step,
+        .guide-footer {
+          box-shadow: none;
+          border: 1px solid #d7dce7;
+          page-break-inside: avoid;
+          margin-bottom: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body class="guide-body">
+    <nav class="site-nav">
+      <div class="site-nav-inner">
+        <a class="brand" href="/">
+          <svg class="brand-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#2563EB"/>
+          </svg>
+          <span class="brand-wordmark">Avia<span class="brand-frame">Frame</span></span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-link" href="/widget-demo.html">Widget Demo</a>
+          <a class="nav-link" href="/partner-integration.html">Integration</a>
+          <a class="nav-link" href="/agency-setup-guide.html">Setup Guide</a>
+          <a class="nav-link btn-nav-cta" href="https://admin.aviaframe.com/">Open Admin Portal</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="guide-shell">
+      <section class="guide-hero">
+        <article class="guide-hero-main">
+          <span class="guide-badge">Agency onboarding</span>
+          <h1>AviaFrame Agency Setup Guide</h1>
+          <p>
+            Your step-by-step guide to setting up your AviaFrame account: branding your site, configuring
+            payments, publishing your public booking page, and running a final test before you go live.
+          </p>
+          <div class="guide-hero-actions">
+            <a class="guide-btn guide-btn-primary" href="https://admin.aviaframe.com/">Open admin portal</a>
+          </div>
+        </article>
+
+        <aside class="guide-hero-side">
+          <h2>What this guide covers</h2>
+          <div class="guide-mini-list">
+            <div class="guide-mini-item">
+              <strong>For your account setup</strong>
+              <span>A practical setup order so you can brand, publish, and test your public site without extra back-and-forth.</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <div class="guide-grid">
+        <aside class="guide-card guide-toc">
+          <h3>Contents</h3>
+          <a href="#overview">1. Setup overview</a>
+          <a href="#manager">2. Your setup steps</a>
+          <a href="#publish">3. Publish and testing</a>
+          <a href="#credentials">4. Your access &amp; credentials</a>
+        </aside>
+
+        <div class="guide-content">
+          <section class="guide-section" id="overview">
+            <h2>Setup overview</h2>
+            <p>
+              Your agency account is already created. To go live, you need to complete branding, configure your
+              payment settings, publish your public booking site, and run a quick end-to-end test.
+            </p>
+            <div class="guide-kpis">
+              <div class="guide-kpi">
+                <strong>1</strong>
+                <span>Admin portal: <code>admin.aviaframe.com</code></span>
+              </div>
+              <div class="guide-kpi">
+                <strong>4</strong>
+                <span>Steps to go live: brand → payments → publish → test</span>
+              </div>
+              <div class="guide-kpi">
+                <strong>2</strong>
+                <span>Outcomes: branded public booking site and embeddable widget</span>
+              </div>
+            </div>
+            <div class="guide-callout">
+              <strong>Where to start:</strong>
+              Log in to <a href="https://admin.aviaframe.com/">admin.aviaframe.com</a> with the email address
+              this guide was sent to. All settings, branding, and publish controls are inside the portal.
+            </div>
+          </section>
+
+          <section class="guide-section" id="manager">
+            <h2>Your setup steps</h2>
+            <p>
+              Follow these steps in order. Each one unlocks the next. The portal will show you a checklist
+              of required items — all of them need to be complete before you can publish your public site.
+            </p>
+            <div class="guide-steps">
+              <article class="guide-step">
+                <div class="guide-step-top">
+                  <span class="guide-step-num">1</span>
+                  <h3>Brand your agency</h3>
+                </div>
+                <p>In the portal, open your agency settings and fill in:</p>
+                <ul>
+                  <li>Upload your logo (PNG or SVG recommended)</li>
+                  <li>Set your primary brand color and accent color</li>
+                  <li>Add an about text in English (and Arabic if your market needs it)</li>
+                  <li>Add working hours and office information</li>
+                  <li>Add a Google Maps embed URL if you have a physical office</li>
+                  <li>Add social media links (Instagram, Twitter, WhatsApp, etc.)</li>
+                </ul>
+              </article>
+
+              <article class="guide-step">
+                <div class="guide-step-top">
+                  <span class="guide-step-num">2</span>
+                  <h3>Configure payment settings</h3>
+                </div>
+                <p>Select which payment methods your customers can use:</p>
+                <ul>
+                  <li><strong>Online card</strong> — Visa, Mastercard, Mada (Moyasar powered)</li>
+                  <li><strong>Cash</strong> — customer pays in person; agent issues ticket manually</li>
+                  <li><strong>Invoice</strong> — requires bank name and IBAN (shown to customers in payment instructions)</li>
+                </ul>
+                <p>
+                  If you plan to embed the booking widget on your own website (not just the agency site),
+                  add your domain to the <strong>Allowed widget domains</strong> list.
+                </p>
+              </article>
+
+              <article class="guide-step">
+                <div class="guide-step-top">
+                  <span class="guide-step-num">3</span>
+                  <h3>Review the setup checklist</h3>
+                </div>
+                <p>
+                  The portal shows a setup checklist. Make sure the following are complete before you publish:
+                </p>
+                <div class="guide-checklist">
+                  <div class="guide-check">
+                    <span class="guide-check-dot">✓</span>
+                    <div>
+                      <strong>Required before first publish</strong>
+                      <div>Agency name, subdomain, contact email, phone number, brand colors, and at least one payment method.</div>
+                    </div>
+                  </div>
+                  <div class="guide-check">
+                    <span class="guide-check-dot">✓</span>
+                    <div>
+                      <strong>Strongly recommended before go-live</strong>
+                      <div>Logo, about text in English, office hours, and a completed booking smoke test.</div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="guide-section" id="publish">
+            <h2>Publish and testing</h2>
+            <p>
+              Once your checklist is complete, publish your public booking site and run a quick end-to-end
+              test to confirm everything works before sharing with customers.
+            </p>
+            <div class="guide-steps">
+              <article class="guide-step">
+                <div class="guide-step-top">
+                  <span class="guide-step-num">4</span>
+                  <h3>Publish your public site</h3>
+                </div>
+                <p>In the admin portal, click <strong>Publish site</strong> (or <strong>Republish</strong> if you are updating an already-live site).</p>
+                <ul>
+                  <li>Publishing takes 1–2 minutes.</li>
+                  <li>After publish, your site will be live at your agency domain (e.g. <code>youragency.aviaframe.com</code>).</li>
+                  <li>Any time you update branding, contacts, or payment settings, click <strong>Republish</strong> to push the changes live.</li>
+                </ul>
+                <div class="guide-callout">
+                  <strong>Not ready to go public yet?</strong>
+                  You can complete all settings and leave the site unpublished until you are ready. Customers cannot
+                  access the booking page until you click Publish.
+                </div>
+              </article>
+
+              <article class="guide-step">
+                <div class="guide-step-top">
+                  <span class="guide-step-num">5</span>
+                  <h3>Run a booking smoke test</h3>
+                </div>
+                <p>After your site is live, do a quick end-to-end test:</p>
+                <ol>
+                  <li>Open your public agency site.</li>
+                  <li>Search for a real flight route (e.g. RUH → DXB, any future date).</li>
+                  <li>Select an offer and fill in passenger details.</li>
+                  <li>Complete the payment using a real card (you can cancel the booking afterwards if needed).</li>
+                  <li>Check that you receive the booking confirmation email and ticket PDF.</li>
+                </ol>
+                <div class="guide-callout">
+                  <strong>If you embedded the widget on your own website:</strong>
+                  Test both the agency site and the embedded widget origin to confirm both work correctly.
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="guide-section" id="credentials">
+            <h2>Your access &amp; credentials</h2>
+            <p>
+              Everything you need to operate your agency account is in the setup email you received. Here is a
+              summary of what to keep handy.
+            </p>
+            <div class="guide-checklist">
+              <div class="guide-check">
+                <span class="guide-check-dot">1</span>
+                <div>
+                  <strong>Admin portal</strong>
+                  <div><a href="https://admin.aviaframe.com/">admin.aviaframe.com</a> — log in with the email address your setup invitation was sent to.</div>
+                </div>
+              </div>
+              <div class="guide-check">
+                <span class="guide-check-dot">2</span>
+                <div>
+                  <strong>Your public agency site</strong>
+                  <div>After first publish, your booking site will be live at <code>youragency.aviaframe.com</code>. The exact URL is shown in the portal and in your setup email.</div>
+                </div>
+              </div>
+              <div class="guide-check">
+                <span class="guide-check-dot">3</span>
+                <div>
+                  <strong>Widget API key</strong>
+                  <div>Your public API key (starts with <code>ag_</code>) is shown in the portal under your agency settings. You need it to embed the booking widget on your own website.</div>
+                </div>
+              </div>
+              <div class="guide-check">
+                <span class="guide-check-dot">4</span>
+                <div>
+                  <strong>Need help?</strong>
+                  <div>Contact AviaFrame support at <a href="mailto:support@aviaframe.com">support@aviaframe.com</a> and include your agency name and domain.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="guide-footer">
+        <div>
+          <strong>Need help?</strong>
+          <p>
+            Contact the AviaFrame team via <a href="mailto:support@aviaframe.com">support@aviaframe.com</a> or
+            <a href="mailto:sales@aviaframe.com">sales@aviaframe.com</a>.
+          </p>
+        </div>
+        <div>
+          <strong>Last updated</strong>
+          <p>July 29, 2026</p>
+        </div>
+      </footer>
+    </main>
+  </body>
+</html>
