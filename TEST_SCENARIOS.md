@@ -130,7 +130,7 @@ npm run dev
 | # | Действие | Ожидаемый результат | ✅/❌ | Примечания |
 |---|----------|---------------------|-------|------------|
 | 1 | После нажатия "Забронировать" | Loader отображается | | |
-| 2 | Проверить Network запрос | POST к `/api/n8n/webhook-test/drct/order/create` | | |
+| 2 | Проверить Network запрос | ~~POST к `/api/n8n/webhook-test/drct/order/create`~~ ⚠️ **DEPRECATED** — ожидается `POST /api/orders` | | |
 | 3 | Проверить Headers запроса | Есть `Idempotency-Key` заголовок | | |
 | 4 | Проверить Body запроса | JSON с user_id, offer, passenger, contacts, pricing | | |
 | 5 | Проверить Console | Лог: "Sending complete order to n8n webhook" | | |
