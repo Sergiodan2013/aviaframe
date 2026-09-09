@@ -103,29 +103,48 @@ function normalizeTitle(passenger) {
   return String(passenger.gender).toUpperCase() === 'F' ? 'Ms' : 'Mr';
 }
 
-function buildDrctPassengers(passengers, contact) {
-  return passengers.map((passenger, index) => ({
-    id: `T${index + 1}`,
-    type: String(passenger.type).toUpperCase(),
-    individual: {
-      first_name: String(passenger.first_name).trim(),
-      last_name: String(passenger.last_name).trim(),
-      title: normalizeTitle(passenger),
-      date_of_birth: passenger.date_of_birth,
-      gender: String(passenger.gender).toUpperCase(),
-    },
-    email: String(passenger.email || contact.email).trim().toLowerCase(),
-    phone: String(passenger.phone || contact.phone).trim(),
-    document: {
-      type: String(passenger.document.type || 'REGULAR_PASSPORT').toUpperCase(),
-      number: String(passenger.document.number).trim(),
-      gender: String(passenger.gender).toUpperCase(),
-      issuing_country: passenger.document.issuing_country,
-      citizenship: passenger.document.citizenship,
-      country_of_issue: passenger.document.country_of_issue || passenger.document.issuing_country,
-      expiration_date: passenger.document.expiration_date,
-    },
-  }));
+function buildDrctPassengers(passengers, contact, upstreamPassengers) {
+  // DRCT assigns its own traveler reference ids when an offer is priced
+  // (PATCH /offers/:id/price). Order creation must echo those exact ids back,
+  // matched positionally within each ADT/CHD/INF block (the same order used
+  // to build the price-step passenger list) - not invent fresh ones. If no
+  // upstream id is available for a position (older quote, or DRCT omitted it),
+  // fall back to a locally generated id rather than failing the order.
+  const upstreamIdQueueByType = {};
+  if (Array.isArray(upstreamPassengers)) {
+    upstreamPassengers.forEach((upstream) => {
+      const type = String(upstream?.type || '').toUpperCase();
+      if (!upstream?.id || !type) return;
+      (upstreamIdQueueByType[type] ||= []).push(upstream.id);
+    });
+  }
+
+  return passengers.map((passenger, index) => {
+    const type = String(passenger.type).toUpperCase();
+    const upstreamId = upstreamIdQueueByType[type]?.shift();
+    return {
+      id: upstreamId || `T${index + 1}`,
+      type,
+      individual: {
+        first_name: String(passenger.first_name).trim(),
+        last_name: String(passenger.last_name).trim(),
+        title: normalizeTitle(passenger),
+        date_of_birth: passenger.date_of_birth,
+        gender: String(passenger.gender).toUpperCase(),
+      },
+      email: String(passenger.email || contact.email).trim().toLowerCase(),
+      phone: String(passenger.phone || contact.phone).trim(),
+      document: {
+        type: String(passenger.document.type || 'REGULAR_PASSPORT').toUpperCase(),
+        number: String(passenger.document.number).trim(),
+        gender: String(passenger.gender).toUpperCase(),
+        issuing_country: passenger.document.issuing_country,
+        citizenship: passenger.document.citizenship,
+        country_of_issue: passenger.document.country_of_issue || passenger.document.issuing_country,
+        expiration_date: passenger.document.expiration_date,
+      },
+    };
+  });
 }
 
 function expectedTotalMatches(quote, expectedTotal) {

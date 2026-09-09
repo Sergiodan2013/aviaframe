@@ -153,7 +153,7 @@ function isEntitled(entitlements, operation, channel, carrierCode) {
   return true;
 }
 
-function quoteRow({ context, pricingContext, offer, normalizedOffer, channel, carrierCode, externalOfferId, externalQuoteId, pricing, expiresAt, searchId, passengers }) {
+function quoteRow({ context, pricingContext, offer, normalizedOffer, channel, carrierCode, externalOfferId, externalQuoteId, pricing, expiresAt, searchId, passengers, upstreamPassengers }) {
   return {
     api_client_id: context.client.id,
     counterparty_id: context.counterparty.id,
@@ -180,6 +180,14 @@ function quoteRow({ context, pricingContext, offer, normalizedOffer, channel, ca
       passenger_types: Array.isArray(passengers)
         ? passengers.map((passenger) => String(passenger.type).toUpperCase())
         : [],
+      // Traveler identifiers DRCT itself assigned when this offer was priced
+      // (PATCH /offers/:id/price). Order creation must reuse these exact refs
+      // rather than inventing new ones - see buildDrctPassengers in orders.js.
+      upstream_passengers: Array.isArray(upstreamPassengers) && upstreamPassengers.length
+        ? upstreamPassengers
+          .filter((passenger) => passenger?.id)
+          .map((passenger) => ({ id: passenger.id, type: String(passenger.type || '').toUpperCase() || null }))
+        : null,
     },
     expires_at: expiresAt,
   };
@@ -430,6 +438,7 @@ function createPartnerApiRouter({ authenticate, repository, drctClient, logger }
         expiresAt,
         searchId: previousQuote.upstream_search_id,
         passengers,
+        upstreamPassengers: priced.passengers,
       })]);
 
       return res.status(200).json(normalizedOffer);
@@ -548,7 +557,7 @@ function createPartnerApiRouter({ authenticate, repository, drctClient, logger }
         try {
           const drctResponse = await drctClient.createOrder({
             offer_id: quote.upstream_offer_id,
-            passengers: buildDrctPassengers(req.body.passengers, req.body.contact),
+            passengers: buildDrctPassengers(req.body.passengers, req.body.contact, quote.pricing_rule_trace?.upstream_passengers),
           }, {
             idempotencyKey: upstreamIdempotencyKey,
             sandbox: context.client.environment !== 'production',
