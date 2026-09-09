@@ -1,0 +1,827 @@
+openapi: 3.0.3
+info:
+  title: AviaFrame Connect API
+  version: 1.0.0-alpha.3
+  license:
+    name: Proprietary
+    url: https://aviaframe.com/legal/terms-and-conditions.html
+  description: |
+    AviaFrame's tenant-scoped flight distribution API. Supplier credentials,
+    identifiers, source prices, and pricing policies remain private to AviaFrame.
+    All monetary amounts are decimal strings.
+servers:
+  - url: https://sandbox-api.aviaframe.com/partner/v1
+    description: Sandbox
+  - url: https://api.aviaframe.com/partner/v1
+    description: Production
+security:
+  - bearerAuth: []
+tags:
+  - name: Offers
+    description: Search and confirm commercial flight offers
+  - name: Orders
+    description: Create and retrieve tenant-scoped flight orders
+paths:
+  /offers/search:
+    post:
+      operationId: searchOffers
+      tags: [Offers]
+      summary: Search flight offers
+      description: |
+        Searches enabled supplier content, applies the counterparty's published
+        pricing policy, and returns AviaFrame offer and quote identifiers. One-way
+        and return searches are supported in this alpha; a second slice must be
+        the reverse of the first. At least one adult is required, and the number
+        of infants cannot exceed the number of adults.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferSearchRequest'
+            examples:
+              roundTrip:
+                summary: One adult round trip
+                value:
+                  slices:
+                    - origin: RUH
+                      destination: DXB
+                      departure_date: '2026-10-10'
+                    - origin: DXB
+                      destination: RUH
+                      departure_date: '2026-10-18'
+                  passengers:
+                    - type: ADT
+                  cabin_class: economy
+      responses:
+        '200':
+          description: Commercial offers
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferSearchResponse'
+              examples:
+                success:
+                  value:
+                    search_id: srch_test_mYcq6BqdlcsV4MrHLB62_w
+                    offers:
+                      - offer_id: off_test_E2L8FbYK8nCkJB9b4jCZjg
+                        price_quote_id: quote_test_dZvD8sEoRK-Ra6g86WmVlg
+                        distribution_channel: NDC
+                        validating_carrier: EK
+                        airline_name: Emirates
+                        origin: RUH
+                        destination: DXB
+                        departure_time: '2026-10-10 09:00'
+                        arrival_time: '2026-10-10 11:00'
+                        stops: 0
+                        baggage: []
+                        segments: []
+                        price:
+                          total: '415.00'
+                          currency: USD
+                        valid_until: '2026-09-05T15:10:00Z'
+                    meta:
+                      offer_count: 1
+                      provider_offer_count: 1
+                      excluded_offer_count: 0
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+        '503':
+          $ref: '#/components/responses/ConfigurationError'
+  /offers/{offer_id}/price:
+    post:
+      operationId: priceOffer
+      tags: [Offers]
+      summary: Confirm the current offer price
+      description: |
+        Reprices the supplier offer and creates a new immutable AviaFrame price
+        quote. The returned price includes the applicable AviaFrame markup.
+      parameters:
+        - name: offer_id
+          in: path
+          required: true
+          description: Opaque AviaFrame offer identifier from search.
+          schema:
+            type: string
+            pattern: '^off_(test|live)_[A-Za-z0-9_-]+$'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Client-generated UUID recommended for safe retries.
+          schema:
+            type: string
+            maxLength: 255
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceOfferRequest'
+            examples:
+              oneAdult:
+                value:
+                  passengers:
+                    - type: ADT
+      responses:
+        '200':
+          description: New commercial price quote
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+              examples:
+                success:
+                  value:
+                    offer_id: off_test_E2L8FbYK8nCkJB9b4jCZjg
+                    price_quote_id: quote_test_2ArW5jCT2bJpG1lUDBkw-w
+                    distribution_channel: NDC
+                    validating_carrier: EK
+                    airline_name: Emirates
+                    origin: RUH
+                    destination: DXB
+                    departure_time: '2026-10-10 09:00'
+                    arrival_time: '2026-10-10 11:00'
+                    stops: 0
+                    baggage: []
+                    segments: []
+                    price:
+                      total: '418.00'
+                      currency: USD
+                    valid_until: '2026-09-05T15:08:00Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          description: Offer is not owned by this API client or does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                notFound:
+                  value:
+                    code: OFFER_NOT_FOUND
+                    message: Offer does not exist
+                    details: []
+                    correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+        '409':
+          description: Supplier price or availability changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                changed:
+                  value:
+                    code: OFFER_CHANGED
+                    message: The offer is no longer available at the quoted price
+                    details: []
+                    correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+        '410':
+          description: AviaFrame offer expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                expired:
+                  value:
+                    code: OFFER_EXPIRED
+                    message: Offer has expired; run a new search
+                    details: []
+                    correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+        '503':
+          $ref: '#/components/responses/ConfigurationError'
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [Orders]
+      summary: Create an order from a confirmed price quote
+      description: |
+        Consumes one unexpired AviaFrame price quote. `expected_total` must match
+        the quote exactly. A 202 response means the supplier outcome is uncertain;
+        do not create another order while AviaFrame reconciles the returned order.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/RequiredIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+            examples:
+              oneAdult:
+                value:
+                  price_quote_id: quote_test_2ArW5jCT2bJpG1lUDBkw-w
+                  client_order_ref: WEB-2026-000184
+                  expected_total: { total: '418.00', currency: USD }
+                  contact: { email: traveler@example.com, phone: '+966500000000' }
+                  passengers:
+                    - type: ADT
+                      title: Mr
+                      gender: M
+                      first_name: Omar
+                      last_name: Saleh
+                      date_of_birth: '1990-04-12'
+                      document:
+                        type: REGULAR_PASSPORT
+                        number: P1234567
+                        issuing_country: SA
+                        citizenship: SA
+                        expiration_date: '2030-04-11'
+      responses:
+        '201':
+          description: Order created by the supplier
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                created:
+                  value: &createdOrder
+                    order_id: ord_test_Q7gDLs4d2wF5nAt8KpG3xA
+                    client_order_ref: WEB-2026-000184
+                    status: CREATED
+                    price_quote_id: quote_test_2ArW5jCT2bJpG1lUDBkw-w
+                    price: { total: '418.00', currency: USD }
+                    booking_reference: L8Q2TR
+                    payment_deadline: '2026-09-05T16:00:00Z'
+                    created_at: '2026-09-05T15:04:00Z'
+        '202':
+          description: Supplier outcome is uncertain and reconciliation is required
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                pendingReconcile:
+                  value:
+                    order_id: ord_test_Q7gDLs4d2wF5nAt8KpG3xA
+                    client_order_ref: WEB-2026-000184
+                    status: PENDING_RECONCILE
+                    price_quote_id: quote_test_2ArW5jCT2bJpG1lUDBkw-w
+                    price: { total: '418.00', currency: USD }
+                    booking_reference: null
+                    payment_deadline: null
+                    created_at: '2026-09-05T15:04:00Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/QuoteNotFoundError'
+        '409':
+          description: Price, passenger, idempotency, quote-consumption, or supplier conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                priceMismatch:
+                  value:
+                    code: PRICE_MISMATCH
+                    message: expected_total does not match the confirmed AviaFrame quote
+                    details: []
+                    correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+                idempotencyConflict:
+                  value:
+                    code: IDEMPOTENCY_CONFLICT
+                    message: Idempotency-Key was already used with a different request
+                    details: []
+                    correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+        '410':
+          description: Price quote expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                expired:
+                  value:
+                    code: QUOTE_EXPIRED
+                    message: Price quote has expired; confirm the offer price again
+                    details: []
+                    correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '503':
+          $ref: '#/components/responses/ConfigurationError'
+  /orders/{order_id}:
+    get:
+      operationId: getOrder
+      tags: [Orders]
+      summary: Retrieve an order
+      description: Returns only an order owned by the authenticated API client.
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          description: Opaque AviaFrame order identifier.
+          schema:
+            type: string
+            pattern: '^ord_(test|live)_[A-Za-z0-9_-]+$'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Current AviaFrame order state
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                created:
+                  value: *createdOrder
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          description: Order is not owned by this API client or does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                notFound:
+                  value:
+                    code: ORDER_NOT_FOUND
+                    message: Order does not exist
+                    details: []
+                    correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '503':
+          $ref: '#/components/responses/ConfigurationError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: af_test_... or af_live_...
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: Client correlation identifier. AviaFrame generates one when omitted.
+      schema:
+        type: string
+        maxLength: 128
+    RequiredIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Unique key for this mutation. The same body replays the stored response;
+        a different body with the same key returns an idempotency conflict.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 255
+        pattern: '^[A-Za-z0-9._:-]+$'
+  headers:
+    CorrelationId:
+      description: Correlation identifier for support and tracing.
+      schema:
+        type: string
+    IdempotencyReplayed:
+      description: Present and true when a stored mutation response is replayed.
+      schema:
+        type: string
+        enum: ['true']
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            invalidOrigin:
+              value:
+                code: VALIDATION_ERROR
+                message: Search request is invalid
+                details:
+                  - field: slices[0].origin
+                    issue: Must be a 3-letter IATA code
+                correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+    UnauthorizedError:
+      description: API key is missing, invalid, revoked, or expired
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            missingKey:
+              value:
+                code: UNAUTHORIZED
+                message: 'Use Authorization: Bearer <api_key>'
+                details: []
+                correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+    ForbiddenError:
+      description: API client, scope, channel, carrier, or operation is not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            scope:
+              value:
+                code: INSUFFICIENT_SCOPE
+                message: 'Required scope: offers:read'
+                details: []
+                correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+    RateLimitError:
+      description: API client rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            limited:
+              value:
+                code: RATE_LIMITED
+                message: Too many requests
+                details: []
+                correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+    UpstreamError:
+      description: Flight supplier is temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            unavailable:
+              value:
+                code: UPSTREAM_UNAVAILABLE
+                message: Flight supplier is temporarily unavailable
+                details: []
+                correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+    ConfigurationError:
+      description: Partner pricing or service configuration is unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            noPricing:
+              value:
+                code: PRICING_NOT_CONFIGURED
+                message: No published pricing plan is assigned to this API client
+                details: []
+                correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+    QuoteNotFoundError:
+      description: Quote is not owned by this API client or does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            notFound:
+              value:
+                code: QUOTE_NOT_FOUND
+                message: Price quote does not exist
+                details: []
+                correlation_id: 599a7735-223d-4aa0-91a6-a5b40c280614
+  schemas:
+    OfferSearchRequest:
+      type: object
+      additionalProperties: false
+      required: [slices, passengers]
+      properties:
+        slices:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/SearchSlice'
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 9
+          items:
+            $ref: '#/components/schemas/SearchPassenger'
+        cabin_class:
+          type: string
+          enum: [economy, premium_economy, business, first]
+    SearchSlice:
+      type: object
+      additionalProperties: false
+      required: [origin, destination, departure_date]
+      properties:
+        origin:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        destination:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        departure_date:
+          type: string
+          format: date
+    SearchPassenger:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [ADT, CHD, INF]
+    PriceOfferRequest:
+      type: object
+      additionalProperties: false
+      required: [passengers]
+      properties:
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 9
+          items:
+            $ref: '#/components/schemas/SearchPassenger'
+    CreateOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [price_quote_id, client_order_ref, expected_total, contact, passengers]
+      properties:
+        price_quote_id:
+          type: string
+          pattern: '^quote_(test|live)_[A-Za-z0-9_-]+$'
+        client_order_ref:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[A-Za-z0-9._:/-]+$'
+        expected_total:
+          $ref: '#/components/schemas/Money'
+        contact:
+          $ref: '#/components/schemas/OrderContact'
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 9
+          items:
+            $ref: '#/components/schemas/OrderPassenger'
+    OrderContact:
+      type: object
+      additionalProperties: false
+      required: [email, phone]
+      properties:
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          minLength: 6
+          maxLength: 32
+    OrderPassenger:
+      type: object
+      additionalProperties: false
+      required: [type, gender, first_name, last_name, date_of_birth, document]
+      properties:
+        type:
+          type: string
+          enum: [ADT, CHD, INF]
+        title:
+          type: string
+          enum: [Mr, Mrs, Ms, Miss, Mstr]
+        gender:
+          type: string
+          enum: [M, F]
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 70
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 70
+        date_of_birth:
+          type: string
+          format: date
+        email:
+          type: string
+          format: email
+          description: Optional passenger email; order contact is used when omitted.
+        phone:
+          type: string
+          description: Optional passenger phone; order contact is used when omitted.
+        document:
+          $ref: '#/components/schemas/TravelDocument'
+    TravelDocument:
+      type: object
+      additionalProperties: false
+      required: [number, issuing_country, citizenship, expiration_date]
+      properties:
+        type:
+          type: string
+          default: REGULAR_PASSPORT
+        number:
+          type: string
+          minLength: 3
+          maxLength: 30
+        issuing_country:
+          type: string
+          pattern: '^[A-Z]{2}$'
+        citizenship:
+          type: string
+          pattern: '^[A-Z]{2}$'
+        country_of_issue:
+          type: string
+          pattern: '^[A-Z]{2}$'
+        expiration_date:
+          type: string
+          format: date
+    Money:
+      type: object
+      additionalProperties: false
+      required: [total, currency]
+      properties:
+        total:
+          type: string
+          pattern: '^\d+(\.\d{1,3})?$'
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+    Offer:
+      type: object
+      required:
+        - offer_id
+        - price_quote_id
+        - distribution_channel
+        - validating_carrier
+        - price
+        - valid_until
+      properties:
+        offer_id:
+          type: string
+        price_quote_id:
+          type: string
+        distribution_channel:
+          type: string
+          enum: [GDS, NDC, LCC]
+        validating_carrier:
+          type: string
+        airline_name:
+          type: string
+          nullable: true
+        origin:
+          type: string
+          nullable: true
+        destination:
+          type: string
+          nullable: true
+        departure_time:
+          type: string
+          nullable: true
+        arrival_time:
+          type: string
+          nullable: true
+        return_departure_time:
+          type: string
+          nullable: true
+        return_arrival_time:
+          type: string
+          nullable: true
+        stops:
+          type: integer
+          minimum: 0
+        baggage:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        segments:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        price:
+          $ref: '#/components/schemas/Money'
+        valid_until:
+          type: string
+          format: date-time
+    OfferSearchResponse:
+      type: object
+      required: [search_id, offers, meta]
+      properties:
+        search_id:
+          type: string
+        offers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Offer'
+        meta:
+          type: object
+          additionalProperties: false
+          required: [offer_count, provider_offer_count, excluded_offer_count]
+          properties:
+            offer_count:
+              type: integer
+              minimum: 0
+              description: Number of commercial offers returned to this API client.
+            provider_offer_count:
+              type: integer
+              minimum: 0
+              description: Number of offers received before the client's channel and carrier access policy was applied.
+            excluded_offer_count:
+              type: integer
+              minimum: 0
+              description: Number of provider offers excluded by access or pricing policy.
+    Order:
+      type: object
+      additionalProperties: false
+      required:
+        - order_id
+        - client_order_ref
+        - status
+        - price_quote_id
+        - price
+        - booking_reference
+        - payment_deadline
+        - created_at
+      properties:
+        order_id:
+          type: string
+          pattern: '^ord_(test|live)_[A-Za-z0-9_-]+$'
+        client_order_ref:
+          type: string
+        status:
+          type: string
+          description: Clients must tolerate new status values.
+          enum: [CREATING, CREATED, PENDING_RECONCILE, FAILED, ISSUED, CANCELLED]
+        price_quote_id:
+          type: string
+        price:
+          $ref: '#/components/schemas/Money'
+        booking_reference:
+          type: string
+          nullable: true
+        payment_deadline:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [code, message, details, correlation_id]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        correlation_id:
+          type: string
+          nullable: true

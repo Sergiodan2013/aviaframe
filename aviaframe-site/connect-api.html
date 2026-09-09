@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AviaFrame Connect API | Build Flight Retailing Into Your Product</title>
+    <meta name="description" content="Integrate normalized GDS, NDC, and low-cost flight content with commercial pricing controls, secure sandbox access, and order workflows." />
+    <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/style.css" />
+  </head>
+  <body class="api-page">
+    <nav class="site-nav">
+      <div class="site-nav-inner">
+        <a class="brand" href="/">
+          <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#2563EB"/></svg>
+          <span class="brand-wordmark">Avia<span class="brand-frame">Frame</span></span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-link nav-link-product is-active" href="/connect-api.html">Flight API</a>
+          <a class="nav-link" href="/#products">White Label</a>
+          <a class="nav-link" href="/docs/connect-api.html">Docs</a>
+          <a class="nav-link btn-nav-cta" href="mailto:sales@aviaframe.com?subject=AviaFrame%20Connect%20API%20sandbox">Request sandbox</a>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <section class="api-hero">
+        <div class="content-wrap api-hero-grid">
+          <div class="api-hero-copy animate">
+            <span class="eyebrow api-eyebrow"><span class="api-live-dot"></span> AviaFrame Connect API · Private alpha</span>
+            <h1>One flight API.<br/><span>Commercial control built in.</span></h1>
+            <p class="lead">Add flight search and order creation to your product without exposing supplier complexity. AviaFrame normalizes enabled GDS, NDC, and low-cost content — then applies your agreed selling price before it reaches your customer.</p>
+            <div class="api-hero-actions">
+              <a class="btn-primary" href="mailto:sales@aviaframe.com?subject=AviaFrame%20Connect%20API%20sandbox">Request sandbox access</a>
+              <a class="btn-ghost" href="#workflow">See the API workflow</a>
+            </div>
+            <div class="api-proof-row">
+              <span><b>✓</b> No DRCT credentials exposed</span>
+              <span><b>✓</b> Opaque AviaFrame IDs</span>
+              <span><b>✓</b> Exact decimal pricing</span>
+            </div>
+          </div>
+
+          <div class="api-console animate" style="animation-delay:.12s" aria-label="Example AviaFrame API response">
+            <div class="api-console-bar"><span></span><span></span><span></span><div>POST /partner/v1/offers/search</div></div>
+            <div class="api-console-tabs"><span class="active">Response</span><span>200 OK</span><span>284 ms</span></div>
+            <pre><code><i>{</i>
+  <em>"search_id"</em>: <strong>"srch_test_7mK..."</strong>,
+  <em>"offers"</em>: [<i>{</i>
+    <em>"offer_id"</em>: <strong>"off_test_3xP..."</strong>,
+    <em>"distribution_channel"</em>: <strong>"NDC"</strong>,
+    <em>"validating_carrier"</em>: <strong>"EK"</strong>,
+    <em>"price"</em>: <i>{</i>
+      <em>"total"</em>: <strong>"418.00"</strong>,
+      <em>"currency"</em>: <strong>"USD"</strong>
+    <i>}</i>,
+    <em>"valid_until"</em>: <strong>"2026-09-05T15:10:00Z"</strong>
+  <i>}</i>]
+<i>}</i></code></pre>
+            <div class="api-console-note"><span>Commercial price</span> Supplier cost and internal markup stay private.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="api-trust-strip">
+        <div class="content-wrap api-trust-grid">
+          <div><strong>GDS</strong><span>enabled traditional content</span></div>
+          <div><strong>NDC</strong><span>modern airline offers</span></div>
+          <div><strong>LCC</strong><span>low-cost connectivity</span></div>
+          <div><strong>One contract</strong><span>one normalized response</span></div>
+        </div>
+      </section>
+
+      <section class="section-light" id="value">
+        <div class="content-wrap">
+          <div class="section-header"><span class="eyebrow">Air retailing infrastructure</span><h2>More than a supplier pass-through</h2><p>A secure commercial layer between airline content and the experience you build.</p></div>
+          <div class="api-value-grid">
+            <article class="api-value-card"><div class="api-value-number">01</div><h3>Normalize once</h3><p>Build against stable AviaFrame objects while source-channel identifiers and credentials remain server-side.</p><span>Less supplier-specific code</span></article>
+            <article class="api-value-card"><div class="api-value-number">02</div><h3>Price with precision</h3><p>Combine percentage and fixed markups globally, by GDS/NDC/LCC, by carrier, or at channel + carrier level.</p><span>Commercial rules before response</span></article>
+            <article class="api-value-card"><div class="api-value-number">03</div><h3>Book safely</h3><p>Orders consume confirmed price quotes, validate the expected total, and use idempotency to make retries predictable.</p><span>No duplicate booking on retry</span></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="api-workflow-section" id="workflow">
+        <div class="content-wrap">
+          <div class="api-workflow-heading"><div><span class="eyebrow-light">One clean workflow</span><h2>From intent to order</h2></div><p>Your application owns the UX. AviaFrame handles content access, commercial pricing, quote integrity, and supplier orchestration.</p></div>
+          <div class="api-workflow">
+            <div class="api-flow-card"><span>1</span><small>SHOP</small><h3>Search offers</h3><code>POST /offers/search</code><p>Return only enabled channels and carriers at the agreed sell price.</p></div>
+            <div class="api-flow-arrow">→</div>
+            <div class="api-flow-card"><span>2</span><small>CONFIRM</small><h3>Reprice</h3><code>POST /offers/{id}/price</code><p>Create a fresh immutable quote before checkout.</p></div>
+            <div class="api-flow-arrow">→</div>
+            <div class="api-flow-card"><span>3</span><small>BOOK</small><h3>Create order</h3><code>POST /orders</code><p>Validate total and passengers, then safely reserve with idempotency.</p></div>
+            <div class="api-flow-arrow">→</div>
+            <div class="api-flow-card"><span>4</span><small>TRACK</small><h3>Retrieve state</h3><code>GET /orders/{id}</code><p>Poll a stable AviaFrame order, including reconciliation states.</p></div>
+          </div>
+          <p class="api-alpha-note"><b>Private alpha scope:</b> search, price confirmation, create order, and retrieve order. Ticketing and post-booking servicing are being added before general availability.</p>
+        </div>
+      </section>
+
+      <section class="section-light">
+        <div class="content-wrap api-two-col">
+          <div>
+            <span class="eyebrow">Built for your business model</span>
+            <h2 class="api-section-title">Your product, your customers, your unit economics</h2>
+            <p class="api-section-lead">Connect API fits products that need flight inventory without adopting a prebuilt storefront.</p>
+            <div class="api-use-cases"><span>Online travel platforms</span><span>Corporate travel tools</span><span>Loyalty &amp; concierge</span><span>Fintech &amp; super apps</span><span>Travel technology providers</span><span>Regional consolidators</span></div>
+          </div>
+          <div class="api-pricing-visual">
+            <div class="api-pv-header"><div><small>PRICING POLICY</small><b>GCC Partner · Sandbox v3</b></div><span>Published</span></div>
+            <div class="api-pv-row head"><span>Scope</span><span>Carrier</span><span>%</span><span>Fixed</span></div>
+            <div class="api-pv-row"><span>Default</span><span>Any</span><b>4.0%</b><b>SAR 8</b></div>
+            <div class="api-pv-row"><span>NDC</span><span>Any</span><b>3.5%</b><b>SAR 6</b></div>
+            <div class="api-pv-row active"><span>NDC</span><span>EK</span><b>2.0%</b><b>SAR 10</b></div>
+            <div class="api-pv-row"><span>LCC</span><span>XY</span><b>5.0%</b><b>SAR 4</b></div>
+            <div class="api-pv-footer">Versioned · auditable · applied server-side</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="api-developer-section">
+        <div class="content-wrap api-dev-grid">
+          <div><span class="eyebrow-light">Developer experience</span><h2>Start in sandbox. Promote with confidence.</h2><p>Environment-specific keys, scoped access, correlation IDs, consistent error envelopes, and an OpenAPI-first contract make integration observable from day one.</p><div class="api-dev-actions"><a class="btn-primary" href="/docs/connect-api.html">Explore documentation</a><a class="btn-dark-ghost" href="mailto:tech@aviaframe.com?subject=AviaFrame%20Connect%20API">Talk to integration engineering</a></div></div>
+          <div class="api-checklist"><div><b>01</b><span><strong>Get a sandbox client</strong>Separate test credentials and rate limits.</span></div><div><b>02</b><span><strong>Complete certification</strong>Validate search, price, order, errors, and safe retry behavior.</span></div><div><b>03</b><span><strong>Activate production</strong>Production keys and commercial policy are approved separately.</span></div></div>
+        </div>
+      </section>
+
+      <section class="api-final-cta">
+        <div class="content-wrap"><span class="eyebrow">Build with AviaFrame</span><h2>Turn flight content into your product.</h2><p>Tell us what you are building, the markets you serve, and your expected volume. We will configure a sandbox and commercial policy around your use case.</p><a class="btn-primary" href="mailto:sales@aviaframe.com?subject=AviaFrame%20Connect%20API%20sandbox">Request sandbox access</a></div>
+      </section>
+    </main>
+
+    <footer class="site-footer"><div class="footer-wrap"><div class="footer-brand"><a class="brand brand-light" href="/"><span class="brand-wordmark">Avia<span class="brand-frame">Frame</span></span></a><span>Flight retailing infrastructure for agencies and digital products.</span><span class="footer-legal-name">AviaFrame · Saudi Arabia</span></div><div class="footer-cols"><div class="footer-col"><div class="footer-col-title">Products</div><a href="/#products">White Label</a><a href="/connect-api.html">Connect API</a><a href="/widget-demo.html">Widget demo</a></div><div class="footer-col"><div class="footer-col-title">Developers</div><a href="/docs/connect-api.html">Documentation</a><a href="mailto:tech@aviaframe.com">Integration support</a><a href="mailto:sales@aviaframe.com">Request sandbox</a></div><div class="footer-col"><div class="footer-col-title">Legal</div><a href="/legal/terms-and-conditions.html">Terms</a><a href="/legal/privacy-policy.html">Privacy</a><a href="/legal/contact-information.html">Contact</a></div></div></div></footer>
+  </body>
+</html>

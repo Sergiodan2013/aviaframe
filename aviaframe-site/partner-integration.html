@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Partner Integration — AviaFrame</title>
+  <meta name="description" content="Embed the AviaFrame booking widget on your agency website using a public widget key and secure domain-restricted loader." />
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/style.css" />
+  <style>
+    .pi-hero {
+      background: linear-gradient(135deg, #0f172a 0%, #17345b 100%);
+      color: #fff;
+      padding: 72px 24px 52px;
+    }
+    .pi-wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    .pi-eyebrow {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(147, 197, 253, 0.45);
+      background: rgba(37, 99, 235, 0.22);
+      color: #bfdbfe;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .pi-hero h1 {
+      margin: 0 0 14px;
+      font-size: 44px;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+    }
+    .pi-hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(360px, .92fr);
+      gap: 24px;
+      align-items: start;
+    }
+    .pi-hero p {
+      margin: 0;
+      color: rgba(255,255,255,.72);
+      font-size: 18px;
+      line-height: 1.7;
+    }
+    .pi-hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .pi-hero-actions a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 14px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .pi-hero-primary {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #fff;
+      box-shadow: 0 14px 32px rgba(37, 99, 235, .28);
+    }
+    .pi-hero-secondary {
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.18);
+    }
+    .pi-hero-rail {
+      display: grid;
+      gap: 16px;
+    }
+    .pi-hero-card {
+      background: rgba(15, 23, 42, .34);
+      border: 1px solid rgba(191, 219, 254, .2);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: 0 20px 52px rgba(15, 23, 42, .18);
+      backdrop-filter: blur(10px);
+    }
+    .pi-hero-card h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: #fff;
+    }
+    .pi-hero-card p {
+      font-size: 14px;
+      color: rgba(255,255,255,.72);
+    }
+    .pi-flow {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .pi-flow-step {
+      border-radius: 14px;
+      border: 1px solid rgba(191, 219, 254, .18);
+      background: rgba(255,255,255,.06);
+      padding: 12px 14px;
+    }
+    .pi-flow-step strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #fff;
+      font-size: 14px;
+    }
+    .pi-flow-step span {
+      display: block;
+      color: rgba(255,255,255,.7);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .pi-main {
+      background: linear-gradient(180deg, #f8fbff 0%, #f1f6ff 100%);
+      padding: 40px 24px 72px;
+    }
+    .pi-grid {
+      display: grid;
+      gap: 24px;
+    }
+    .pi-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      align-items: start;
+    }
+    .pi-card {
+      background: #fff;
+      border: 1px solid #dbe6f6;
+      border-radius: 18px;
+      box-shadow: 0 16px 42px rgba(15, 23, 42, 0.06);
+      padding: 28px;
+    }
+    .pi-card h2 {
+      margin: 0 0 12px;
+      font-size: 26px;
+      color: #0f172a;
+    }
+    .pi-card h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: #0f172a;
+    }
+    .pi-card p, .pi-card li {
+      color: #475569;
+      line-height: 1.7;
+      font-size: 15px;
+    }
+    .pi-steps {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .pi-step {
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 16px 18px;
+      background: #fbfdff;
+    }
+    .pi-step strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #0f172a;
+    }
+    .pi-code {
+      margin-top: 16px;
+      padding: 18px;
+      border-radius: 16px;
+      background: #0f172a;
+      color: #e2e8f0;
+      overflow-x: auto;
+      border: 1px solid #1e293b;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+    }
+    .pi-code code {
+      white-space: pre;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.75;
+    }
+    .pi-note {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e3a8a;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .pi-list {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .pi-faq {
+      margin-top: 24px;
+      display: grid;
+      gap: 14px;
+    }
+    .pi-faq-item {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 14px;
+    }
+    .pi-faq-item:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .pi-kv {
+      display: grid;
+      gap: 10px;
+    }
+    .pi-kv div {
+      display: grid;
+      gap: 4px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .pi-kv span {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .pi-kv strong {
+      color: #0f172a;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .pi-links {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .pi-links a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      border-radius: 12px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .pi-links .pi-primary {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #fff;
+    }
+    .pi-links .pi-secondary {
+      background: #fff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+    .pi-checklist {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .pi-checklist div {
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid #dbe6f6;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      color: #334155;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .pi-checklist strong {
+      color: #0f172a;
+    }
+    .pi-mini {
+      margin-top: 14px;
+      padding: 16px 18px;
+      border-radius: 14px;
+      background: #0f172a;
+      color: #dbeafe;
+      border: 1px solid #1e293b;
+    }
+    .pi-mini strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #ffffff;
+      font-size: 14px;
+      letter-spacing: 0.01em;
+    }
+    .pi-mini code {
+      color: #bfdbfe;
+      font-size: 12px;
+      word-break: break-word;
+    }
+    .pi-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 16px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-radius: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+    .pi-copy-feedback {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #1d4ed8;
+      min-height: 18px;
+    }
+    .pi-admin-grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 16px;
+    }
+    .pi-admin-step {
+      padding: 16px 18px;
+      border-radius: 14px;
+      border: 1px solid #dbe6f6;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+    .pi-admin-step strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #0f172a;
+    }
+    .pi-faq-grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .pi-split {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 18px;
+      align-items: start;
+    }
+    html[dir="rtl"] .pi-hero-actions,
+    html[dir="rtl"] .pi-links {
+      direction: rtl;
+    }
+    html[dir="rtl"] .pi-card,
+    html[dir="rtl"] .pi-hero-card,
+    html[dir="rtl"] .pi-hero > .pi-wrap > div:first-child,
+    html[dir="rtl"] .pi-step,
+    html[dir="rtl"] .pi-admin-step,
+    html[dir="rtl"] .pi-checklist div {
+      text-align: right;
+    }
+    @media (max-width: 960px) {
+      .pi-hero-grid,
+      .pi-row,
+      .pi-split {
+        grid-template-columns: 1fr;
+      }
+      .pi-hero h1 {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <div class="site-nav-inner">
+      <a class="brand" href="/">
+        <svg class="brand-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#2563EB"/>
+        </svg>
+        <span class="brand-wordmark">Avia<span class="brand-frame">Frame</span></span>
+      </a>
+      <div class="nav-links">
+        <a class="nav-link" href="/widget-demo.html">Widget Demo</a>
+        <a class="nav-link nav-link-active" href="/partner-integration.html">Integration</a>
+        <a class="nav-link" href="/#pricing">Pricing</a>
+        <a class="nav-link btn-nav-cta" href="/agency-onboard.html">Register your agency</a>
+        <button class="lang-toggle" id="partner-lang-toggle" aria-label="Toggle language">
+          <span class="lt-opt lt-active" data-l="en">EN</span><span class="lt-sep">|</span><span class="lt-opt" data-l="ar">AR</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <section class="pi-hero">
+    <div class="pi-wrap pi-hero-grid">
+      <div>
+        <span class="pi-eyebrow" id="pi-eyebrow">Partner Integration</span>
+        <h1 id="pi-title">Embed AviaFrame on your agency website with a public widget key.</h1>
+        <p id="pi-lead">
+          The integration uses a domain-restricted public agency key, a secure loader, and a short-lived backend widget session.
+          No DRCT credentials or supplier secrets are ever exposed in the browser.
+        </p>
+        <div class="pi-hero-actions">
+          <a class="pi-hero-primary" id="pi-hero-demo" href="/widget-demo.html">Open Live Demo</a>
+          <a class="pi-hero-secondary" id="pi-hero-sales" href="/agency-onboard.html">Register your agency</a>
+        </div>
+      </div>
+      <div class="pi-hero-rail">
+        <div class="pi-hero-card">
+          <h3 id="pi-flow-title">How the integration works</h3>
+          <p id="pi-flow-lead">A single public key ties the embedded widget to the correct agency, while the backend keeps tenant control and supplier access server-side.</p>
+          <div class="pi-flow">
+            <div class="pi-flow-step">
+              <strong id="pi-flow-1-title">1. Agency site loads `embed.js`</strong>
+              <span id="pi-flow-1-copy">The website includes a public widget key and target container.</span>
+            </div>
+            <div class="pi-flow-step">
+              <strong id="pi-flow-2-title">2. Loader requests widget session</strong>
+              <span id="pi-flow-2-copy">The backend validates the agency key and current website origin against the allowlist.</span>
+            </div>
+            <div class="pi-flow-step">
+              <strong id="pi-flow-3-title">3. Backend issues short-lived token</strong>
+              <span id="pi-flow-3-copy">That token is scoped to the agency and current allowed origin.</span>
+            </div>
+            <div class="pi-flow-step">
+              <strong id="pi-flow-4-title">4. Search and booking stay tenant-scoped</strong>
+              <span id="pi-flow-4-copy">Orders, payments, and provider calls continue through AviaFrame backend controls.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pi-main">
+    <div class="pi-wrap pi-grid">
+      <div class="pi-row">
+      <div class="pi-card">
+        <h2 id="pi-snippet-title">Canonical Embed Snippet</h2>
+        <p id="pi-snippet-lead">
+          Each agency receives a public widget key from the AviaFrame admin portal. Add the container below where you want the
+          booking experience to appear, then include the secure loader script.
+        </p>
+
+        <div class="pi-code"><code id="pi-snippet-code">&lt;div id="aviaframe-widget"&gt;&lt;/div&gt;
+&lt;script
+  src="https://admin.aviaframe.com/embed.js"
+  data-agency-key="YOUR_AGENCY_PUBLIC_WIDGET_KEY"
+  data-target-id="aviaframe-widget"
+  data-locale="en"
+  data-theme="light"
+  async
+&gt;&lt;/script&gt;</code></div>
+        <button class="pi-copy-btn" id="pi-copy-btn" type="button">Copy Snippet Template</button>
+        <div class="pi-copy-feedback" id="pi-copy-feedback"></div>
+
+        <div class="pi-note" id="pi-note-copy">
+          `data-agency-key` is generated and stored by AviaFrame in the agency record. It is a public integration key, not a payment
+          secret and not a supplier credential. The backend still enforces allowed domains before any widget session is issued.
+        </div>
+
+        <div class="pi-steps">
+          <div class="pi-step">
+            <strong id="pi-step-1-title">1. Add your domains in the admin portal</strong>
+            <span id="pi-step-1-copy">Save the exact website hostnames where the widget is allowed to load. The backend uses this allowlist during widget session bootstrap.</span>
+          </div>
+          <div class="pi-step">
+            <strong id="pi-step-2-title">2. Copy the public widget key</strong>
+            <span id="pi-step-2-copy">The key is shown in the agency setup screen together with the ready-to-paste embed code.</span>
+          </div>
+          <div class="pi-step">
+            <strong id="pi-step-3-title">3. Paste the snippet into your site</strong>
+            <span id="pi-step-3-copy">The loader script creates a secure iframe, initializes a short-lived widget session, and binds the session to your allowed origin.</span>
+          </div>
+          <div class="pi-step">
+            <strong id="pi-step-4-title">4. Open the preview and live demo</strong>
+            <span id="pi-step-4-copy">Validate loading, branding, and booking behavior before going live.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pi-card">
+        <h3 id="pi-side-1-title">What the platform does behind the scenes</h3>
+        <div class="pi-kv">
+          <div>
+            <span id="pi-kv-1-label">Public key</span>
+            <strong id="pi-kv-1-copy">Maps the embedded widget to the correct agency tenant.</strong>
+          </div>
+          <div>
+            <span id="pi-kv-2-label">Allowed origins</span>
+            <strong id="pi-kv-2-copy">Prevents the widget from loading on unauthorized domains.</strong>
+          </div>
+          <div>
+            <span id="pi-kv-3-label">Widget session</span>
+            <strong id="pi-kv-3-copy">Issues a short-lived backend token tied to the agency and website origin.</strong>
+          </div>
+          <div>
+            <span id="pi-kv-4-label">Secure operations</span>
+            <strong id="pi-kv-4-copy">Bookings, orders, and provider interactions stay backend-mediated and tenant-scoped.</strong>
+          </div>
+        </div>
+        <div class="pi-links">
+          <a class="pi-primary" id="pi-links-demo" href="/widget-demo.html">Open Live Demo</a>
+          <a class="pi-secondary" id="pi-links-sales" href="/#contact">Talk to Sales</a>
+        </div>
+      </div>
+      </div>
+
+      <div class="pi-row">
+      <div class="pi-card">
+        <h2 id="pi-admin-title">What must happen in the admin portal first</h2>
+        <p id="pi-admin-lead">The snippet only becomes agency-specific after the agency record exists and the domain allowlist has been saved.</p>
+        <div class="pi-admin-grid">
+          <div class="pi-admin-step">
+            <strong id="pi-admin-1-title">1. Create or provision the agency</strong>
+            <span id="pi-admin-1-copy">AviaFrame creates the agency tenant in the admin portal and stores its public widget key in the agency record.</span>
+          </div>
+          <div class="pi-admin-step">
+            <strong id="pi-admin-2-title">2. Save allowed widget domains</strong>
+            <span id="pi-admin-2-copy">The admin adds the exact production hostnames where the widget is allowed to load, for example `www.agency.com`.</span>
+          </div>
+          <div class="pi-admin-step">
+            <strong id="pi-admin-3-title">3. Copy the agency-specific snippet</strong>
+            <span id="pi-admin-3-copy">The portal exposes the embed snippet with that agency's public key already inserted.</span>
+          </div>
+          <div class="pi-admin-step">
+            <strong id="pi-admin-4-title">4. Paste and validate</strong>
+            <span id="pi-admin-4-copy">The agency pastes the snippet into its website, then validates preview, live search, and booking behavior.</span>
+          </div>
+        </div>
+      </div>
+
+        <div class="pi-card">
+          <h3 id="pi-go-live-title">What the agency needs before going live</h3>
+          <div class="pi-checklist">
+            <div><strong id="pi-go-live-1-label">Allowed domains:</strong> <span id="pi-go-live-1-copy">add the exact production hostnames where the widget is allowed to load.</span></div>
+            <div><strong id="pi-go-live-2-label">Public widget key:</strong> <span id="pi-go-live-2-copy">copy it from the agency setup screen in the admin portal.</span></div>
+            <div><strong id="pi-go-live-3-label">Placement on site:</strong> <span id="pi-go-live-3-copy">choose the page or landing block where the booking widget should appear.</span></div>
+            <div><strong id="pi-go-live-4-label">Launch validation:</strong> <span id="pi-go-live-4-copy">test preview, test live page, then verify search and booking behavior end to end.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pi-row">
+        <div class="pi-card">
+          <h2 id="pi-faq-title">FAQ</h2>
+          <div class="pi-faq-grid">
+            <div class="pi-faq-item">
+              <h3 id="pi-faq-1-title">Is `data-agency-key` sensitive?</h3>
+              <p id="pi-faq-1-copy">No. It is intentionally public and safe to place in HTML. Real protection happens server-side through domain allowlists, short-lived widget sessions, and tenant-scoped backend enforcement.</p>
+            </div>
+            <div class="pi-faq-item">
+              <h3 id="pi-faq-2-title">Can an agency use WordPress or a no-code site builder?</h3>
+              <p id="pi-faq-2-copy">Yes. The integration only requires a target `<div>` and a script tag, so it works with plain HTML, WordPress, Webflow, Shopify custom sections, and most CMS systems that support custom code blocks.</p>
+            </div>
+            <div class="pi-faq-item">
+              <h3 id="pi-faq-3-title">Does the browser ever receive supplier tokens?</h3>
+              <p id="pi-faq-3-copy">No. DRCT and backend provider credentials remain server-side. The browser only receives the short-lived widget session issued for the agency and allowed origin.</p>
+            </div>
+            <div class="pi-faq-item">
+              <h3 id="pi-faq-4-title">How do branding changes work?</h3>
+              <p id="pi-faq-4-copy">Brand, domain, and widget settings are managed centrally in the AviaFrame admin portal. Agencies do not need to rebuild the widget script when colors, labels, or allowed domains change.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pi-card">
+          <h3 id="pi-embed-title">What gets embedded</h3>
+          <div class="pi-split">
+            <p id="pi-embed-copy">The website only receives a container and a secure loader script. AviaFrame handles the tenant binding and session bootstrap behind the scenes.</p>
+            <div class="pi-mini">
+              <strong id="pi-embed-mini-title">Minimal production embed</strong>
+              <code id="pi-embed-mini-code">&lt;div id="aviaframe-widget"&gt;&lt;/div&gt;<br/>&lt;script src="https://admin.aviaframe.com/embed.js" data-agency-key="..." data-target-id="aviaframe-widget" async&gt;&lt;/script&gt;</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <footer class="site-footer">
+    <div class="footer-wrap">
+      <div class="footer-brand">
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <svg style="width:24px;height:24px;opacity:.85" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#ffffff"/>
+          </svg>
+          <span style="font-size:16px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:-.2px">Avia<span style="font-weight:400;color:rgba(147,197,253,.9)">Frame</span></span>
+        </span>
+        <span id="footer-tagline">White-label flight booking for travel agencies.</span>
+        <span class="footer-legal-name">© 2026 Consolidator Aviatech Limited (شركة توحيد أفياتيك المحدودة)</span>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-platform">Platform</div>
+          <a href="/widget-demo.html" id="footer-link-demo">Widget Demo</a>
+          <a href="/#pricing" id="footer-link-pricing">Pricing</a>
+          <a href="/docs/" id="footer-link-docs">Documentation</a>
+          <a href="/app-preview.html" id="footer-link-portal">Portal Preview</a>
+        </div>
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-contact">Contact</div>
+          <a href="/#contact" id="footer-link-sales">Contact Sales</a>
+          <a href="mailto:sales@aviaframe.com">sales@aviaframe.com</a>
+          <a href="mailto:support@aviaframe.com">support@aviaframe.com</a>
+          <a href="mailto:info.sa@consolodator.aero">info.sa@consolodator.aero</a>
+          <a href="https://wa.me/966567189306">WhatsApp +966 56 718 9306</a>
+        </div>
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-legal">Legal</div>
+          <a href="/legal/terms-and-conditions.html" id="footer-legal-terms">Terms &amp; Conditions</a>
+          <a href="/legal/refund-and-cancellation-policy.html" id="footer-legal-refund">Refund Policy</a>
+          <a href="/legal/privacy-policy.html" id="footer-legal-privacy">Privacy Policy</a>
+          <a href="/legal/contact-information.html" id="footer-legal-contact">Contact Information</a>
+        </div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,.1);margin-top:32px;padding-top:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <a href="https://consolidator.aero" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:10px;text-decoration:none;opacity:.75;transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity='.75'">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="15" stroke="rgba(147,197,253,0.6)" stroke-width="1.5"/>
+            <path d="M8 16 C8 16 10 10 16 10 C22 10 24 16 24 16 C24 16 22 22 16 22 C10 22 8 16 8 16Z" stroke="rgba(147,197,253,0.8)" stroke-width="1.2" fill="none"/>
+            <path d="M16 10 L16 22 M8 16 L24 16" stroke="rgba(147,197,253,0.5)" stroke-width="1"/>
+            <path d="M13 11.5 C13 11.5 14.5 14 14.5 16 C14.5 18 13 20.5 13 20.5 M19 11.5 C19 11.5 17.5 14 17.5 16 C17.5 18 19 20.5 19 20.5" stroke="rgba(147,197,253,0.5)" stroke-width="0.8" fill="none"/>
+          </svg>
+          <span style="font-size:13px;color:rgba(255,255,255,.7);">Part of <strong style="color:rgba(147,197,253,.9);font-weight:600;">Consolidator Aero</strong></span>
+        </a>
+        <span style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.5;">AviaFrame is a product of Consolidator Aviatech — a global air consolidation and travel technology company serving agencies across the Middle East and beyond.</span>
+      </div>
+    </div>
+  </footer>
+  <script>
+    (function () {
+      var copyBtn = document.getElementById('pi-copy-btn');
+      var feedback = document.getElementById('pi-copy-feedback');
+      var langToggle = document.getElementById('partner-lang-toggle');
+      var snippet = '<div id="aviaframe-widget"></div>\n<script\n  src="https://admin.aviaframe.com/embed.js"\n  data-agency-key="YOUR_AGENCY_PUBLIC_WIDGET_KEY"\n  data-target-id="aviaframe-widget"\n  data-locale="en"\n  data-theme="light"\n  async\n><\\/script>';
+      var T = {
+        en: {
+          nav1: 'Widget Demo',
+          nav2: 'Integration',
+          nav3: 'Pricing',
+          nav4: 'Register your agency',
+          eyebrow: 'Partner Integration',
+          title: 'Embed AviaFrame on your agency website with a public widget key.',
+          lead: 'The integration uses a domain-restricted public agency key, a secure loader, and a short-lived backend widget session. No DRCT credentials or supplier secrets are ever exposed in the browser.',
+          heroDemo: 'Open Live Demo',
+          heroSales: 'Register your agency',
+          flowTitle: 'How the integration works',
+          flowLead: 'A single public key ties the embedded widget to the correct agency, while the backend keeps tenant control and supplier access server-side.',
+          flow1t: '1. Agency site loads embed.js',
+          flow1c: 'The website includes a public widget key and target container.',
+          flow2t: '2. Loader requests widget session',
+          flow2c: 'The backend validates the agency key and current website origin against the allowlist.',
+          flow3t: '3. Backend issues short-lived token',
+          flow3c: 'That token is scoped to the agency and current allowed origin.',
+          flow4t: '4. Search and booking stay tenant-scoped',
+          flow4c: 'Orders, payments, and provider calls continue through AviaFrame backend controls.',
+          snippetTitle: 'Canonical Embed Snippet',
+          snippetLead: 'Each agency receives a public widget key from the AviaFrame admin portal. Add the container below where you want the booking experience to appear, then include the secure loader script.',
+          noteCopy: '`data-agency-key` is generated and stored by AviaFrame in the agency record. It is a public integration key, not a payment secret and not a supplier credential. The backend still enforces allowed domains before any widget session is issued.',
+          copyBtn: 'Copy Snippet Template',
+          step1t: '1. Add your domains in the admin portal',
+          step1c: 'Save the exact website hostnames where the widget is allowed to load. The backend uses this allowlist during widget session bootstrap.',
+          step2t: '2. Copy the public widget key',
+          step2c: 'The key is shown in the agency setup screen together with the ready-to-paste embed code.',
+          step3t: '3. Paste the snippet into your site',
+          step3c: 'The loader script creates a secure iframe, initializes a short-lived widget session, and binds the session to your allowed origin.',
+          step4t: '4. Open the preview and live demo',
+          step4c: 'Validate loading, branding, and booking behavior before going live.',
+          adminTitle: 'What must happen in the admin portal first',
+          adminLead: 'The snippet only becomes agency-specific after the agency record exists and the domain allowlist has been saved.',
+          admin1t: '1. Create or provision the agency',
+          admin1c: 'AviaFrame creates the agency tenant in the admin portal and stores its public widget key in the agency record.',
+          admin2t: '2. Save allowed widget domains',
+          admin2c: 'The admin adds the exact production hostnames where the widget is allowed to load, for example `www.agency.com`.',
+          admin3t: '3. Copy the agency-specific snippet',
+          admin3c: 'The portal exposes the embed snippet with that agency\'s public key already inserted.',
+          admin4t: '4. Paste and validate',
+          admin4c: 'The agency pastes the snippet into its website, then validates preview, live search, and booking behavior.',
+          side1Title: 'What the platform does behind the scenes',
+          kv1l: 'Public key',
+          kv1c: 'Maps the embedded widget to the correct agency tenant.',
+          kv2l: 'Allowed origins',
+          kv2c: 'Prevents the widget from loading on unauthorized domains.',
+          kv3l: 'Widget session',
+          kv3c: 'Issues a short-lived backend token tied to the agency and website origin.',
+          kv4l: 'Secure operations',
+          kv4c: 'Bookings, orders, and provider interactions stay backend-mediated and tenant-scoped.',
+          linksDemo: 'Open Live Demo',
+          linksSales: 'Talk to Sales',
+          goLiveTitle: 'What the agency needs before going live',
+          goLive1l: 'Allowed domains:',
+          goLive1c: 'add the exact production hostnames where the widget is allowed to load.',
+          goLive2l: 'Public widget key:',
+          goLive2c: 'copy it from the agency setup screen in the admin portal.',
+          goLive3l: 'Placement on site:',
+          goLive3c: 'choose the page or landing block where the booking widget should appear.',
+          goLive4l: 'Launch validation:',
+          goLive4c: 'test preview, test live page, then verify search and booking behavior end to end.',
+          faqTitle: 'FAQ',
+          faq1t: 'Is `data-agency-key` sensitive?',
+          faq1c: 'No. It is intentionally public and safe to place in HTML. Real protection happens server-side through domain allowlists, short-lived widget sessions, and tenant-scoped backend enforcement.',
+          faq2t: 'Can an agency use WordPress or a no-code site builder?',
+          faq2c: 'Yes. The integration only requires a target `<div>` and a script tag, so it works with plain HTML, WordPress, Webflow, Shopify custom sections, and most CMS systems that support custom code blocks.',
+          faq3t: 'Does the browser ever receive supplier tokens?',
+          faq3c: 'No. DRCT and backend provider credentials remain server-side. The browser only receives the short-lived widget session issued for the agency and allowed origin.',
+          faq4t: 'How do branding changes work?',
+          faq4c: 'Brand, domain, and widget settings are managed centrally in the AviaFrame admin portal. Agencies do not need to rebuild the widget script when colors, labels, or allowed domains change.',
+          embedTitle: 'What gets embedded',
+          embedCopy: 'The website only receives a container and a secure loader script. AviaFrame handles the tenant binding and session bootstrap behind the scenes.',
+          embedMiniTitle: 'Minimal production embed',
+          footer_tagline: 'White-label flight booking for travel agencies.',
+          footer_col_platform: 'Platform',
+          footer_col_contact: 'Contact',
+          footer_col_legal: 'Legal',
+          footer_lnk_demo: 'Widget Demo',
+          footer_lnk_pricing: 'Pricing',
+          footer_lnk_docs: 'Documentation',
+          footer_lnk_portal: 'Portal Preview',
+          footer_lnk_sales: 'Contact Sales',
+          legal_terms: 'Terms & Conditions',
+          legal_refund: 'Refund Policy',
+          legal_privacy: 'Privacy Policy',
+          legal_contact_info: 'Contact Information',
+          copySuccess: 'Snippet template copied. The real key is issued per agency in the admin portal.',
+          copyFail: 'Could not copy automatically. You can still copy the snippet manually.'
+        },
+        ar: {
+          nav1: 'عرض الويدجت',
+          nav2: 'التكامل',
+          nav3: 'الأسعار',
+          nav4: 'سجّل وكالتك',
+          eyebrow: 'تكامل الشركاء',
+          title: 'ضمّن AviaFrame في موقع وكالتك باستخدام مفتاح ويدجت عام.',
+          lead: 'يعتمد التكامل على مفتاح وكالة عام مقيّد بالدومين، ومحمل آمن، وجلسة ويدجت قصيرة العمر من الباك إند. لا يتم كشف بيانات DRCT أو أسرار الموردين داخل المتصفح.',
+          heroDemo: 'افتح العرض المباشر',
+          heroSales: 'سجّل وكالتك',
+          flowTitle: 'كيف يعمل التكامل',
+          flowLead: 'مفتاح عام واحد يربط الويدجت المضمّن بالوكالة الصحيحة، بينما يحتفظ الباك إند بعزل المستأجر والتحكم في الموردين على الخادم فقط.',
+          flow1t: '1. موقع الوكالة يحمّل embed.js',
+          flow1c: 'الموقع يضمّن مفتاح الوكالة العام مع الحاوية المستهدفة.',
+          flow2t: '2. المحمل يطلب جلسة ويدجت',
+          flow2c: 'الباك إند يتحقق من مفتاح الوكالة ومن أصل الموقع الحالي مقابل قائمة الدومينات المسموح بها.',
+          flow3t: '3. الباك إند يصدر رمزاً قصير العمر',
+          flow3c: 'هذا الرمز يكون مرتبطاً بالوكالة وبالأصل المسموح به الحالي.',
+          flow4t: '4. البحث والحجز يبقيان ضمن نفس الوكالة',
+          flow4c: 'الطلبات والدفع واستدعاءات الموردين تستمر عبر ضوابط AviaFrame الخلفية.',
+          snippetTitle: 'كود التضمين الأساسي',
+          snippetLead: 'كل وكالة تحصل على مفتاح ويدجت عام من بوابة إدارة AviaFrame. أضف الحاوية في المكان الذي تريد ظهور تجربة الحجز فيه، ثم أدرج سكربت التحميل الآمن.',
+          noteCopy: '`data-agency-key` يتم إنشاؤه وتخزينه في سجل الوكالة داخل AviaFrame. هو مفتاح تكامل عام وليس سراً للدفع ولا بيانات مورد حساسة. ما زال الباك إند يفرض التحقق من الدومينات المسموح بها قبل إصدار أي جلسة ويدجت.',
+          copyBtn: 'انسخ قالب الكود',
+          step1t: '1. أضف دوميناتك في بوابة الإدارة',
+          step1c: 'احفظ أسماء النطاقات الدقيقة التي يُسمح للويدجت بالتحميل منها. يستخدم الباك إند هذه القائمة أثناء إنشاء جلسة الويدجت.',
+          step2t: '2. انسخ مفتاح الويدجت العام',
+          step2c: 'يظهر المفتاح في شاشة إعداد الوكالة مع كود التضمين الجاهز للنسخ.',
+          step3t: '3. الصق الكود في موقعك',
+          step3c: 'يقوم سكربت التحميل بإنشاء iframe آمن، وبدء جلسة ويدجت قصيرة العمر، وربطها بالأصل المسموح به.',
+          step4t: '4. افتح المعاينة والعرض المباشر',
+          step4c: 'تحقق من التحميل والهوية البصرية وسلوك البحث والحجز قبل الإطلاق.',
+          adminTitle: 'ما الذي يجب أن يحدث أولاً في بوابة الإدارة',
+          adminLead: 'لا يصبح الكود خاصاً بالوكالة إلا بعد إنشاء سجل الوكالة وحفظ قائمة الدومينات المسموح بها.',
+          admin1t: '1. إنشاء الوكالة أو تهيئتها',
+          admin1c: 'تقوم AviaFrame بإنشاء tenant الوكالة في بوابة الإدارة وتخزين مفتاح الويدجت العام داخل سجلها.',
+          admin2t: '2. حفظ دومينات الويدجت المسموح بها',
+          admin2c: 'يقوم المسؤول بإضافة أسماء النطاقات الإنتاجية الدقيقة المسموح للويدجت بالتحميل منها مثل `www.agency.com`.',
+          admin3t: '3. نسخ الكود الخاص بالوكالة',
+          admin3c: 'تعرض البوابة كود التضمين مع مفتاح الوكالة العام مدمجاً فيه مسبقاً.',
+          admin4t: '4. الصق واختبر',
+          admin4c: 'تقوم الوكالة بلصق الكود في موقعها ثم تتحقق من المعاينة والبحث المباشر وتدفق الحجز.',
+          side1Title: 'ما الذي تفعله المنصة خلف الكواليس',
+          kv1l: 'المفتاح العام',
+          kv1c: 'يربط الويدجت المضمّن بالوكالة الصحيحة.',
+          kv2l: 'الأصول المسموح بها',
+          kv2c: 'يمنع تحميل الويدجت على دومينات غير مصرح بها.',
+          kv3l: 'جلسة الويدجت',
+          kv3c: 'تصدر رمزاً قصير العمر مرتبطاً بالوكالة وبأصل الموقع.',
+          kv4l: 'العمليات الآمنة',
+          kv4c: 'الحجوزات والطلبات واتصالات الموردين تبقى عبر الباك إند وتحت عزل الوكالة.',
+          linksDemo: 'افتح العرض المباشر',
+          linksSales: 'تحدث إلى المبيعات',
+          goLiveTitle: 'ما الذي تحتاجه الوكالة قبل الإطلاق',
+          goLive1l: 'الدومينات المسموح بها:',
+          goLive1c: 'أضف أسماء النطاقات الإنتاجية الدقيقة التي يسمح للويدجت بالتحميل منها.',
+          goLive2l: 'مفتاح الويدجت العام:',
+          goLive2c: 'انسخه من شاشة إعداد الوكالة داخل بوابة الإدارة.',
+          goLive3l: 'موضع الإدراج في الموقع:',
+          goLive3c: 'اختر الصفحة أو البلوك الذي سيظهر فيه ويدجت الحجز.',
+          goLive4l: 'التحقق قبل الإطلاق:',
+          goLive4c: 'اختبر المعاينة والصفحة المباشرة ثم تأكد من البحث والحجز من البداية إلى النهاية.',
+          faqTitle: 'الأسئلة الشائعة',
+          faq1t: 'هل `data-agency-key` حساس؟',
+          faq1c: 'لا. هذا المفتاح عام عمداً وآمن داخل HTML. الحماية الحقيقية تتم على الخادم عبر قائمة الدومينات المسموح بها والجلسات قصيرة العمر وفرض عزل الوكالة في الباك إند.',
+          faq2t: 'هل يمكن للوكالة استخدام WordPress أو أداة no-code؟',
+          faq2c: 'نعم. التكامل يحتاج فقط إلى `<div>` مستهدف وسكربت، لذلك يعمل مع HTML العادي وWordPress وWebflow وShopify وأغلب الأنظمة التي تدعم كتل كود مخصصة.',
+          faq3t: 'هل يستقبل المتصفح أي توكنات للموردين؟',
+          faq3c: 'لا. تبقى بيانات DRCT ومفاتيح المزودين في الخادم فقط. المتصفح يستقبل فقط جلسة ويدجت قصيرة العمر صادرة لهذه الوكالة ولهذا الأصل المسموح.',
+          faq4t: 'كيف تعمل تغييرات الهوية البصرية؟',
+          faq4c: 'العلامة التجارية والدومين وإعدادات الويدجت تُدار مركزياً من بوابة AviaFrame. لا تحتاج الوكالات لإعادة بناء السكربت عند تغيير الألوان أو النصوص أو الدومينات المسموح بها.',
+          embedTitle: 'ما الذي يتم تضمينه',
+          embedCopy: 'الموقع يستقبل فقط حاوية وسكربت تحميل آمن. تتولى AviaFrame ربط الوكالة وإنشاء الجلسة خلف الكواليس.',
+          embedMiniTitle: 'أبسط كود إنتاجي',
+          footer_tagline: 'حجز تذاكر طيران بعلامتك التجارية لوكالات السفر.',
+          footer_col_platform: 'المنصة',
+          footer_col_contact: 'التواصل',
+          footer_col_legal: 'القانونية',
+          footer_lnk_demo: 'عرض الويدجت',
+          footer_lnk_pricing: 'الأسعار',
+          footer_lnk_docs: 'التوثيق',
+          footer_lnk_portal: 'معاينة البوابة',
+          footer_lnk_sales: 'تواصل مع المبيعات',
+          legal_terms: 'الشروط والأحكام',
+          legal_refund: 'سياسة الاسترداد',
+          legal_privacy: 'سياسة الخصوصية',
+          legal_contact_info: 'معلومات الاتصال',
+          copySuccess: 'تم نسخ قالب الكود. يتم إصدار المفتاح الحقيقي لكل وكالة من داخل لوحة الإدارة.',
+          copyFail: 'تعذر النسخ تلقائياً. لا يزال بإمكانك نسخ الكود يدوياً.'
+        }
+      };
+      function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value;
+      }
+      function applyLang(lang) {
+        var t = T[lang] || T.en;
+        document.documentElement.lang = lang;
+        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+        try { localStorage.setItem('aviaframe-lang', lang); } catch (e) {}
+        if (langToggle) {
+          langToggle.querySelectorAll('.lt-opt').forEach(function (opt) {
+            opt.classList.toggle('lt-active', opt.getAttribute('data-l') === lang);
+          });
+        }
+        var navLinks = document.querySelectorAll('.nav-links a');
+        if (navLinks[0]) navLinks[0].textContent = t.nav1;
+        if (navLinks[1]) navLinks[1].textContent = t.nav2;
+        if (navLinks[2]) navLinks[2].textContent = t.nav3;
+        if (navLinks[3]) navLinks[3].textContent = t.nav4;
+        setText('pi-eyebrow', t.eyebrow);
+        setText('pi-title', t.title);
+        setText('pi-lead', t.lead);
+        setText('pi-hero-demo', t.heroDemo);
+        setText('pi-hero-sales', t.heroSales);
+        setText('pi-flow-title', t.flowTitle);
+        setText('pi-flow-lead', t.flowLead);
+        setText('pi-flow-1-title', t.flow1t);
+        setText('pi-flow-1-copy', t.flow1c);
+        setText('pi-flow-2-title', t.flow2t);
+        setText('pi-flow-2-copy', t.flow2c);
+        setText('pi-flow-3-title', t.flow3t);
+        setText('pi-flow-3-copy', t.flow3c);
+        setText('pi-flow-4-title', t.flow4t);
+        setText('pi-flow-4-copy', t.flow4c);
+        setText('pi-snippet-title', t.snippetTitle);
+        setText('pi-snippet-lead', t.snippetLead);
+        setText('pi-copy-btn', t.copyBtn);
+        setText('pi-note-copy', t.noteCopy);
+        setText('pi-step-1-title', t.step1t);
+        setText('pi-step-1-copy', t.step1c);
+        setText('pi-step-2-title', t.step2t);
+        setText('pi-step-2-copy', t.step2c);
+        setText('pi-step-3-title', t.step3t);
+        setText('pi-step-3-copy', t.step3c);
+        setText('pi-step-4-title', t.step4t);
+        setText('pi-step-4-copy', t.step4c);
+        setText('pi-admin-title', t.adminTitle);
+        setText('pi-admin-lead', t.adminLead);
+        setText('pi-admin-1-title', t.admin1t);
+        setText('pi-admin-1-copy', t.admin1c);
+        setText('pi-admin-2-title', t.admin2t);
+        setText('pi-admin-2-copy', t.admin2c);
+        setText('pi-admin-3-title', t.admin3t);
+        setText('pi-admin-3-copy', t.admin3c);
+        setText('pi-admin-4-title', t.admin4t);
+        setText('pi-admin-4-copy', t.admin4c);
+        setText('pi-side-1-title', t.side1Title);
+        setText('pi-kv-1-label', t.kv1l);
+        setText('pi-kv-1-copy', t.kv1c);
+        setText('pi-kv-2-label', t.kv2l);
+        setText('pi-kv-2-copy', t.kv2c);
+        setText('pi-kv-3-label', t.kv3l);
+        setText('pi-kv-3-copy', t.kv3c);
+        setText('pi-kv-4-label', t.kv4l);
+        setText('pi-kv-4-copy', t.kv4c);
+        setText('pi-links-demo', t.linksDemo);
+        setText('pi-links-sales', t.linksSales);
+        setText('pi-go-live-title', t.goLiveTitle);
+        setText('pi-go-live-1-label', t.goLive1l);
+        setText('pi-go-live-1-copy', t.goLive1c);
+        setText('pi-go-live-2-label', t.goLive2l);
+        setText('pi-go-live-2-copy', t.goLive2c);
+        setText('pi-go-live-3-label', t.goLive3l);
+        setText('pi-go-live-3-copy', t.goLive3c);
+        setText('pi-go-live-4-label', t.goLive4l);
+        setText('pi-go-live-4-copy', t.goLive4c);
+        setText('pi-faq-title', t.faqTitle);
+        setText('pi-faq-1-title', t.faq1t);
+        setText('pi-faq-1-copy', t.faq1c);
+        setText('pi-faq-2-title', t.faq2t);
+        setText('pi-faq-2-copy', t.faq2c);
+        setText('pi-faq-3-title', t.faq3t);
+        setText('pi-faq-3-copy', t.faq3c);
+        setText('pi-faq-4-title', t.faq4t);
+        setText('pi-faq-4-copy', t.faq4c);
+        setText('pi-embed-title', t.embedTitle);
+        setText('pi-embed-copy', t.embedCopy);
+        setText('pi-embed-mini-title', t.embedMiniTitle);
+        setText('footer-tagline', t.footer_tagline);
+        setText('footer-col-platform', t.footer_col_platform);
+        setText('footer-col-contact', t.footer_col_contact);
+        setText('footer-col-legal', t.footer_col_legal);
+        setText('footer-link-demo', t.footer_lnk_demo);
+        setText('footer-link-pricing', t.footer_lnk_pricing);
+        setText('footer-link-docs', t.footer_lnk_docs);
+        setText('footer-link-portal', t.footer_lnk_portal);
+        setText('footer-link-sales', t.footer_lnk_sales);
+        setText('footer-legal-terms', t.legal_terms);
+        setText('footer-legal-refund', t.legal_refund);
+        setText('footer-legal-privacy', t.legal_privacy);
+        setText('footer-legal-contact', t.legal_contact_info);
+        if (feedback && feedback.dataset.state === 'success') feedback.textContent = t.copySuccess;
+        if (feedback && feedback.dataset.state === 'fail') feedback.textContent = t.copyFail;
+      }
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async function () {
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(snippet);
+            } else {
+              var ta = document.createElement('textarea');
+              ta.value = snippet;
+              ta.style.position = 'fixed';
+              ta.style.left = '-9999px';
+              document.body.appendChild(ta);
+              ta.focus();
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+            }
+            if (feedback) {
+              feedback.dataset.state = 'success';
+              feedback.textContent = (T[document.documentElement.lang] || T.en).copySuccess;
+            }
+          } catch (err) {
+            if (feedback) {
+              feedback.dataset.state = 'fail';
+              feedback.textContent = (T[document.documentElement.lang] || T.en).copyFail;
+            }
+          }
+        });
+      }
+      var currentLang = 'en';
+      try { currentLang = localStorage.getItem('aviaframe-lang') || 'en'; } catch (e) {}
+      applyLang(currentLang);
+      if (langToggle) {
+        langToggle.addEventListener('click', function () {
+          currentLang = currentLang === 'en' ? 'ar' : 'en';
+          applyLang(currentLang);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

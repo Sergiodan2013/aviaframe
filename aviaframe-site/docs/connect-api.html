@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Connect API Guide | AviaFrame Developers</title>
+  <link rel="stylesheet" href="/assets/style.css"/>
+  <style>
+    .dev-layout{display:grid;grid-template-columns:250px minmax(0,850px);max-width:1180px;margin:0 auto;min-height:100vh}.dev-nav{position:sticky;top:0;height:100vh;padding:30px 22px;background:#fff;border-right:1px solid var(--line)}.dev-nav a{display:block;padding:7px 9px;border-radius:7px;color:#52617a;font-size:13px}.dev-nav a:hover{background:#eef4ff;color:var(--primary)}.dev-main{padding:48px 54px 90px}.dev-main h1{font-size:38px;letter-spacing:-.04em}.dev-main h2{margin:54px 0 14px;padding-top:24px;border-top:1px solid var(--line)}.dev-main h3{margin-top:30px}.dev-main p,.dev-main li{color:#475569}.endpoint-label{display:flex;gap:10px;align-items:center;margin:18px 0 10px}.endpoint-label b{background:#dbeafe;color:#1d4ed8;border-radius:5px;padding:4px 8px;font-size:11px}.endpoint-label code{font-weight:800}.callout{padding:15px 17px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:14px}.callout.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.dev-table{width:100%;border-collapse:collapse;font-size:13px}.dev-table th,.dev-table td{text-align:left;padding:10px;border-bottom:1px solid var(--line)}.dev-table th{color:#64748b;font-size:11px;text-transform:uppercase}.dev-main pre{background:#071226;color:#dbeafe;border-radius:12px;padding:18px;overflow:auto;font:12px/1.7 ui-monospace,monospace}@media(max-width:760px){.dev-layout{grid-template-columns:1fr}.dev-nav{display:none}.dev-main{padding:32px 20px}}
+  </style>
+</head>
+<body><div class="dev-layout">
+  <aside class="dev-nav"><a class="brand" href="/"><span class="brand-wordmark">Avia<span class="brand-frame">Frame</span></span></a><p class="eyebrow" style="margin:28px 8px 8px">Connect API alpha.2</p><a href="#start">Quick start</a><a href="#auth">Authentication</a><a href="#search">Search</a><a href="#price">Confirm price</a><a href="#order">Create order</a><a href="#retrieve">Retrieve order</a><a href="#errors">Errors & retries</a><a href="#support">Support</a></aside>
+  <main class="dev-main">
+    <span class="eyebrow">AviaFrame Developers</span><h1>Connect API guide</h1><p class="lead">A tenant-scoped flight API for search, commercial price confirmation, and safe order creation. Supplier credentials, identifiers, source prices, and internal pricing rules are never exposed.</p>
+    <div class="callout"><strong>Private alpha:</strong> search, price, create order, and retrieve order are available. Ticketing, cancellation, and post-booking servicing are not yet part of this public contract.</div>
+
+    <h2 id="start">Quick start</h2><p>Ask your AviaFrame manager for a sandbox key beginning with <code>af_test_</code>. Keep it on your server; never embed it in a browser or mobile application.</p>
+    <table class="dev-table"><tr><th>Environment</th><th>Base URL</th></tr><tr><td>Sandbox</td><td><code>https://sandbox-api.aviaframe.com/partner/v1</code></td></tr><tr><td>Production</td><td><code>https://api.aviaframe.com/partner/v1</code></td></tr></table>
+    <h2 id="auth">Authentication and headers</h2><pre>Authorization: Bearer af_test_REPLACE_ME
+Content-Type: application/json
+X-Correlation-ID: 12d6064d-0a21-4471-b521-c47f7b85cb22</pre><p>Order creation also requires an <code>Idempotency-Key</code> containing 8–255 safe characters. Reusing a key with the identical body replays the original response. Reusing it with another body returns <code>IDEMPOTENCY_CONFLICT</code>.</p>
+
+    <h2 id="search">1. Search offers</h2><div class="endpoint-label"><b>POST</b><code>/offers/search</code></div><pre>{
+  "slices": [{ "origin": "RUH", "destination": "DXB", "departure_date": "2026-10-10" }],
+  "passengers": [{ "type": "ADT" }],
+  "cabin_class": "economy"
+}</pre><p>The response contains opaque <code>offer_id</code> and <code>price_quote_id</code> values. <code>price.total</code> is your agreed AviaFrame commercial price as a decimal string.</p>
+
+    <h2 id="price">2. Confirm price</h2><div class="endpoint-label"><b>POST</b><code>/offers/{offer_id}/price</code></div><pre>{ "passengers": [{ "type": "ADT" }] }</pre><p>Use the newest returned <code>price_quote_id</code> and honor <code>valid_until</code>. A quote is an immutable commercial snapshot and can create only one order.</p>
+
+    <h2 id="order">3. Create order</h2><div class="endpoint-label"><b>POST</b><code>/orders</code></div><pre>Idempotency-Key: 30d9fa55-89e8-4f54-bb22-6ec189790195
+
+{
+  "price_quote_id": "quote_test_REPLACE_ME",
+  "client_order_ref": "WEB-2026-000184",
+  "expected_total": { "total": "418.00", "currency": "USD" },
+  "contact": { "email": "traveler@example.com", "phone": "+966500000000" },
+  "passengers": [{
+    "type": "ADT", "title": "Mr", "gender": "M",
+    "first_name": "Omar", "last_name": "Saleh", "date_of_birth": "1990-04-12",
+    "document": {
+      "type": "REGULAR_PASSPORT", "number": "P1234567",
+      "issuing_country": "SA", "citizenship": "SA", "expiration_date": "2030-04-11"
+    }
+  }]
+}</pre><p><code>expected_total</code> must match the confirmed quote exactly. Client-supplied supplier IDs or price components are not accepted.</p><div class="callout warn"><strong>HTTP 202 / PENDING_RECONCILE:</strong> do not submit a new order. AviaFrame has an uncertain supplier outcome and will reconcile the returned <code>order_id</code>. Poll the order using the same ID.</div>
+
+    <h2 id="retrieve">4. Retrieve order</h2><div class="endpoint-label"><b style="background:#d1fae5;color:#065f46">GET</b><code>/orders/{order_id}</code></div><pre>{
+  "order_id": "ord_test_Q7gDLs4d2wF5nAt8KpG3xA",
+  "client_order_ref": "WEB-2026-000184",
+  "status": "CREATED",
+  "price_quote_id": "quote_test_2ArW5jCT2bJpG1lUDBkw-w",
+  "price": { "total": "418.00", "currency": "USD" },
+  "booking_reference": "L8Q2TR",
+  "payment_deadline": "2026-09-05T16:00:00Z",
+  "created_at": "2026-09-05T15:04:00Z"
+}</pre>
+
+    <h2 id="errors">Errors and retries</h2><pre>{
+  "code": "PRICE_MISMATCH",
+  "message": "expected_total does not match the confirmed AviaFrame quote",
+  "details": [],
+  "correlation_id": "599a7735-223d-4aa0-91a6-a5b40c280614"
+}</pre><table class="dev-table"><tr><th>Status</th><th>What to do</th></tr><tr><td>400 / 403 / 404 / 410</td><td>Correct the request, permission, or expired resource. Do not retry unchanged.</td></tr><tr><td>409</td><td>Resolve the price, passenger, quote, or idempotency conflict.</td></tr><tr><td>429</td><td>Honor <code>Retry-After</code> and retry with exponential backoff and jitter.</td></tr><tr><td>5xx</td><td>Retry safe reads. For order creation, always reuse the same idempotency key.</td></tr></table>
+    <h2 id="support">Support</h2><p>Include the response <code>correlation_id</code> and your <code>client_order_ref</code> when contacting <a href="mailto:tech@aviaframe.com">tech@aviaframe.com</a>. Do not email full API keys or passenger documents.</p><p><a class="btn-primary" href="mailto:sales@aviaframe.com?subject=AviaFrame%20Connect%20API%20sandbox">Request sandbox access</a></p>
+  </main>
+</div></body></html>
