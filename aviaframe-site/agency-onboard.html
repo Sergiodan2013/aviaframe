@@ -563,6 +563,21 @@
     var form = document.getElementById('agencyOnboardingForm');
     var summary = document.getElementById('validationSummary');
     var services = Array.prototype.slice.call(form.querySelectorAll('input[name^="Service:"]'));
+    var urlFields = Array.prototype.slice.call(form.querySelectorAll('input[type="url"]'));
+    function normalizeUrl(value) {
+      // Auto-fix the #1 support issue on this form: users pasting a bare domain
+      // (e.g. "www.tden.com/logo.png") into a type="url" field, which native
+      // browser validation silently rejects because it has no scheme.
+      var trimmed = (value || '').trim();
+      if (!trimmed) return trimmed;
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed;
+      return 'https://' + trimmed.replace(/^\/+/, '');
+    }
+    urlFields.forEach(function (field) {
+      field.addEventListener('blur', function () {
+        if (field.value) field.value = normalizeUrl(field.value);
+      });
+    });
     function update() {
       btn.disabled = !(c1.checked && c2.checked);
     }
@@ -579,11 +594,16 @@
     });
     form.addEventListener('submit', async function (event) {
       event.preventDefault();
+      urlFields.forEach(function (field) {
+        if (field.value) field.value = normalizeUrl(field.value);
+      });
       var servicesValid = validateServices();
       if (!servicesValid || !form.checkValidity()) {
-        summary.textContent = 'Please complete all required fields and select at least one service before submitting.';
-        summary.classList.add('is-visible');
         var firstInvalid = form.querySelector(':invalid');
+        var fieldLabel = firstInvalid ? (firstInvalid.name || firstInvalid.id || 'a required field') : 'a required field';
+        summary.textContent = 'Please check "' + fieldLabel + '" \u2014 it is required or in an invalid format. '
+          + 'Make sure every field marked * is filled in before submitting.';
+        summary.classList.add('is-visible');
         if (firstInvalid) {
           firstInvalid.focus();
           firstInvalid.reportValidity();
