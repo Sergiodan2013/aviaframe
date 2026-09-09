@@ -19,7 +19,7 @@ async function saveCustomerProfile({ agencyId, contactEmail, contactPhone, passe
       date_of_birth: pax.date_of_birth || null,
       gender: pax.gender || null,
       passport_number: doc.number || null,
-      passport_expiry: doc.expiry_date || null,
+      passport_expiry: doc.expiration_date || doc.expiry_date || null,
       nationality: doc.issuing_country || null,
       last_booking_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

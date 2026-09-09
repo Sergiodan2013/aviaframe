@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Bookings - AviaFrame</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/style.css" />
+  <script src="/config.js"></script>
+  <style>
+    body { margin: 0; background: linear-gradient(180deg, #0f172a 0%, #1e293b 240px, #eef3fb 240px, #eef3fb 100%); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; }
+    .page-shell { max-width: 1120px; margin: 0 auto; padding: 28px 20px 60px; }
+    .page-top { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 34px; }
+    .page-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: #fff; font-weight: 800; font-size: 18px; }
+    .page-brand svg { width: 28px; height: 28px; }
+    .page-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .page-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(148,163,184,.28); color: #fff; text-decoration: none; font-size: 14px; font-weight: 800; background: rgba(255,255,255,.08); transition: .16s ease; }
+    .page-btn:hover { background: rgba(255,255,255,.16); }
+    .page-btn.page-btn-primary { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-color: transparent; }
+    .hero-card { background: rgba(255,255,255,.06); border: 1px solid rgba(148,163,184,.2); border-radius: 24px; padding: 28px; color: #fff; margin-bottom: 26px; backdrop-filter: blur(12px); }
+    .hero-card h1 { margin: 0 0 8px; font-size: 38px; letter-spacing: -.04em; }
+    .hero-card p { margin: 0; color: rgba(255,255,255,.72); font-size: 16px; line-height: 1.6; max-width: 780px; }
+    .content-card { background: #fff; border: 1px solid #dbe6f6; border-radius: 22px; box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08); padding: 24px; }
+    .content-card h2 { margin: 0 0 6px; font-size: 20px; color: #0f172a; }
+    .content-card .muted { margin: 0 0 18px; color: #64748b; line-height: 1.6; }
+    .bookings-grid { display: grid; gap: 14px; }
+    .booking-card { border: 1px solid #dbe6f6; border-radius: 18px; padding: 18px; background: #f8fbff; }
+    .booking-card-top { display: flex; align-items: start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+    .booking-route { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -.03em; }
+    .booking-meta { display: flex; gap: 12px; flex-wrap: wrap; color: #64748b; font-size: 13px; }
+    .booking-status { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+    .booking-status.pending { background: #fff7ed; color: #9a3412; }
+    .booking-status.confirmed { background: #eff6ff; color: #1d4ed8; }
+    .booking-status.ticketed { background: #ecfdf5; color: #166534; }
+    .booking-status.cancelled { background: #fef2f2; color: #b91c1c; }
+    .booking-status.default { background: #f1f5f9; color: #334155; }
+    .booking-kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .booking-kv-item { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 14px; }
+    .booking-kv-label { display: block; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .booking-kv-value { display: block; font-size: 15px; font-weight: 700; color: #0f172a; word-break: break-word; }
+    .info-box { border-radius: 16px; padding: 16px 18px; font-size: 15px; line-height: 1.6; }
+    .info-box.info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+    .info-box.error { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; }
+    .loading { display: inline-flex; align-items: center; gap: 10px; color: #475569; font-weight: 700; }
+    .spinner { width: 18px; height: 18px; border: 2px solid #cbd5e1; border-top-color: #2563eb; border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 720px) {
+      .hero-card h1 { font-size: 30px; }
+      .booking-route { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <div class="page-top">
+      <a class="page-brand" href="/widget-demo.html">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#60A5FA"/>
+        </svg>
+        <span>Avia<span style="font-weight:400;color:#bfdbfe">Frame</span></span>
+      </a>
+      <div class="page-actions">
+        <a class="page-btn" href="/widget-demo.html">Search Flights</a>
+        <div id="customer-auth-nav"></div>
+      </div>
+    </div>
+
+    <section class="hero-card">
+      <h1>My Bookings</h1>
+      <p>Sign in once and your booking history stays available for future trips. This is the same customer account flow we can brand for agency and white-label deployments.</p>
+    </section>
+
+    <section class="content-card">
+      <h2>Your booking history</h2>
+      <p class="muted">Orders shown here are limited to bookings created with the authenticated customer email.</p>
+      <div id="bookings-root">
+        <div class="loading"><span class="spinner"></span><span>Loading customer account...</span></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/customer-account.js?v=2026-09-04-2"></script>
+  <script>
+    (function () {
+      const auth = window.AviaframeCustomerAuth;
+      const root = document.getElementById('bookings-root');
+      if (!auth || !root) return;
+
+      auth.mountNav('customer-auth-nav');
+
+      const statusClass = (status) => {
+        const normalized = String(status || '').toLowerCase();
+        if (normalized === 'pending_payment' || normalized === 'awaiting_payment') return 'pending';
+        if (normalized === 'paid') return 'confirmed';
+        if (normalized === 'issued' || normalized === 'ticket_issued') return 'ticketed';
+        if (normalized === 'canceled') return 'cancelled';
+        if (['pending', 'confirmed', 'ticketed', 'cancelled'].includes(normalized)) return normalized;
+        return 'default';
+      };
+
+      const prettyStatus = (status) => {
+        const normalized = statusClass(status);
+        return {
+          pending: 'Awaiting Payment',
+          confirmed: 'Confirmed',
+          ticketed: 'Ticketed',
+          cancelled: 'Cancelled',
+          default: String(status || 'Pending')
+        }[normalized];
+      };
+
+      const formatDate = (value) => {
+        if (!value) return 'N/A';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString('en-GB', {
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      };
+
+      const formatAmount = (amount, currency) => {
+        const numeric = Number(amount || 0);
+        if (!Number.isFinite(numeric)) return `0 ${currency || ''}`.trim();
+        return `${numeric.toLocaleString('en-US')} ${String(currency || '').trim()}`.trim();
+      };
+
+      const renderOrders = (orders) => {
+        if (!Array.isArray(orders) || orders.length === 0) {
+          root.innerHTML = '<div class="info-box info">No bookings found for this customer account yet. Complete a booking on the demo site and it will appear here after payment flow starts.</div>';
+          return;
+        }
+
+        root.innerHTML = `
+          <div class="bookings-grid">
+            ${orders.map((order) => `
+              <article class="booking-card">
+                <div class="booking-card-top">
+                  <div>
+                    <div class="booking-route">${order.origin || 'N/A'} → ${order.destination || 'N/A'}</div>
+                    <div class="booking-meta">
+                      <span>Order ${order.order_number || order.id || 'N/A'}</span>
+                      <span>Created ${formatDate(order.created_at)}</span>
+                    </div>
+                  </div>
+                  <span class="booking-status ${statusClass(order.status)}">${prettyStatus(order.status)}</span>
+                </div>
+                <div class="booking-kv">
+                  <div class="booking-kv-item">
+                    <span class="booking-kv-label">Total</span>
+                    <span class="booking-kv-value">${formatAmount(order.total_price, order.currency)}</span>
+                  </div>
+                  <div class="booking-kv-item">
+                    <span class="booking-kv-label">Passenger Email</span>
+                    <span class="booking-kv-value">${order.contact_email || 'N/A'}</span>
+                  </div>
+                  <div class="booking-kv-item">
+                    <span class="booking-kv-label">Payment Method</span>
+                    <span class="booking-kv-value">${order.payment_method || 'online'}</span>
+                  </div>
+                  <div class="booking-kv-item">
+                    <span class="booking-kv-label">Provider Status</span>
+                    <span class="booking-kv-value">${order.payment_provider_status || order.payment_status || order.status || 'N/A'}</span>
+                  </div>
+                </div>
+              </article>
+            `).join('')}
+          </div>
+        `;
+      };
+
+      const renderError = (message) => {
+        root.innerHTML = `<div class="info-box error">${message}</div>`;
+      };
+
+      (async function initPage() {
+        const currentState = await auth.requireAuth(root, {
+          title: 'Sign in to view your bookings',
+          message: 'Use email magic link or Google sign-in. After authentication, your bookings will appear here automatically.',
+          redirectTo: window.location.href,
+        });
+
+        if (!currentState || !currentState.user) return;
+
+        root.innerHTML = '<div class="loading"><span class="spinner"></span><span>Loading your bookings...</span></div>';
+
+        try {
+          const payload = await auth.apiFetch('/api/customer/orders?limit=100');
+          renderOrders(payload.orders || []);
+        } catch (error) {
+          renderError(String(error.message || error || 'Failed to load bookings'));
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>
