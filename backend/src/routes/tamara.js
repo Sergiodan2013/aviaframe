@@ -9,18 +9,22 @@ const tamaraClient = require('../services/tamara/client');
 const { buildCheckoutPayload } = require('../services/tamara/mapper');
 const { validateWebhookToken, persistWebhookEvent, markEventProcessed, logOperation } = require('../services/tamara/webhook');
 const { processApprovedOrder, updateOrderProviderStatus } = require('../services/tamara/orderFlow');
-
-const TAMARA_ENABLED = process.env.TAMARA_ENABLED === 'true';
-const TAMARA_PUBLIC_KEY = process.env.TAMARA_PUBLIC_KEY || '';
+const {
+  getTamaraConfigForHost,
+  getTamaraConfigForOrder,
+  resolveRequestOriginHost
+} = require('../services/tamara/runtime');
 
 // ─── POST /api/payments/tamara/checkout-session ───────────────────────────────
 // Creates a Tamara checkout session for an existing AviaFrame order.
 router.post('/tamara/checkout-session', async (req, res) => {
-  if (!TAMARA_ENABLED) {
-    return res.status(503).json({ error: { code: 'TAMARA_DISABLED', message: 'Tamara is not enabled' } });
-  }
-
-  const { order_id: orderId, language = 'en' } = req.body || {};
+  const {
+    order_id: orderId,
+    language = 'en',
+    success_url: successUrl = null,
+    cancel_url: cancelUrl = null,
+    failure_url: failureUrl = null,
+  } = req.body || {};
   if (!orderId) {
     return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'order_id is required' } });
   }
@@ -34,6 +38,10 @@ router.post('/tamara/checkout-session', async (req, res) => {
 
   if (orderError || !order) {
     return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' } });
+  }
+  const tamaraRuntime = getTamaraConfigForOrder(order);
+  if (!tamaraRuntime.enabled) {
+    return res.status(503).json({ error: { code: 'TAMARA_DISABLED', message: 'Tamara is not enabled for this host' } });
   }
 
   // KSA + SAR only
@@ -67,14 +75,20 @@ router.post('/tamara/checkout-session', async (req, res) => {
   try {
     let checkoutPayload;
     try {
-      checkoutPayload = buildCheckoutPayload(order, passenger, { language });
+      checkoutPayload = buildCheckoutPayload(order, passenger, {
+        language,
+        merchantUrls: {
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          failure_url: failureUrl,
+        },
+      });
     } catch (mapErr) {
       return res.status(400).json({ error: { code: mapErr.code || 'PAYLOAD_BUILD_FAILED', message: mapErr.message } });
     }
-    console.log('[tamara] checkout payload compact=' + JSON.stringify(checkoutPayload));
-    console.log(`[tamara] order=${orderId} total=${order.total_price} ${order.currency} consumer="${passenger.first_name} ${passenger.last_name}" phone=${checkoutPayload.consumer.phone_number}`);
+    console.log(`[tamara] creating checkout session env=${tamaraRuntime.environment} order=${orderId} total=${order.total_price} ${order.currency}`);
 
-    const session = await tamaraClient.createCheckoutSession(checkoutPayload);
+    const session = await tamaraClient.createCheckoutSession(checkoutPayload, tamaraRuntime);
 
     // Update order with Tamara session info
     const { data: updatedOrder, error: updateError } = await supabase
@@ -231,10 +245,11 @@ router.get('/tamara/status/:orderId', async (req, res) => {
 // ─── GET /api/payments/tamara/config ─────────────────────────────────────────
 // Returns public Tamara config for frontend (public key only, never secret).
 router.get('/tamara/config', (req, res) => {
+  const tamaraRuntime = getTamaraConfigForHost(resolveRequestOriginHost(req));
   return res.json({
-    enabled: TAMARA_ENABLED,
-    public_key: TAMARA_PUBLIC_KEY,
-    environment: process.env.TAMARA_ENV || 'sandbox'
+    enabled: tamaraRuntime.enabled,
+    public_key: tamaraRuntime.publicKey,
+    environment: tamaraRuntime.environment
   });
 });
 
@@ -253,9 +268,10 @@ router.post('/tamara/:orderId/cancel', async (req, res) => {
   if (!order || order.payment_provider !== 'tamara') {
     return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
   }
+  const tamaraRuntime = getTamaraConfigForOrder(order);
 
   try {
-    const result = await tamaraClient.cancelOrder(order.payment_provider_order_id);
+    const result = await tamaraClient.cancelOrder(order.payment_provider_order_id, tamaraRuntime);
     await logOperation({
       orderId: order.id, provider: 'tamara', operationType: 'cancel',
       requestJson: { tamara_order_id: order.payment_provider_order_id },
@@ -287,13 +303,14 @@ router.post('/tamara/:orderId/refund', async (req, res) => {
   if (!order || order.payment_provider !== 'tamara') {
     return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
   }
+  const tamaraRuntime = getTamaraConfigForOrder(order);
 
   try {
     const result = await tamaraClient.refundOrder(order.payment_provider_order_id, {
       totalAmount: order.total_price,
       currency: order.currency || 'SAR',
       comment
-    });
+    }, tamaraRuntime);
     await logOperation({
       orderId: order.id, provider: 'tamara', operationType: 'refund',
       requestJson: { tamara_order_id: order.payment_provider_order_id },

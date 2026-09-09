@@ -50,6 +50,20 @@ const DEMO_CARD_ISSUER_FIXTURES = new Map([
   }]
 ]);
 
+function getClientDryRunAllowedHosts() {
+  if (Array.isArray(config.clientDryRunAllowedHosts) && config.clientDryRunAllowedHosts.length) {
+    return new Set(config.clientDryRunAllowedHosts.map((value) => normalizeHost(value)).filter(Boolean));
+  }
+  return new Set(['aviaframe.com', 'www.aviaframe.com', 'sandbox.aviaframe.com', 'testenvavia.netlify.app', 'localhost', '127.0.0.1']);
+}
+
+function getTrustedFrontendHosts() {
+  if (Array.isArray(config.trustedFrontendHosts) && config.trustedFrontendHosts.length) {
+    return new Set(config.trustedFrontendHosts.map((value) => normalizeHost(value)).filter(Boolean));
+  }
+  return new Set(['aviaframe.com', 'www.aviaframe.com', 'admin.aviaframe.com', 'sandbox.aviaframe.com', 'testenvavia.netlify.app', 'localhost', '127.0.0.1']);
+}
+
 function normalizeHost(value) {
   if (!value) return '';
   const raw = String(value).trim().toLowerCase();
@@ -65,6 +79,27 @@ function normalizeHost(value) {
 
 function resolveOrderOriginHost(order = {}) {
   return normalizeHost(order?.raw_offer_data?.metadata?.origin_host || order?.metadata?.origin_host || '');
+}
+
+function isClientDryRunAllowedForHost(host) {
+  const normalizedHost = normalizeHost(host || '');
+  if (!normalizedHost) return false;
+  return getClientDryRunAllowedHosts().has(normalizedHost);
+}
+
+function isOrderDryRunIssueEnabled(order = {}) {
+  const metadata = order?.raw_offer_data?.metadata || order?.metadata || {};
+  if (!metadata?.dry_run_issue) return false;
+  // New orders receive this only from the server-side agency payment policy.
+  // Keep host-based support for historic demo orders created before the policy.
+  return metadata.dry_run_authorized === true
+    || isClientDryRunAllowedForHost(resolveOrderOriginHost(order));
+}
+
+function isTrustedFrontendHost(host) {
+  const normalizedHost = normalizeHost(host || '');
+  if (!normalizedHost) return false;
+  return getTrustedFrontendHosts().has(normalizedHost) || normalizedHost.endsWith('.aviaframe.com');
 }
 
 function shouldUseMoyasarTestForOrder(order = {}) {
@@ -143,13 +178,7 @@ function isAllowedReturnUrl(value, requestOrigin = '') {
       }
     }
 
-    return (
-      url.hostname === 'localhost' ||
-      url.hostname === '127.0.0.1' ||
-      url.hostname.endsWith('.netlify.app') ||
-      url.hostname === 'aviaframe.com' ||
-      url.hostname.endsWith('.aviaframe.com')
-    );
+    return isTrustedFrontendHost(url.hostname);
   } catch (_) {
     return false;
   }
@@ -258,7 +287,7 @@ async function lookupMoyasarIssuer(order, cardNumber) {
 
   // Keep demo dry-run pricing deterministic instead of relying on external
   // issuer lookup responses for gateway test cards.
-  if (Boolean(order?.raw_offer_data?.metadata?.dry_run_issue) && DEMO_CARD_ISSUER_FIXTURES.has(digits)) {
+  if (isOrderDryRunIssueEnabled(order) && DEMO_CARD_ISSUER_FIXTURES.has(digits)) {
     return DEMO_CARD_ISSUER_FIXTURES.get(digits);
   }
 
@@ -380,7 +409,7 @@ router.post('/api/payments/initiate', express.json(), async (req, res) => {
   const paymentReturnUrl = isAllowedReturnUrl(returnUrlFromBody, requestOrigin)
     ? returnUrlFromBody
     : null;
-  const dryRunIssue = Boolean(order?.raw_offer_data?.metadata?.dry_run_issue);
+  const dryRunIssue = isOrderDryRunIssueEnabled(order);
   const moyasarConfig = getMoyasarConfigForOrder(order);
 
   if (dryRunIssue) {
@@ -528,7 +557,7 @@ router.post('/api/payments/initiate', express.json(), async (req, res) => {
       payment_id: moyasarPayment.id,
       status: 'paid',
       order_number: order.order_number,
-      dry_run_issue: Boolean(order?.raw_offer_data?.metadata?.dry_run_issue),
+      dry_run_issue: isOrderDryRunIssueEnabled(order),
       payment_pricing: paymentPricing
     });
   }
@@ -662,13 +691,21 @@ router.get('/api/payments/callback', async (req, res) => {
 router.post('/api/webhooks/moyasar', async (req, res) => {
   const webhookSecrets = getConfiguredWebhookSecrets();
 
-  // 1. Verify HMAC signature if secret is configured
-  if (webhookSecrets.length) {
-    const verified = webhookSecrets.some((secret) => verifyWebhookWithSecret(secret, req));
-    if (!verified) {
-      console.warn('[webhooks/moyasar] Invalid signature — rejected');
-      return res.status(401).json({ error: { code: 'INVALID_SIGNATURE', message: 'Invalid webhook signature' } });
-    }
+  // 1. Fail closed when webhook verification is not configured.
+  if (!webhookSecrets.length) {
+    console.error('[webhooks/moyasar] Webhook rejected because no webhook secret is configured');
+    return res.status(503).json({
+      error: {
+        code: 'WEBHOOK_NOT_CONFIGURED',
+        message: 'Webhook verification is not configured'
+      }
+    });
+  }
+
+  const verified = webhookSecrets.some((secret) => verifyWebhookWithSecret(secret, req));
+  if (!verified) {
+    console.warn('[webhooks/moyasar] Invalid signature — rejected');
+    return res.status(401).json({ error: { code: 'INVALID_SIGNATURE', message: 'Invalid webhook signature' } });
   }
 
   // 2. Parse body
@@ -753,7 +790,7 @@ async function handlePaymentPaidAsync(order, paymentId) {
     console.error(`[payments] order refresh failed for ${order.order_number}:`, err.message);
   }
 
-  const dryRunIssue = Boolean(fullOrderForFlow?.raw_offer_data?.metadata?.dry_run_issue);
+  const dryRunIssue = isOrderDryRunIssueEnabled(fullOrderForFlow);
   if (dryRunIssue) {
     console.warn('[payments] dry run issue hold active', JSON.stringify({
       order_number: fullOrderForFlow.order_number,

@@ -2,14 +2,10 @@
 
 const axios = require('axios');
 
-const BASE_URL = process.env.TAMARA_BASE_URL || 'https://api-sandbox.tamara.co';
-const API_TOKEN = process.env.TAMARA_API_TOKEN || '';
-const MERCHANT_ID = process.env.TAMARA_MERCHANT_ID || '';
-
-function tamaraHttp() {
-  const token = API_TOKEN.trim(); // strip any accidental whitespace/newlines from env var
+function tamaraHttp(runtimeConfig = {}) {
+  const token = String(runtimeConfig.apiToken || '').trim();
   return axios.create({
-    baseURL: BASE_URL,
+    baseURL: runtimeConfig.baseUrl || 'https://api-sandbox.tamara.co',
     timeout: 30000,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -23,8 +19,8 @@ function tamaraHttp() {
  * Create Tamara checkout session.
  * Returns { checkout_id, checkout_url, order_id }
  */
-async function createCheckoutSession(payload) {
-  const http = tamaraHttp();
+async function createCheckoutSession(payload, runtimeConfig = {}) {
+  const http = tamaraHttp(runtimeConfig);
   const resp = await http.post('/checkout', payload);
   if (resp.status >= 400) {
     console.error(`[tamara-client] createCheckoutSession failed ${resp.status}:`, JSON.stringify(resp.data));
@@ -38,8 +34,8 @@ async function createCheckoutSession(payload) {
 /**
  * Authorise a Tamara order (must be called after approved webhook).
  */
-async function authoriseOrder(tamaraOrderId) {
-  const http = tamaraHttp();
+async function authoriseOrder(tamaraOrderId, runtimeConfig = {}) {
+  const http = tamaraHttp(runtimeConfig);
   const resp = await http.post(`/orders/${tamaraOrderId}/authorise`);
   return resp.data;
 }
@@ -47,12 +43,12 @@ async function authoriseOrder(tamaraOrderId) {
 /**
  * Capture full amount for a Tamara order.
  */
-async function captureOrder(tamaraOrderId, { totalAmount, currency, orderId }) {
-  const http = tamaraHttp();
+async function captureOrder(tamaraOrderId, { totalAmount, currency, orderId }, runtimeConfig = {}) {
+  const http = tamaraHttp(runtimeConfig);
   const resp = await http.post(`/payments/capture`, {
     order_id: tamaraOrderId,
     total_amount: { amount: String(totalAmount), currency },
-    seller_id: MERCHANT_ID,
+    seller_id: runtimeConfig.merchantId || '',
     items: []
   });
   return resp.data;
@@ -61,8 +57,8 @@ async function captureOrder(tamaraOrderId, { totalAmount, currency, orderId }) {
 /**
  * Cancel a Tamara order (full cancel only for MVP).
  */
-async function cancelOrder(tamaraOrderId) {
-  const http = tamaraHttp();
+async function cancelOrder(tamaraOrderId, runtimeConfig = {}) {
+  const http = tamaraHttp(runtimeConfig);
   const resp = await http.post(`/orders/${tamaraOrderId}/cancel`, {
     cancel_reason: 'Ticket issuance failed'
   });
@@ -72,8 +68,8 @@ async function cancelOrder(tamaraOrderId) {
 /**
  * Refund a Tamara order (full refund only for MVP).
  */
-async function refundOrder(tamaraOrderId, { totalAmount, currency, comment = '' }) {
-  const http = tamaraHttp();
+async function refundOrder(tamaraOrderId, { totalAmount, currency, comment = '' }, runtimeConfig = {}) {
+  const http = tamaraHttp(runtimeConfig);
   const resp = await http.post(`/payments/simplified-refund/${tamaraOrderId}`, {
     total_amount: { amount: String(totalAmount), currency },
     comment
@@ -84,8 +80,8 @@ async function refundOrder(tamaraOrderId, { totalAmount, currency, comment = '' 
 /**
  * Get Tamara order status.
  */
-async function getOrderStatus(tamaraOrderId) {
-  const http = tamaraHttp();
+async function getOrderStatus(tamaraOrderId, runtimeConfig = {}) {
+  const http = tamaraHttp(runtimeConfig);
   const resp = await http.get(`/orders/${tamaraOrderId}`);
   return resp.data;
 }

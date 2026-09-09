@@ -1,24 +1,13 @@
 'use strict';
 
-const jwt = require('jsonwebtoken');
 const supabase = require('../../lib/supabase');
+const { validateNotificationToken } = require('./runtime');
 
-const NOTIFICATION_TOKEN = process.env.TAMARA_NOTIFICATION_TOKEN || '';
+const validateWebhookToken = validateNotificationToken;
 
 /**
  * Validate Tamara webhook token (HS256 JWT in tamaraToken query param).
  */
-function validateWebhookToken(tamaraToken) {
-  if (!NOTIFICATION_TOKEN) return { valid: false, error: 'NOTIFICATION_TOKEN not configured' };
-  if (!tamaraToken) return { valid: false, error: 'Missing tamaraToken' };
-  try {
-    const decoded = jwt.verify(tamaraToken, NOTIFICATION_TOKEN, { algorithms: ['HS256'] });
-    return { valid: true, decoded };
-  } catch (err) {
-    return { valid: false, error: err.message };
-  }
-}
-
 /**
  * Persist webhook event for idempotency + audit.
  * Returns { inserted, existing }

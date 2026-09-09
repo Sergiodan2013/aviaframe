@@ -4,6 +4,7 @@ const supabase = require('../../lib/supabase');
 const tamaraClient = require('./client');
 const { logOperation } = require('./webhook');
 const { config } = require('../../config');
+const { getTamaraConfigForOrder } = require('./runtime');
 
 // Statuses that mean the order has already been fully processed (or failed) —
 // a repeated approved webhook must not re-issue or re-capture.
@@ -46,12 +47,13 @@ async function processApprovedOrder(aviaframeOrderId, tamaraOrderId) {
     console.log('[tamara/flow] Already in terminal status, skipping:', order.payment_provider_status);
     return { success: true, skipped: true };
   }
+  const tamaraRuntime = getTamaraConfigForOrder(order);
 
   // ── 2. Authorise ───────────────────────────────────────────────────────────
   console.log(`[tamara/flow] Authorise started: tamara_order=${tamaraOrderId}`);
   let authResponse;
   try {
-    authResponse = await tamaraClient.authoriseOrder(tamaraOrderId);
+    authResponse = await tamaraClient.authoriseOrder(tamaraOrderId, tamaraRuntime);
     await logOperation({
       orderId: order.id, provider: 'tamara', operationType: 'authorise',
       requestJson: { tamara_order_id: tamaraOrderId },
@@ -93,7 +95,7 @@ async function processApprovedOrder(aviaframeOrderId, tamaraOrderId) {
 
     // Cancel Tamara — authorised but not yet captured, so cancel is valid
     try {
-      const cancelResp = await tamaraClient.cancelOrder(tamaraOrderId);
+      const cancelResp = await tamaraClient.cancelOrder(tamaraOrderId, tamaraRuntime);
       await logOperation({
         orderId: order.id, provider: 'tamara', operationType: 'cancel',
         requestJson: { tamara_order_id: tamaraOrderId, reason: 'issue_failed' },
@@ -130,7 +132,7 @@ async function processApprovedOrder(aviaframeOrderId, tamaraOrderId) {
       totalAmount: order.total_price,
       currency: order.currency || 'SAR',
       orderId: order.id
-    });
+    }, tamaraRuntime);
     await logOperation({
       orderId: order.id, provider: 'tamara', operationType: 'capture',
       requestJson: { tamara_order_id: tamaraOrderId },
@@ -169,7 +171,7 @@ async function processApprovedOrder(aviaframeOrderId, tamaraOrderId) {
 }
 
 // ─── Email helper ──────────────────────────────────────────────────────────────
-async function sendTicketEmailStep({ order, pdfDoc, savedIssuance }) {
+async function sendTicketEmailStep({ order, pdfDoc, savedIssuance, agency = null }) {
   if (!pdfDoc || !order.contact_email) return;
   console.log(`[tamara/flow] Email started: to=${order.contact_email}`);
   try {
@@ -186,7 +188,7 @@ async function sendTicketEmailStep({ order, pdfDoc, savedIssuance }) {
     const buffer = Buffer.from(await blob.arrayBuffer());
     const { data: passengers } = await supabase
       .from('passengers')
-      .select('first_name,last_name,passenger_type')
+      .select('first_name,last_name,passenger_type,baggage_allowance')
       .eq('order_id', order.id);
 
     const emailResult = await emailService.sendTicketEmail({
@@ -194,6 +196,7 @@ async function sendTicketEmailStep({ order, pdfDoc, savedIssuance }) {
       order,
       passengers: passengers || [],
       issuance: savedIssuance || {},
+      agency: agency || null,
       attachment: {
         fileName: `ticket-${order.order_number}.pdf`,
         buffer
@@ -243,8 +246,9 @@ async function handleFailedOrder(aviaframeOrderId, tamaraOrderId, reason = 'decl
   }
 
   if (tamaraOrderId) {
+    const tamaraRuntime = getTamaraConfigForOrder(order);
     try {
-      const cancelResp = await tamaraClient.cancelOrder(tamaraOrderId);
+      const cancelResp = await tamaraClient.cancelOrder(tamaraOrderId, tamaraRuntime);
       await logOperation({
         orderId: order.id, provider: 'tamara', operationType: 'cancel',
         requestJson: { tamara_order_id: tamaraOrderId, reason },

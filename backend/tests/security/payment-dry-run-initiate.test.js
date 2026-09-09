@@ -192,4 +192,52 @@ describe('payment initiate dry-run demo flow', () => {
     }));
     expect(setImmediateSpy).not.toHaveBeenCalled();
   });
+
+  test('honors a server-authorized demo order from an agency host', async () => {
+    const order = {
+      id: 'order-3',
+      order_number: 'AV-1003',
+      total_price: 100,
+      currency: 'SAR',
+      drct_order_id: 'drct-3',
+      payment_status: 'pending',
+      metadata: {},
+      raw_offer_data: {
+        metadata: {
+          dry_run_issue: true,
+          dry_run_authorized: true,
+          origin_host: 'new-agency.aviaframe.com'
+        }
+      }
+    };
+
+    const maybeSingle = jest.fn().mockResolvedValue({ data: order, error: null });
+    const select = jest.fn(() => ({ eq: jest.fn(() => ({ maybeSingle })) }));
+    const update = jest.fn(() => ({ eq: jest.fn().mockResolvedValue({ data: null, error: null }) }));
+    const from = jest.fn(() => ({ select, update }));
+    const axiosPost = jest.fn();
+
+    jest.doMock('axios', () => ({ post: axiosPost }));
+    jest.doMock('../../src/lib/supabase', () => ({ from }));
+    jest.doMock('../../src/services/drctService', () => ({ issueOrder: jest.fn() }));
+    jest.doMock('../../src/services/emailService', () => ({ sendTicketEmail: jest.fn() }));
+    jest.doMock('../../src/services/orderService', () => ({ ensureTicketPdfForOrder: jest.fn() }));
+    jest.doMock('../../src/config', () => ({ config: { documentsBucket: 'documents' } }));
+
+    const payments = require('../../src/routes/payments');
+    const app = express();
+    app.use(payments);
+
+    const res = await request(app)
+      .post('/api/payments/initiate')
+      .set('Origin', 'https://new-agency.aviaframe.com')
+      .send({
+        order_id: 'order-3',
+        card: { name: 'Demo User', number: '4111111111111111', month: '12', year: '26', cvc: '123' }
+      });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.payment_mode).toBe('demo');
+    expect(axiosPost).not.toHaveBeenCalled();
+  });
 });
