@@ -12,6 +12,9 @@
 <body>
   <div class="wrap">
     <h1>Тест виджета</h1>
+    <p style="margin:0 0 16px;color:#475569">
+      Для end-to-end бронирования используйте <code>?agency_key=YOUR_AGENCY_PUBLIC_WIDGET_KEY</code> на allowlisted demo domain.
+    </p>
     <div
       id="aviaframe-widget"
       data-aviaframe-widget
@@ -22,6 +25,34 @@
     ></div>
   </div>
 
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const widgetNode = document.getElementById('aviaframe-widget');
+      if (!widgetNode) return;
+
+      const demoConfig = {
+        agency_key: params.get('agency_key') || '',
+        agency_domain: params.get('agency_domain') || '',
+        backend_base: params.get('backend_base') || '/api/backend',
+        origin_host: params.get('origin_host') || window.location.hostname || '',
+        preview_mode: params.get('preview_mode') === '1' ? '1' : ''
+      };
+
+      try {
+        localStorage.setItem('aviaframeDemoWidgetConfig', JSON.stringify(demoConfig));
+      } catch (error) {
+        console.warn('Failed to persist demo widget config:', error);
+      }
+
+      if (demoConfig.agency_key) {
+        widgetNode.dataset.agencyKey = demoConfig.agency_key;
+      }
+      if (demoConfig.origin_host) {
+        widgetNode.dataset.siteOriginHost = demoConfig.origin_host;
+      }
+    })();
+  </script>
   <script src="./aviaframe-widget.js"></script>
 </body>
 </html>

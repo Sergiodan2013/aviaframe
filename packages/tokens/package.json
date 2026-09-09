@@ -1,0 +1,10 @@
+{
+  "name": "@aviaframe/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./widget": "./src/widget-tokens.js"
+  }
+}

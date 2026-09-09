@@ -1,3 +1,2 @@
-/api/n8n/webhook-test/* https://benedictory-tyrannous-norris.ngrok-free.dev/webhook/:splat 200
-/api/n8n/* https://benedictory-tyrannous-norris.ngrok-free.dev/:splat 200
-/api/drct/* https://benedictory-tyrannous-norris.ngrok-free.dev/webhook/drct/:splat 200
+/api/backend/* https://peaceful-amazement-production-629f.up.railway.app/api/:splat 200
+/api/drct/search https://peaceful-amazement-production-629f.up.railway.app/webhook/drct/search 200

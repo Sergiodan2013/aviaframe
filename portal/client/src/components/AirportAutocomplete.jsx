@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plane, X } from 'lucide-react';
 import { searchAirports } from '../data/airports';
+import { resolveAirportInput } from '../lib/airportInput';
 
 export default function AirportAutocomplete({ label, value, onChange, placeholder, required = false }) {
   const [inputValue, setInputValue] = useState(value || '');
@@ -22,6 +23,8 @@ export default function AirportAutocomplete({ label, value, onChange, placeholde
 
   // Update input when value prop changes
   useEffect(() => {
+    // The input intentionally keeps editable local text while mirroring external form resets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInputValue(value || '');
   }, [value]);
 
@@ -52,6 +55,17 @@ export default function AirportAutocomplete({ label, value, onChange, placeholde
     onChange('');
     setSuggestions([]);
     setIsOpen(false);
+  };
+
+  const commitResolvedValue = () => {
+    const resolved = resolveAirportInput(inputValue);
+    if (!resolved) return;
+
+    setInputValue(resolved.code);
+    onChange(resolved.code);
+    setSuggestions([]);
+    setIsOpen(false);
+    setSelectedIndex(-1);
   };
 
   const handleKeyDown = (e) => {
@@ -90,6 +104,13 @@ export default function AirportAutocomplete({ label, value, onChange, placeholde
     }
   };
 
+  const handleBlur = () => {
+    window.setTimeout(() => {
+      commitResolvedValue();
+      setIsOpen(false);
+    }, 100);
+  };
+
   return (
     <div ref={wrapperRef} className="relative">
       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -105,6 +126,7 @@ export default function AirportAutocomplete({ label, value, onChange, placeholde
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
+          onBlur={handleBlur}
           placeholder={placeholder}
           required={required}
           className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"

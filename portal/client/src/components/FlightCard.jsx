@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Plane, Clock, Briefcase, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button, StatusBadge, Surface } from '@aviaframe/ui';
 
 export default function FlightCard({ offer, onSelect }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -191,18 +192,18 @@ export default function FlightCard({ offer, onSelect }) {
           : (offer?._searchDestination && offer?._searchOrigin ? `${offer._searchDestination}-${offer._searchOrigin}` : null));
 
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 p-6 border border-gray-200">
+    <Surface className="p-6 transition-shadow duration-200 hover:shadow-lg">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex-1 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <StatusBadge>
               <Clock size={12} />
               {stopsLabel}
-            </span>
-            <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${checkedBaggageQty > 0 ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+            </StatusBadge>
+            <StatusBadge tone={checkedBaggageQty > 0 ? 'success' : 'neutral'}>
               <Briefcase size={12} />
               {baggageLabel}
-            </span>
+            </StatusBadge>
           </div>
 
           <div className="flex items-center gap-4">
@@ -298,14 +299,14 @@ export default function FlightCard({ offer, onSelect }) {
             </div>
             <div className="text-xs text-gray-500 mt-1">per person</div>
           </div>
-          <button
+          <Button
             onClick={handleSelect}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md transition-colors duration-200 whitespace-nowrap"
+            className="whitespace-nowrap"
           >
             Select
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </Surface>
   );
 }

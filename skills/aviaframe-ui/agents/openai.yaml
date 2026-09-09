@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aviaframe UI"
+  short_description: "Build consistent portal and widget UI"
+  default_prompt: "Use $aviaframe-ui to implement this AviaFrame UI change with the shared tokens and booking-flow conventions."

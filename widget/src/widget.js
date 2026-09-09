@@ -1,7 +1,14 @@
+import { widgetTokenCss } from '../../packages/tokens/src/widget-tokens.js';
+
 (function () {
   "use strict";
   (function () {
-    const C = { checkoutUrl: null };
+    const C = {
+      checkoutUrl: null,
+      widgetSessionToken: null,
+      widgetSessionTokenExpiresAt: 0,
+      widgetSessionPromise: null,
+    };
     const _wLabels = {
       en: {
         title: "Flight Search",
@@ -34,6 +41,8 @@
         error_title: "Error",
         error_select_airports: "Please select airports from the dropdown.",
         error_select_depart_date: "Please select departure date.",
+        error_select_return_date: "Please select a return date or switch to one-way.",
+        error_search_invalid: "Please check your route, dates and passenger details, then try again.",
         error_return_before_depart:
           "Return date must be the same as or later than the departure date. Please update your travel dates.",
         error_return_before_depart_inline:
@@ -45,6 +54,9 @@
         error_multicity_before_first_inline:
           "Second segment date must be after first departure.",
         searching_flights: "Searching for flights...",
+        searching_routes: "Finding the best routes",
+        searching_fares: "Checking current fares",
+        searching_options: "Preparing your best options",
         no_results_title: "No flights found",
         no_results_body: "Try adjusting your search criteria.",
         filter_all: "All",
@@ -89,6 +101,8 @@
         error_title: "خطأ",
         error_select_airports: "يرجى اختيار المطارات من القائمة المنسدلة.",
         error_select_depart_date: "يرجى اختيار تاريخ المغادرة.",
+        error_select_return_date: "يرجى اختيار تاريخ العودة أو التبديل إلى رحلة ذهاب فقط.",
+        error_search_invalid: "يرجى التحقق من المسار والتواريخ وبيانات المسافرين ثم المحاولة مرة أخرى.",
         error_return_before_depart:
           "يجب أن يكون تاريخ العودة في نفس يوم المغادرة أو بعده. يرجى تعديل تواريخ السفر.",
         error_return_before_depart_inline:
@@ -100,6 +114,9 @@
         error_multicity_before_first_inline:
           "يجب أن يكون تاريخ المقطع الثاني بعد الأول.",
         searching_flights: "جارٍ البحث عن الرحلات...",
+        searching_routes: "جارٍ البحث عن أفضل المسارات",
+        searching_fares: "جارٍ التحقق من الأسعار الحالية",
+        searching_options: "جارٍ تجهيز أفضل الخيارات",
         no_results_title: "لم يتم العثور على رحلات",
         no_results_body: "يرجى تعديل معايير البحث والمحاولة مرة أخرى.",
         filter_all: "الكل",
@@ -213,6 +230,29 @@
         ((errorNode.textContent = ""),
         errorNode.classList.remove("visible"));
     }
+    function clearWidgetValidationPopups(root) {
+      (root || document)
+        .querySelectorAll(".aviaframe-validation-popup")
+        .forEach((node) => node.remove());
+      (root || document)
+        .querySelectorAll(".aviaframe-input-invalid")
+        .forEach((input) => {
+          input.classList.remove("aviaframe-input-invalid");
+          input.removeAttribute("aria-invalid");
+        });
+    }
+    function showWidgetValidationPopup(input, message) {
+      if (!input) return;
+      clearWidgetValidationPopups();
+      input.classList.add("aviaframe-input-invalid");
+      input.setAttribute("aria-invalid", "true");
+      const popup = document.createElement("div");
+      popup.className = "aviaframe-validation-popup";
+      popup.setAttribute("role", "alert");
+      popup.textContent = message;
+      (input.closest(".aviaframe-field") || input.parentElement).appendChild(popup);
+      input.focus();
+    }
     function syncWidgetDateConstraints(root) {
       root = root || document;
       const departInput = root.querySelector("#aviaframe-depart-date"),
@@ -251,8 +291,7 @@
         returnInput.value &&
         returnInput.value < departInput.value
       ) {
-        const message = widgetLabel("error_return_before_depart_inline");
-        setWidgetFieldError(returnInput, returnError, message);
+        clearWidgetFieldError(returnInput, returnError);
         return {
           valid: !1,
           input: returnInput,
@@ -267,8 +306,7 @@
         secondDepartInput.value &&
         secondDepartInput.value < departInput.value
       ) {
-        const message = widgetLabel("error_multicity_before_first_inline");
-        setWidgetFieldError(secondDepartInput, secondDepartError, message);
+        clearWidgetFieldError(secondDepartInput, secondDepartError);
         return {
           valid: !1,
           input: secondDepartInput,
@@ -1218,14 +1256,14 @@
             </div>
           `;
     }
-    const W = `
+    const W = `${widgetTokenCss}
     .aviaframe-widget {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: var(--af-widget-font);
       max-width: 800px;
       margin: 0 auto;
       padding: 24px;
-      background: white;
-      border-radius: 12px;
+      background: var(--af-widget-surface);
+      border-radius: var(--af-widget-radius);
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
 
@@ -1236,7 +1274,7 @@
     .aviaframe-title {
       font-size: 24px;
       font-weight: 700;
-      color: #1f2937;
+      color: var(--af-widget-text);
       margin: 0 0 24px 0;
       display: flex;
       align-items: center;
@@ -1429,8 +1467,8 @@
     }
 
     .aviaframe-input:focus {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      border-color: var(--af-widget-primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--af-widget-primary) 16%, transparent);
     }
 
     .aviaframe-input-invalid {
@@ -1448,6 +1486,36 @@
 
     .aviaframe-field-error.visible {
       display: block;
+    }
+
+    .aviaframe-validation-popup {
+      position: absolute;
+      z-index: 30;
+      top: calc(100% + 8px);
+      inset-inline-start: 0;
+      max-width: min(320px, 100%);
+      padding: 10px 12px;
+      border: 1px solid #fdba74;
+      border-radius: 8px;
+      background: #fff7ed;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+      color: #9a3412;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .aviaframe-validation-popup::before {
+      position: absolute;
+      top: -7px;
+      inset-inline-start: 18px;
+      width: 12px;
+      height: 12px;
+      border-top: 1px solid #fdba74;
+      border-left: 1px solid #fdba74;
+      background: #fff7ed;
+      content: "";
+      transform: rotate(45deg);
     }
 
     .aviaframe-autocomplete {
@@ -1520,7 +1588,7 @@
 
     .aviaframe-airport-code {
       font-weight: 600;
-      color: #2563eb;
+      color: var(--af-widget-primary);
       font-size: 14px;
     }
 
@@ -1543,15 +1611,15 @@
       font-size: 16px;
       font-weight: 600;
       color: white;
-      background: linear-gradient(to right, #2563eb, #3b82f6);
+      background: var(--af-widget-primary);
       border: none;
-      border-radius: 6px;
+      border-radius: var(--af-widget-radius);
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .aviaframe-button:hover:not(:disabled) {
-      background: linear-gradient(to right, #1d4ed8, #2563eb);
+      background: var(--af-widget-primary-hover);
       transform: translateY(-1px);
       box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
     }
@@ -1566,25 +1634,149 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      color: var(--af-widget-text);
+      min-height: 220px;
       padding: 48px 24px;
-      gap: 16px;
+      text-align: center;
     }
 
-    .aviaframe-spinner {
-      width: 48px;
-      height: 48px;
-      border: 4px solid #e5e7eb;
-      border-top-color: #2563eb;
+    .aviaframe-search-radar {
+      height: 72px;
+      margin-bottom: 14px;
+      position: relative;
+      width: 72px;
+    }
+
+    .aviaframe-search-radar__ring {
+      animation: aviaframe-search-pulse 1.8s ease-out infinite;
+      border: 1px solid color-mix(in srgb, var(--af-widget-primary) 40%, transparent);
       border-radius: 50%;
-      animation: aviaframe-spin 0.8s linear infinite;
+      inset: 0;
+      position: absolute;
     }
 
-    @keyframes aviaframe-spin {
-      to { transform: rotate(360deg); }
+    .aviaframe-search-radar__ring--inner { animation-delay: -0.9s; inset: 18px; }
+    .aviaframe-search-radar__beacon { animation: aviaframe-search-beacon 1.2s ease-in-out infinite alternate; background: var(--af-widget-primary); border-radius: 50%; box-shadow: 0 0 0 8px color-mix(in srgb, var(--af-widget-primary) 12%, transparent); height: 12px; left: 30px; position: absolute; top: 30px; width: 12px; }
+    .aviaframe-loading-title { font-size: 17px; font-weight: 750; }
+    .aviaframe-loading-steps { color: var(--af-widget-muted); font-size: 14px; margin-top: 8px; min-height: 20px; position: relative; width: 100%; }
+    .aviaframe-loading-step { animation: aviaframe-search-copy 5.4s infinite; inset: 0; opacity: 0; position: absolute; }
+    .aviaframe-loading-step:nth-child(2) { animation-delay: 1.8s; }
+    .aviaframe-loading-step:nth-child(3) { animation-delay: 3.6s; }
+    .aviaframe-loading-progress { background: color-mix(in srgb, var(--af-widget-border) 70%, transparent); border-radius: 999px; height: 4px; margin-top: 16px; max-width: 210px; overflow: hidden; width: 100%; }
+    .aviaframe-loading-progress span { animation: aviaframe-search-progress 1.8s ease-in-out infinite; background: var(--af-widget-primary); border-radius: inherit; display: block; height: 100%; width: 38%; }
+
+    @keyframes aviaframe-search-pulse { 0% { opacity: 0.8; transform: scale(0.35); } 100% { opacity: 0; transform: scale(1); } }
+    @keyframes aviaframe-search-beacon { to { transform: scale(1.18); } }
+    @keyframes aviaframe-search-copy { 0%, 25% { opacity: 0; transform: translateY(4px); } 8%, 18% { opacity: 1; transform: translateY(0); } }
+    @keyframes aviaframe-search-progress { 0% { transform: translateX(-130%); } 55%, 100% { transform: translateX(180%); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .aviaframe-search-radar__ring,
+      .aviaframe-search-radar__beacon,
+      .aviaframe-loading-step,
+      .aviaframe-loading-progress span { animation: none; }
+      .aviaframe-loading-step:first-child { opacity: 1; position: static; transform: none; }
     }
 
     .aviaframe-results {
       margin-top: 24px;
+    }
+
+    .aviaframe-passenger-step {
+      background: var(--af-widget-surface);
+      border: 1px solid var(--af-widget-border);
+      border-radius: var(--af-widget-radius);
+      color: var(--af-widget-text);
+      margin-top: 16px;
+      padding: 20px;
+    }
+
+    .aviaframe-passenger-summary {
+      align-items: flex-start;
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .aviaframe-passenger-eyebrow,
+    .aviaframe-passenger-section-title {
+      color: var(--af-widget-text);
+      font-weight: 800;
+    }
+
+    .aviaframe-passenger-eyebrow { font-size: 24px; line-height: 1.15; }
+    .aviaframe-passenger-route { color: var(--af-widget-text); font-size: 18px; font-weight: 700; margin-top: 8px; }
+    .aviaframe-passenger-airline { color: var(--af-widget-muted); font-size: 15px; font-weight: 600; }
+    .aviaframe-passenger-timing { color: var(--af-widget-muted); font-size: 14px; margin-top: 6px; }
+    .aviaframe-passenger-price { color: var(--af-widget-primary); font-size: 34px; font-weight: 800; line-height: 1; text-align: end; }
+    .aviaframe-passenger-price-label { color: var(--af-widget-muted); font-size: 13px; margin-top: 6px; text-align: end; }
+    .aviaframe-passenger-section-title { font-size: 18px; grid-column: 1 / -1; }
+
+    .aviaframe-passenger-form {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .aviaframe-passenger-field { display: flex; flex-direction: column; gap: 6px; }
+    .aviaframe-passenger-form-label { color: var(--af-widget-text); font-size: 14px; font-weight: 600; }
+    .aviaframe-passenger-field-help { color: var(--af-widget-muted); font-size: 12px; margin-top: -6px; }
+    .aviaframe-passenger-input {
+      background: var(--af-widget-surface);
+      border: 1px solid var(--af-widget-border);
+      border-radius: var(--af-widget-radius);
+      color: var(--af-widget-text);
+      font: inherit;
+      min-height: 46px;
+      outline: none;
+      padding: 10px 12px;
+    }
+
+    .aviaframe-passenger-input:focus {
+      border-color: var(--af-widget-primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--af-widget-primary) 16%, transparent);
+    }
+
+    .aviaframe-passenger-divider { background: var(--af-widget-border); grid-column: 1 / -1; height: 1px; margin: 2px 0; }
+    .aviaframe-passenger-error {
+      background: color-mix(in srgb, var(--af-widget-danger) 8%, white);
+      border: 1px solid color-mix(in srgb, var(--af-widget-danger) 24%, white);
+      border-radius: var(--af-widget-radius);
+      color: var(--af-widget-danger);
+      display: none;
+      font-size: 14px;
+      grid-column: 1 / -1;
+      padding: 10px 12px;
+    }
+
+    .aviaframe-passenger-actions { display: flex; gap: 10px; grid-column: 1 / -1; justify-content: space-between; margin-top: 4px; }
+    .aviaframe-passenger-button {
+      border-radius: var(--af-widget-radius);
+      cursor: pointer;
+      font: 700 14px/1 var(--af-widget-font);
+      min-height: 44px;
+      padding: 12px 18px;
+    }
+
+    .aviaframe-passenger-button--secondary { background: var(--af-widget-surface); border: 1px solid var(--af-widget-border); color: var(--af-widget-text); }
+    .aviaframe-passenger-button--primary { background: var(--af-widget-primary); border: 1px solid var(--af-widget-primary); color: #fff; }
+    .aviaframe-passenger-button--primary:hover { background: var(--af-widget-primary-hover); border-color: var(--af-widget-primary-hover); }
+    .aviaframe-passenger-success { padding: 10px 0; }
+    .aviaframe-passenger-success h3 { color: var(--af-widget-success); font-size: 20px; margin: 0 0 6px; }
+    .aviaframe-passenger-success p { color: var(--af-widget-muted); font-size: 14px; margin: 0; }
+    .aviaframe-passenger-success .aviaframe-passenger-button { margin-top: 12px; }
+    .aviaframe-passenger-autofill { align-items: center; background: color-mix(in srgb, var(--af-widget-primary) 8%, white); border: 1px solid color-mix(in srgb, var(--af-widget-primary) 24%, white); border-radius: var(--af-widget-radius); display: flex; gap: 12px; grid-column: 1 / -1; justify-content: space-between; margin-top: 4px; padding: 12px 16px; }
+    .aviaframe-passenger-autofill-message { color: var(--af-widget-primary); font-size: 13px; }
+    .aviaframe-passenger-autofill-undo { background: transparent; border: 1px solid color-mix(in srgb, var(--af-widget-primary) 30%, white); border-radius: var(--af-radius-sm, 8px); color: var(--af-widget-primary); cursor: pointer; flex-shrink: 0; font: 600 12px/1 var(--af-widget-font); padding: 6px 10px; }
+
+    @media (max-width: 640px) {
+      .aviaframe-passenger-step { padding: 16px; }
+      .aviaframe-passenger-summary { flex-direction: column; }
+      .aviaframe-passenger-price, .aviaframe-passenger-price-label { text-align: start; }
+      .aviaframe-passenger-form { grid-template-columns: 1fr; }
+      .aviaframe-passenger-actions { flex-direction: column-reverse; }
+      .aviaframe-passenger-button { width: 100%; }
     }
 
     .aviaframe-results-title {
@@ -2232,9 +2424,9 @@
       cursor: pointer; font-size: 13px; color: #374151; width: 100%;
       display: flex; align-items: center; justify-content: center;
     }
-    .wdp-day:hover:not(:disabled) { background: #eff6ff; color: #2563eb; }
-    .wdp-day-today { font-weight: 700; color: #2563eb; }
-    .wdp-day-selected { background: #2563eb !important; color: white !important; }
+    .wdp-day:hover:not(:disabled) { background: color-mix(in srgb, var(--af-widget-primary) 9%, white); color: var(--af-widget-primary); }
+    .wdp-day-today { font-weight: 700; color: var(--af-widget-primary); }
+    .wdp-day-selected { background: var(--af-widget-primary) !important; color: white !important; }
     .wdp-day-disabled { opacity: 0.3; cursor: not-allowed; }
   `;
     function G() {
@@ -2320,7 +2512,7 @@
         </div>
       </div>
 
-      <form class="aviaframe-form" id="aviaframe-search-form">
+      <form class="aviaframe-form" id="aviaframe-search-form" novalidate>
         <div class="aviaframe-row">
           <div class="aviaframe-field">
             <label class="aviaframe-label" data-wi18n="from_label">From</label>
@@ -2703,6 +2895,7 @@
         r = document.getElementById("aviaframe-results");
       n.addEventListener("submit", async function (o) {
         o.preventDefault();
+        clearWidgetValidationPopups();
         const t = document.getElementById("aviaframe-origin"),
           s = document.getElementById("aviaframe-destination"),
           m = document.getElementById("aviaframe-depart-date").value,
@@ -2727,35 +2920,40 @@
           f = t.dataset.airports || $,
           h = s.dataset.airports || b;
         if (!$ || !b) {
-          r.innerHTML = `
-          <div class="aviaframe-error">
-            <strong>${widgetLabel("error_title")}:</strong> ${widgetLabel("error_select_airports")}
-          </div>
-        `;
+          showWidgetValidationPopup(!$ ? t : s, widgetLabel("error_select_airports"));
           return;
         }
         if (!m) {
-          r.innerHTML = `
-          <div class="aviaframe-error">
-            <strong>${widgetLabel("error_title")}:</strong> ${widgetLabel("error_select_depart_date")}
-          </div>
-        `;
+          showWidgetValidationPopup(
+            document.getElementById("aviaframe-depart-date"),
+            widgetLabel("error_select_depart_date"),
+          );
+          return;
+        }
+        if (A === "return" && !g) {
+          const returnInput = document.getElementById("aviaframe-return-date");
+          showWidgetValidationPopup(returnInput, widgetLabel("error_select_return_date"));
           return;
         }
         const dateValidation = validateWidgetDateFields(document);
         if (!dateValidation.valid) {
-          r.innerHTML = `
-          <div class="aviaframe-error">
-            <strong>${widgetLabel("error_title")}:</strong> ${dateValidation.message}
-          </div>
-        `;
-          dateValidation.input && dateValidation.input.focus();
+          showWidgetValidationPopup(dateValidation.input, dateValidation.message);
           return;
         }
         r.innerHTML = `
-        <div class="aviaframe-loading">
-          <div class="aviaframe-spinner"></div>
-          <div>${widgetLabel("searching_flights")}</div>
+        <div class="aviaframe-loading" role="status" aria-live="polite" aria-atomic="true">
+          <div class="aviaframe-search-radar" aria-hidden="true">
+            <span class="aviaframe-search-radar__ring"></span>
+            <span class="aviaframe-search-radar__ring aviaframe-search-radar__ring--inner"></span>
+            <span class="aviaframe-search-radar__beacon"></span>
+          </div>
+          <div class="aviaframe-loading-title">${widgetLabel("searching_flights")}</div>
+          <div class="aviaframe-loading-steps">
+            <span class="aviaframe-loading-step">${widgetLabel("searching_routes")}</span>
+            <span class="aviaframe-loading-step">${widgetLabel("searching_fares")}</span>
+            <span class="aviaframe-loading-step">${widgetLabel("searching_options")}</span>
+          </div>
+          <div class="aviaframe-loading-progress" aria-hidden="true"><span></span></div>
         </div>
       `;
         let k = {
@@ -2800,21 +2998,18 @@
             T = (a == null ? void 0 : a.dataset.airports) || v,
             O = (l == null ? void 0 : l.dataset.airports) || p;
           if (!v || !p || !u) {
-            r.innerHTML = `
-            <div class="aviaframe-error">
-              <strong>${widgetLabel("error_title")}:</strong> ${widgetLabel("error_multicity_missing")}
-            </div>
-          `;
+            showWidgetValidationPopup(
+              !v ? a : (!p ? l : document.getElementById("aviaframe-depart-date-2")),
+              widgetLabel("error_multicity_missing"),
+            );
             return;
           }
           const multiCityDateValidation = validateWidgetDateFields(document);
           if (!multiCityDateValidation.valid) {
-            r.innerHTML = `
-            <div class="aviaframe-error">
-              <strong>${widgetLabel("error_title")}:</strong> ${multiCityDateValidation.message}
-            </div>
-          `;
-            multiCityDateValidation.input && multiCityDateValidation.input.focus();
+            showWidgetValidationPopup(
+              multiCityDateValidation.input,
+              multiCityDateValidation.message,
+            );
             return;
           }
           k.segments = [
@@ -2849,7 +3044,10 @@
               break;
             if (a.status !== 404) break;
           }
-          if (!a.ok) throw new Error(`HTTP ${a.status}: ${a.statusText}`);
+          if (!a.ok) {
+            if (a.status === 422) throw new Error(widgetLabel("error_search_invalid"));
+            throw new Error(`HTTP ${a.status}: ${a.statusText}`);
+          }
           const u = await a.json();
           if (u.offers && u.offers.length > 0) {
             const v = u.offers.map((p) => {
@@ -2865,7 +3063,7 @@
                   null,
               };
               if (
-                !!!(
+                !(
                   (T != null &&
                     T.return_origin &&
                     T != null &&
@@ -2920,14 +3118,40 @@
           }
           r.innerHTML = `
           <div class="aviaframe-error">
-            <strong>Error:</strong> ${l}
+            <strong>Error:</strong> ${c(l)}
           </div>
         `;
         }
       });
     }
     function Y(e) {
-      return e ? `https://pics.avs.io/200/80/${e}.png` : null;
+      const carrierCode = String(e || "").trim().toUpperCase();
+      return /^[A-Z0-9]{2,3}$/.test(carrierCode)
+        ? `https://pics.avs.io/200/80/${encodeURIComponent(carrierCode)}.png`
+        : null;
+    }
+    function normalizeDateOfBirth(value) {
+      const raw = String(value || "").trim();
+      const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const localMatch = raw.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
+      const year = Number(isoMatch ? isoMatch[1] : localMatch ? localMatch[3] : 0);
+      const month = Number(isoMatch ? isoMatch[2] : localMatch ? localMatch[2] : 0);
+      const day = Number(isoMatch ? isoMatch[3] : localMatch ? localMatch[1] : 0);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if (!year || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+        return "";
+      }
+      return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+    function formatDateOfBirth(value) {
+      const isoDate = normalizeDateOfBirth(value);
+      if (!isoDate) return String(value || "");
+      const [year, month, day] = isoDate.split("-");
+      return `${day}.${month}.${year}`;
+    }
+    function formatDateOfBirthTyping(value) {
+      const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+      return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join(".");
     }
     function V(e) {
       const n = {
@@ -2965,10 +3189,8 @@
       (t && (t.style.display = "none"), o && (o.style.display = "none"));
       const s = document.getElementById("aviaframe-passenger-step");
       s && s.remove();
-      const m = ((e == null ? void 0 : e.price) || {}).currency || "UAH",
-        g = Math.round(
-          ((e == null ? void 0 : e.price) || {}).total || 0,
-        ).toLocaleString("en-US"),
+      const m = ((e == null ? void 0 : e.price) || {}).currency || "SAR",
+        g = L(((e == null ? void 0 : e.price) || {}).total || 0, m),
         _ = e.airline_name || e.airline || "Airline",
         d = e.origin || "---",
         E = e.destination || "---",
@@ -2979,33 +3201,50 @@
           ? String(e.arrival_time).slice(0, 16).replace("T", " ")
           : "N/A",
         i = document.createElement("div");
-      ((i.id = "aviaframe-passenger-step"),
-        (i.style.marginTop = "16px"),
-        (i.style.border = "1px solid #d9e3f3"),
-        (i.style.borderRadius = "12px"),
-        (i.style.padding = "16px"),
-        (i.style.background = "#fff"),
-        (i.innerHTML =
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px"><div><div style="font-size:28px;font-weight:800;color:#0f172a;line-height:1.1">Selected Flight</div><div style="margin-top:8px;font-size:20px;font-weight:700;color:#1f2937">' +
-          d +
-          " → " +
-          E +
-          ' <span style="font-size:18px;font-weight:600;color:#64748b">' +
-          _ +
-          '</span></div><div style="margin-top:6px;font-size:16px;color:#475569">Departure: ' +
-          A +
-          " | Arrival: " +
-          y +
-          '</div></div><div style="text-align:right"><div style="font-size:56px;line-height:1;font-weight:800;color:#2563eb">' +
-          g +
-          " " +
-          m +
-          '</div><div style="margin-top:6px;font-size:20px;color:#64748b">per person</div></div></div><div style="font-size:38px;font-weight:800;color:#0f172a;margin:16px 0 10px">Passenger Details</div><form id="aviaframe-passenger-form" style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div style="grid-column:1 / -1;font-size:20px;font-weight:700;color:#1f2937;margin-top:2px">Contact Information</div><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;color:#334155;font-weight:600">Email Address *</span><input required type="email" name="email" placeholder="name@example.com" style="padding:12px;border:1px solid #cbd5e1;border-radius:10px" /></label><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;color:#334155;font-weight:600">Phone Number *</span><input required name="phone" placeholder="+971501234567" style="padding:12px;border:1px solid #cbd5e1;border-radius:10px" /></label><div style="grid-column:1 / -1;height:1px;background:#e2e8f0;margin:6px 0"></div><div style="grid-column:1 / -1;font-size:20px;font-weight:700;color:#1f2937">Personal Information</div><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;color:#334155;font-weight:600">Gender *</span><select name="gender" style="padding:12px;border:1px solid #cbd5e1;border-radius:10px"><option value="male">Male</option><option value="female">Female</option></select></label><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;color:#334155;font-weight:600">Date of Birth *</span><input required type="date" name="dateOfBirth" style="padding:12px;border:1px solid #cbd5e1;border-radius:10px" /></label><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;color:#334155;font-weight:600">First Name *</span><input required name="firstName" placeholder="John" style="padding:12px;border:1px solid #cbd5e1;border-radius:10px" /></label><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;color:#334155;font-weight:600">Last Name *</span><input required name="lastName" placeholder="Doe" style="padding:12px;border:1px solid #cbd5e1;border-radius:10px" /></label><div style="grid-column:1 / -1;height:1px;background:#e2e8f0;margin:6px 0"></div><div style="grid-column:1 / -1;font-size:20px;font-weight:700;color:#1f2937">Document Information</div><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;color:#334155;font-weight:600">Passport Number *</span><input required name="passportNumber" placeholder="AB1234567" style="padding:12px;border:1px solid #cbd5e1;border-radius:10px" /></label><label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;color:#334155;font-weight:600">Passport Expiry Date *</span><input required type="date" name="passportExpiry" style="padding:12px;border:1px solid #cbd5e1;border-radius:10px" /></label><div id="aviaframe-passenger-error" style="grid-column:1 / -1;display:none;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px;font-size:14px;direction:ltr;unicode-bidi:isolate"></div><div style="grid-column:1 / -1;display:flex;justify-content:space-between;gap:10px;margin-top:6px"><button type="button" id="aviaframe-passenger-back" style="border:1px solid #cbd5e1;background:#f8fafc;border-radius:10px;padding:12px 18px;cursor:pointer;font-weight:600">Back</button><button type="submit" style="background:#2563eb;color:#fff;border:none;border-radius:10px;padding:12px 18px;font-weight:700;cursor:pointer">Continue to booking</button></div></form>'),
-        r.appendChild(i),
-        window.scrollTo({ top: 0, behavior: "smooth" }));
+      i.id = "aviaframe-passenger-step";
+      i.className = "aviaframe-passenger-step";
+      i.innerHTML = `
+        <div class="aviaframe-passenger-summary">
+          <div>
+            <div class="aviaframe-passenger-eyebrow">Selected Flight</div>
+            <div class="aviaframe-passenger-route">${c(d)} → ${c(E)} <span class="aviaframe-passenger-airline">${c(_)}</span></div>
+            <div class="aviaframe-passenger-timing">Departure: ${c(A)} | Arrival: ${c(y)}</div>
+          </div>
+          <div>
+            <div class="aviaframe-passenger-price">${g}</div>
+            <div class="aviaframe-passenger-price-label">per person</div>
+          </div>
+        </div>
+        <div class="aviaframe-passenger-section-title">Passenger Details</div>
+        <form id="aviaframe-passenger-form" class="aviaframe-passenger-form">
+          <div class="aviaframe-passenger-section-title">Contact Information</div>
+          <label class="aviaframe-passenger-field"><span class="aviaframe-passenger-form-label">Email Address *</span><input class="aviaframe-passenger-input" required type="email" name="email" placeholder="name@example.com" /></label>
+          <label class="aviaframe-passenger-field"><span class="aviaframe-passenger-form-label">Phone Number *</span><input class="aviaframe-passenger-input" required name="phone" placeholder="+971501234567" /></label>
+          <div class="aviaframe-passenger-divider"></div>
+          <div class="aviaframe-passenger-section-title">Personal Information</div>
+          <label class="aviaframe-passenger-field"><span class="aviaframe-passenger-form-label">Gender *</span><select class="aviaframe-passenger-input" name="gender"><option value="male">Male</option><option value="female">Female</option></select></label>
+          <label class="aviaframe-passenger-field"><span class="aviaframe-passenger-form-label">Date of Birth *</span><input class="aviaframe-passenger-input" required type="text" name="dateOfBirth" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD.MM.YYYY" pattern="[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}" aria-describedby="aviaframe-date-of-birth-help" /><small id="aviaframe-date-of-birth-help" class="aviaframe-passenger-field-help">Enter day, month and year</small></label>
+          <label class="aviaframe-passenger-field"><span class="aviaframe-passenger-form-label">First Name *</span><input class="aviaframe-passenger-input" required name="firstName" placeholder="John" /></label>
+          <label class="aviaframe-passenger-field"><span class="aviaframe-passenger-form-label">Last Name *</span><input class="aviaframe-passenger-input" required name="lastName" placeholder="Doe" /></label>
+          <div class="aviaframe-passenger-divider"></div>
+          <div class="aviaframe-passenger-section-title">Document Information</div>
+          <label class="aviaframe-passenger-field"><span class="aviaframe-passenger-form-label">Passport Number *</span><input class="aviaframe-passenger-input" required name="passportNumber" placeholder="AB1234567" /></label>
+          <label class="aviaframe-passenger-field"><span class="aviaframe-passenger-form-label">Passport Expiry Date *</span><input class="aviaframe-passenger-input" required type="date" name="passportExpiry" /></label>
+          <div id="aviaframe-passenger-error" class="aviaframe-passenger-error" role="alert" aria-live="assertive"></div>
+          <div class="aviaframe-passenger-actions"><button type="button" id="aviaframe-passenger-back" class="aviaframe-passenger-button aviaframe-passenger-button--secondary">Back</button><button type="submit" class="aviaframe-passenger-button aviaframe-passenger-button--primary">Continue to booking</button></div>
+        </form>`;
+      r.appendChild(i);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       const x = i.querySelector("#aviaframe-passenger-back"),
         $ = i.querySelector("#aviaframe-passenger-form"),
         b = i.querySelector("#aviaframe-passenger-error");
+      const dobInput = $ && $.querySelector('input[name="dateOfBirth"]');
+      if (dobInput) {
+        dobInput.addEventListener("input", () => {
+          const nextValue = formatDateOfBirthTyping(dobInput.value);
+          if (dobInput.value !== nextValue) dobInput.value = nextValue;
+        });
+      }
       (x &&
         x.addEventListener("click", () => {
           (i.remove(),
@@ -3022,17 +3261,23 @@
                 email: String(h.get("email") || ""),
                 phone: String(h.get("phone") || ""),
                 gender: String(h.get("gender") || "male"),
-                dateOfBirth: String(h.get("dateOfBirth") || ""),
+                dateOfBirth: normalizeDateOfBirth(h.get("dateOfBirth")),
                 passportNumber: String(h.get("passportNumber") || ""),
                 passportExpiry: String(h.get("passportExpiry") || ""),
               },
               w = new Date(),
-              T = new Date(k.dateOfBirth),
+              T = new Date(`${k.dateOfBirth}T00:00:00`),
               O = new Date(T);
-            if (
-              (O.setFullYear(O.getFullYear() + 18),
-              !k.dateOfBirth || Number.isNaN(T.getTime()) || O > w)
-            ) {
+            if (!k.dateOfBirth || Number.isNaN(T.getTime())) {
+              b &&
+                ((b.textContent =
+                  _wLang === "ar"
+                    ? "أدخل تاريخ الميلاد بالصيغة يوم.شهر.سنة."
+                    : "Enter the date of birth as DD.MM.YYYY."),
+                (b.style.display = "block"));
+              return;
+            }
+            if ((O.setFullYear(O.getFullYear() + 18), O > w)) {
               b &&
                 ((b.textContent =
                   _wLang === "ar"
@@ -3069,7 +3314,7 @@
               C.checkoutUrl
                 ? (window.location.href = C.checkoutUrl)
                 : (i.innerHTML =
-                    '<div style="padding:10px 0"><div style="font-size:20px;font-weight:700;color:#166534;margin-bottom:6px">Passenger details saved</div><div style="font-size:14px;color:#374151">Host app can continue booking via aviaframe:continueToBooking event.</div><button type="button" id="aviaframe-passenger-back2" style="margin-top:12px;border:1px solid #d0d7e5;background:#f8fafc;border-radius:8px;padding:8px 12px;cursor:pointer">Back to search</button></div>'),
+                    '<div class="aviaframe-passenger-success"><h3>Passenger details saved</h3><p>Host app can continue booking via aviaframe:continueToBooking event.</p><button type="button" id="aviaframe-passenger-back2" class="aviaframe-passenger-button aviaframe-passenger-button--secondary">Back to search</button></div>'),
               i.querySelector("#aviaframe-passenger-back2") &&
                 i
                   .querySelector("#aviaframe-passenger-back2")
@@ -3083,6 +3328,55 @@
       if ($) {
         const _afEmailEl = $.querySelector('input[name="email"]');
         if (_afEmailEl) {
+          const _afEnsureSessionToken = async () => {
+            const _afNow = Date.now();
+            if (C.widgetSessionToken && C.widgetSessionTokenExpiresAt > (_afNow + 5000)) {
+              return C.widgetSessionToken;
+            }
+            if (C.widgetSessionPromise) {
+              return C.widgetSessionPromise;
+            }
+
+            C.widgetSessionPromise = (async () => {
+              const _afWidgetEl = document.getElementById('aviaframe-widget');
+              const _afApiUrl = _afWidgetEl ? (_afWidgetEl.dataset.apiUrl || '') : '';
+              const _afAgencyKey = _afWidgetEl ? String(_afWidgetEl.dataset.agencyKey || '').trim() : '';
+              const _afAgencyDomain = _afWidgetEl ? String(_afWidgetEl.dataset.agencyDomain || '').trim() : '';
+              if (!_afApiUrl || (!_afAgencyKey && !_afAgencyDomain && !window.location.hostname)) {
+                return null;
+              }
+
+              const _afBase = new URL(_afApiUrl).origin;
+              const _afSessionResp = await fetch(`${_afBase}/api/widget/session`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  agency_key: _afAgencyKey || undefined,
+                  agency_domain: _afAgencyKey ? undefined : (_afAgencyDomain || window.location.hostname || undefined),
+                  origin_host: window.location.hostname || undefined,
+                }),
+              });
+              if (!_afSessionResp.ok) {
+                return null;
+              }
+
+              const _afSessionData = await _afSessionResp.json().catch(() => ({}));
+              const _afToken = String(_afSessionData.widget_token || '').trim();
+              const _afExpiresIn = Math.max(parseInt(_afSessionData.expires_in, 10) || 0, 0);
+              if (!_afToken) {
+                return null;
+              }
+
+              C.widgetSessionToken = _afToken;
+              C.widgetSessionTokenExpiresAt = Date.now() + (_afExpiresIn * 1000);
+              return _afToken;
+            })().catch(() => null).finally(() => {
+              C.widgetSessionPromise = null;
+            });
+
+            return C.widgetSessionPromise;
+          };
+
           _afEmailEl.addEventListener('blur', async function () {
             const _afEmail = this.value.trim();
             if (!_afEmail || !_afEmail.includes('@')) return;
@@ -3091,9 +3385,11 @@
               const _afApiUrl = _afWidgetEl ? (_afWidgetEl.dataset.apiUrl || '') : '';
               if (!_afApiUrl) return;
               const _afBase = new URL(_afApiUrl).origin;
-              const _afDomain = window.location.hostname;
+              const _afToken = await _afEnsureSessionToken();
+              if (!_afToken) return;
               const _afResp = await fetch(
-                `${_afBase}/public/customer-profile?email=${encodeURIComponent(_afEmail)}&agency_domain=${encodeURIComponent(_afDomain)}`
+                `${_afBase}/public/customer-profile?email=${encodeURIComponent(_afEmail)}`,
+                { headers: { Authorization: `Bearer ${_afToken}` } }
               );
               if (!_afResp.ok) return;
               const _afData = await _afResp.json();
@@ -3104,10 +3400,10 @@
               // Build banner
               const _afBanner = document.createElement('div');
               _afBanner.id = '_af_banner';
-              _afBanner.style.cssText = 'grid-column:1/-1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px';
+              _afBanner.className = 'aviaframe-passenger-autofill';
               const _afFirst = _afData.profile.first_name || '';
               const _afIsAr = _wLang === 'ar';
-              _afBanner.innerHTML = `<span style="font-size:13px;color:#1e40af">⏳ ${_afIsAr ? 'جارٍ تعبئة البيانات...' : 'Prefilling your saved details...'}</span>`;
+              _afBanner.innerHTML = `<span class="aviaframe-passenger-autofill-message">⏳ ${_afIsAr ? 'جارٍ تعبئة البيانات...' : 'Prefilling your saved details...'}</span>`;
               const _afEmailLabel = _afEmailEl.closest('label');
               if (_afEmailLabel) _afEmailLabel.insertAdjacentElement('afterend', _afBanner);
               else $.insertBefore(_afBanner, $.firstChild);
@@ -3119,8 +3415,6 @@
                 dateOfBirth: _afData.profile.date_of_birth,
                 firstName: _afData.profile.first_name,
                 lastName: _afData.profile.last_name,
-                passportNumber: _afData.profile.passport_number,
-                passportExpiry: _afData.profile.passport_expiry,
               };
               const _afPrevVals = {};
               Object.entries(_afFieldMap).forEach(([_afName, _afVal]) => {
@@ -3128,12 +3422,12 @@
                 const _afEl = _afForm.querySelector(`[name="${_afName}"]`);
                 if (!_afEl) return;
                 _afPrevVals[_afName] = _afEl.value;
-                _afEl.value = _afVal;
+                _afEl.value = _afName === "dateOfBirth" ? formatDateOfBirth(_afVal) : _afVal;
                 _afEl.dispatchEvent(new Event('input', { bubbles: true }));
                 _afEl.dispatchEvent(new Event('change', { bubbles: true }));
               });
               // Update banner: show confirmation with undo option
-              _afBanner.innerHTML = `<span style="font-size:13px;color:#1e40af">${_afIsAr ? '✓ تم تعبئة بياناتك المحفوظة' : `✓ Prefilled your saved details${_afFirst ? ', ' + _afFirst : ''}`}</span><button type="button" id="_af_undo_btn" style="background:none;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;font-size:12px;color:#3b82f6;cursor:pointer;flex-shrink:0">${_afIsAr ? 'تراجع' : 'Undo'}</button>`;
+              _afBanner.innerHTML = `<span class="aviaframe-passenger-autofill-message">${_afIsAr ? '✓ تم تعبئة بياناتك المحفوظة' : `✓ Prefilled your saved details${_afFirst ? ', ' + c(_afFirst) : ''}`}</span><button type="button" id="_af_undo_btn" class="aviaframe-passenger-autofill-undo">${_afIsAr ? 'تراجع' : 'Undo'}</button>`;
               _afBanner.querySelector('#_af_undo_btn').addEventListener('click', () => {
                 Object.entries(_afPrevVals).forEach(([_afName, _afOld]) => {
                   const _afEl = _afForm.querySelector(`[name="${_afName}"]`);
@@ -3159,8 +3453,25 @@
         .replace(/'/g, "&#39;");
     }
     function L(e, n) {
-      return `${Math.round(S(e, 0)).toLocaleString("uk-UA")} ${n || "UAH"}`;
+      const requestedCurrency = String(n || "SAR").trim().toUpperCase();
+      const _cur = /^[A-Z]{3}$/.test(requestedCurrency) ? requestedCurrency : "SAR";
+      let _txt;
+      if (window.AviaframeDisplayCurrency && typeof window.AviaframeDisplayCurrency.formatAmount === "function") {
+        _txt = window.AviaframeDisplayCurrency.formatAmount(e, _cur);
+      } else {
+        _txt = `${Math.round(S(e, 0)).toLocaleString("en-US")} ${_cur}`;
+      }
+      return `<span class="_afp" data-a="${Number(e)||0}" data-c="${_cur}">${c(_txt)}</span>`;
     }
+    window.__aviaframeWidgetCurrencyRefresh = function() {
+      document.querySelectorAll("._afp").forEach(function(_afEl) {
+        const _afA = parseFloat(_afEl.getAttribute("data-a"));
+        const _afC = _afEl.getAttribute("data-c");
+        if (!isNaN(_afA) && window.AviaframeDisplayCurrency && typeof window.AviaframeDisplayCurrency.formatAmount === "function") {
+          _afEl.textContent = window.AviaframeDisplayCurrency.formatAmount(_afA, _afC);
+        }
+      });
+    };
     function I(e) {
       if (!e) return "--:--";
       const n = String(e).match(/T(\d{2}:\d{2})/);
@@ -3321,7 +3632,7 @@
         ),
         r =
           ((y = e == null ? void 0 : e.price) == null ? void 0 : y.currency) ||
-          "UAH",
+          "SAR",
         o = te(e),
         t = Array.isArray(e == null ? void 0 : e.segments)
           ? e.segments.map((i) => {
@@ -3484,7 +3795,7 @@
                 ]
               : [],
           ),
-          price: { total: 62727, currency: "UAH" },
+          price: { total: 62727, currency: "SAR" },
         },
         {
           offer_id: "fallback_2",
@@ -3525,7 +3836,7 @@
                 ]
               : [],
           ),
-          price: { total: 67100, currency: "UAH" },
+          price: { total: 67100, currency: "SAR" },
         },
         {
           offer_id: "fallback_3",
@@ -3594,7 +3905,7 @@
                 ]
               : [],
           ),
-          price: { total: 70886, currency: "UAH" },
+          price: { total: 70886, currency: "SAR" },
         },
       ];
     }
@@ -3744,7 +4055,7 @@
         </div>
         <aside class="aviaframe-price-col">
           <div class="aviaframe-baggage">${c(a.baggageText || "No baggage")}</div>
-          <div class="aviaframe-flight-price">${c(L(a.priceTotal, a.priceCurrency))}</div>
+          <div class="aviaframe-flight-price">${L(a.priceTotal, a.priceCurrency)}</div>
           <button class="aviaframe-select-button" data-select-id="${c(a.id)}">Select</button>
         </aside>
       </article>
@@ -3783,7 +4094,7 @@
                   ${l.logo ? `<img class="aviaframe-airline-logo-big" src="${l.logo}" alt="${c(l.name)}" onerror="this.style.display='none'">` : `<span>${c(l.code)}</span>`}
                 </div>
                 <div class="aviaframe-airline-card-name">${c(l.name)}</div>
-                <div class="aviaframe-airline-card-price">from ${c(L(l.minPrice, l.currency || "SAR"))}</div>
+                <div class="aviaframe-airline-card-price">from ${L(l.minPrice, l.currency || "SAR")}</div>
                 <div class="aviaframe-airline-card-count">${l.count} flights</div>
               </button>
             `,
@@ -4095,7 +4406,9 @@
         return;
       }
       const n = e.dataset.apiUrl || "http://localhost:5678/webhook/drct/search";
-      C.checkoutUrl = e.dataset.checkoutUrl || "/booking";
+      C.checkoutUrl = e.dataset.disableCheckoutRedirect === "true"
+        ? null
+        : (e.dataset.checkoutUrl || "/booking");
       const r = document.createElement("style");
       ((r.textContent = W),
         document.head.appendChild(r),
@@ -4124,7 +4437,7 @@
     (document.readyState === "loading"
       ? document.addEventListener("DOMContentLoaded", D)
       : D(),
-      (window.AviaframeWidget = { init: D, setLang: applyWidgetLang }));
+      (window.AviaframeWidget = { init: D, setLang: applyWidgetLang, openPassengerStep: V }));
     window.__aviaLangToggle = () =>
       applyWidgetLang(_wLang === "en" ? "ar" : "en");
   })();

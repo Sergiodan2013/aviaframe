@@ -1,0 +1,26 @@
+/* Shared semantic tokens. Agencies can override the --af-* branding values. */
+:root {
+  --af-primary: #0f5ea8;
+  --af-primary-hover: #0b4a85;
+  --af-accent: #e76f51;
+  --af-bg: #f4f8fc;
+  --af-surface: #ffffff;
+  --af-text: #12263f;
+  --af-text-muted: #61758a;
+  --af-border: #d9e2ec;
+  --af-success: #18794e;
+  --af-warning: #b45309;
+  --af-danger: #b42318;
+  --af-radius: 12px;
+  --af-radius-sm: 8px;
+  --af-shadow-sm: 0 1px 2px rgb(18 38 63 / 8%);
+  --af-shadow-md: 0 12px 32px rgb(18 38 63 / 12%);
+  --af-font: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --af-space-1: 0.25rem;
+  --af-space-2: 0.5rem;
+  --af-space-3: 0.75rem;
+  --af-space-4: 1rem;
+  --af-space-5: 1.25rem;
+  --af-space-6: 1.5rem;
+  --af-space-8: 2rem;
+}

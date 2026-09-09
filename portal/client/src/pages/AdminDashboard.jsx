@@ -41,6 +41,9 @@ import {
   DESTINATION_PRESET_COUNTRIES,
   buildDestinationPresetEntry
 } from '../lib/destinationPresets';
+import { Alert, StatusBadge, Surface } from '@aviaframe/ui';
+import ApiPartnersPanel from '../components/admin/ApiPartnersPanel';
+import { CARRIERS } from '../data/carriers';
 
 // Build a lookup: city name → real https:// URL from PRESET_SEED
 const PRESET_PHOTO_BY_CITY = Object.fromEntries(
@@ -59,7 +62,7 @@ function sanitizeDestinations(destinations) {
   });
 }
 
-export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_admin' }) {
+export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_admin', initialSection = 'agencies' }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -83,7 +86,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [superAdminsLoading, setSuperAdminsLoading] = useState(false);
   const [creatingSuperAdmin, setCreatingSuperAdmin] = useState(false);
-  const [activeAdminSection, setActiveAdminSection] = useState('agencies');
+  const [activeAdminSection, setActiveAdminSection] = useState(initialSection);
   const [showCreateAgencyForm, setShowCreateAgencyForm] = useState(false);
   const [superAdminForm, setSuperAdminForm] = useState({
     email: '',
@@ -133,9 +136,13 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     sama_code: '',
     widget_allowed_domains: '',
     payment_methods: ['online'],
+    payment_mode: 'demo',
     commission_model: 'fixed',
     commission_fixed_amount: 0,
     commission_rate: 0,
+    currency: 'SAR',
+    carrier_commission_mode: 'all', // 'all' or 'per_carrier'
+    carrier_commissions: {}, // { SV: { type: 'fixed'|'percent', value: 50 } } — used in 'per_carrier' mode
     logo_url: '',
     brand_color: '#1a3c8e',
     accent_color: '#2468c4',
@@ -181,6 +188,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     sama_code: '',
     widget_allowed_domains: '',
     payment_methods: ['online'],
+    payment_mode: 'demo',
     commission_model: 'fixed',
     commission_fixed_amount: 0,
     commission_rate: 0,
@@ -212,38 +220,17 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     manual_total: '',
     statuses: 'confirmed,issued'
   });
-  const CARRIERS = [
-    { code: 'AF', name: 'Air France' }, { code: 'AM', name: 'Aeromexico' }, { code: 'A3', name: 'Aegean Airlines' },
-    { code: 'BG', name: 'Biman Bangladesh' }, { code: 'BJ', name: 'Nouvelair' }, { code: 'BS', name: 'US-Bangla' },
-    { code: 'B4', name: 'ZanAir' }, { code: 'DT', name: 'TAAG Angola' }, { code: 'EK', name: 'Emirates' },
-    { code: 'ET', name: 'Ethiopian Airlines' }, { code: 'EY', name: 'Etihad Airways' }, { code: 'FZ', name: 'flydubai' },
-    { code: 'F3', name: 'Flyadeal' }, { code: 'GA', name: 'Garuda Indonesia' }, { code: 'GF', name: 'Gulf Air' },
-    { code: 'GP', name: 'APG Airlines' }, { code: 'GQ', name: 'Sky Express' }, { code: 'HC', name: 'Air Senegal' },
-    { code: 'HR', name: 'Hahn Air' }, { code: 'J4', name: 'Buffalo Airways' }, { code: 'J9', name: 'Jazeera Airways' },
-    { code: 'KL', name: 'KLM' }, { code: 'LH', name: 'Lufthansa' }, { code: 'LO', name: 'LOT Polish Airlines' },
-    { code: 'LX', name: 'Swiss' }, { code: 'MF', name: 'Xiamen Air' }, { code: 'MH', name: 'Malaysia Airlines' },
-    { code: 'NE', name: 'Nesma Airlines' }, { code: 'NP', name: 'Nile Air' }, { code: 'NX', name: 'Air Macau' },
-    { code: 'OV', name: 'Estonian Air' }, { code: 'PK', name: 'PIA' }, { code: 'PR', name: 'Philippine Airlines' },
-    { code: 'QP', name: 'Akasa Air' }, { code: 'QR', name: 'Qatar Airways' }, { code: 'Q4', name: 'Starbow Airlines' },
-    { code: 'RJ', name: 'Royal Jordanian' }, { code: 'R5', name: 'Jordan Aviation' }, { code: 'SM', name: 'Air Cairo' },
-    { code: 'SQ', name: 'Singapore Airlines' }, { code: 'SV', name: 'Saudia' }, { code: 'TC', name: 'Air Tanzania' },
-    { code: 'TK', name: 'Turkish Airlines' }, { code: 'TP', name: 'TAP Air Portugal' }, { code: 'UJ', name: 'Al Masria' },
-    { code: 'UL', name: 'SriLankan Airlines' }, { code: 'VF', name: 'Valuair' }, { code: 'WB', name: 'RwandAir' },
-    { code: 'WY', name: 'Oman Air' }, { code: 'W2', name: 'Flexflight' }, { code: 'XJ', name: 'Thai AirAsia X' },
-    { code: 'XY', name: 'flynas' }, { code: '5J', name: 'Cebu Pacific' }, { code: '6E', name: 'IndiGo' },
-  ];
   const [agencySelfForm, setAgencySelfForm] = useState({
     commission_rate: 0,
     commission_model: 'percent',
     commission_fixed_amount: 0,
     carrier_commission_mode: 'all', // 'all' or 'per_carrier'
-    carrier_commission_all_amount: 0, // used in 'all' mode
-    carrier_commissions: {}, // { SV: 50, EK: 75 } — used in 'per_carrier' mode
+    carrier_commissions: {}, // { SV: { type: 'fixed'|'percent', value: 50 } } — used in 'per_carrier' mode
     currency: 'SAR'
   });
   const [agencySelfMeta, setAgencySelfMeta] = useState(null);
   const [agencyPreviewId, setAgencyPreviewId] = useState('');
-  const [agencySelfLoading, setAgencySelfLoading] = useState(false);
+  const [, setAgencySelfLoading] = useState(false);
   const [setupEmailSendingId, setSetupEmailSendingId] = useState(null);
   const [rowPublishingId, setRowPublishingId] = useState(null);
   const [rowRedeployingId, setRowRedeployingId] = useState(null);
@@ -257,6 +244,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     status: ''
   });
   const [salesReportLoading, setSalesReportLoading] = useState(false);
+  // Agency-admin's own-agency-only Sales Report (separate state from the
+  // superadmin all-agencies report above — kept apart so filters never bleed
+  // between the two views; the backend force-scopes agents to their own
+  // agency_id regardless, this is just UI hygiene).
+  const [agencySalesReportFilters, setAgencySalesReportFilters] = useState({
+    date_from: '',
+    date_to: '',
+    status: ''
+  });
+  const [agencySalesReportLoading, setAgencySalesReportLoading] = useState(false);
   const [destLibrary, setDestLibrary] = useState({ images: [], loading: false, openFor: null });
   const loadingRef = useRef(false);
   const isAgencyAdminPreview = viewMode === 'agency_admin';
@@ -311,9 +308,51 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   };
 
   useEffect(() => {
-    if (!user?.id) return;
-    loadOrders();
-  }, [user?.id]);
+    let active = true;
+    if (!user?.id) return () => { active = false; };
+
+    const loadDashboardProfile = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const profileResp = await getProfile(user.id);
+        const dbProfile = profileResp?.data || null;
+        const role = normalizeRole(dbProfile?.role || user?.role || 'user');
+        const profile = {
+          id: user.id,
+          role,
+          agency_id: dbProfile?.agency_id || user?.agency_id || null,
+        };
+
+        if (!['admin', 'super_admin', 'agent'].includes(profile.role)) {
+          throw new Error('Access denied: insufficient permissions');
+        }
+        if (!active) return;
+
+        setUserProfile(profile);
+        if (['admin', 'super_admin'].includes(profile.role) && isSuperAdminView) {
+          void loadAdminData();
+        } else if (profile.role === 'agent' || isAgencyAdminPreview) {
+          void loadMyAgencySettings();
+        }
+      } catch (err) {
+        if (active) setError(`Failed to load admin profile: ${err.message}`);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void loadDashboardProfile();
+    return () => { active = false; };
+  }, [user?.id, user?.role, user?.agency_id, isSuperAdminView, isAgencyAdminPreview]);
+
+  useEffect(() => {
+    if (!user?.id || !userProfile) return;
+    // Connect API, Agencies and Invoices do not render the legacy order list.
+    // Orders are loaded only where they are actually displayed.
+    if (isSuperAdminView && activeAdminSection !== 'tickets') return;
+    void loadOrders();
+  }, [user?.id, userProfile, isSuperAdminView, activeAdminSection]);
 
   useEffect(() => {
     if (!selectedOrder) return;
@@ -390,11 +429,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       .filter(Boolean);
   };
 
-  const normalizeWidgetDomain = (raw) => {
-    const list = parseWidgetDomains(raw);
-    return list[0] || '';
-  };
-
   const formatDateTime = (value) => {
     if (!value) return '—';
     try {
@@ -407,28 +441,28 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const getOnboardingStatusMeta = (status) => {
     switch (status) {
       case 'invited':
-        return { label: 'Invite sent', tone: 'bg-blue-50 text-blue-800 border-blue-200' };
+        return { label: 'Invite sent', tone: 'info' };
       case 'setup_in_progress':
-        return { label: 'Setup in progress', tone: 'bg-amber-50 text-amber-800 border-amber-200' };
+        return { label: 'Setup in progress', tone: 'warning' };
       case 'ready_to_publish':
-        return { label: 'Ready to publish', tone: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+        return { label: 'Ready to publish', tone: 'success' };
       case 'published':
-        return { label: 'Published', tone: 'bg-green-50 text-green-800 border-green-200' };
+        return { label: 'Published', tone: 'success' };
       default:
-        return { label: 'Draft', tone: 'bg-slate-50 text-slate-700 border-slate-200' };
+        return { label: 'Draft', tone: 'neutral' };
     }
   };
 
   const getDeployStatusMeta = (status) => {
     switch (status) {
       case 'deploying':
-        return { label: 'Deploying', tone: 'bg-blue-50 text-blue-800 border-blue-200' };
+        return { label: 'Deploying', tone: 'info' };
       case 'deployed':
-        return { label: 'Last deploy succeeded', tone: 'bg-green-50 text-green-800 border-green-200' };
+        return { label: 'Last deploy succeeded', tone: 'success' };
       case 'failed':
-        return { label: 'Last deploy failed', tone: 'bg-red-50 text-red-800 border-red-200' };
+        return { label: 'Last deploy failed', tone: 'danger' };
       default:
-        return { label: 'Not deployed yet', tone: 'bg-slate-50 text-slate-700 border-slate-200' };
+        return { label: 'Not deployed yet', tone: 'neutral' };
     }
   };
 
@@ -655,26 +689,22 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
   const applyAgencyToSelfForm = (agencyData) => {
     const commission = agencyData?.settings?.commission || {};
-    const carrierComms = agencyData?.settings?.carrier_commissions || {};
-    const carrierCodes = Object.keys(carrierComms);
-    let ccMode = 'all';
-    let ccAllAmount = 0;
-    if (carrierCodes.length > 0) {
-      const values = carrierCodes.map((k) => Number(carrierComms[k]));
-      const allSame = values.every((v) => v === values[0]);
-      if (allSame && carrierCodes.length === CARRIERS.length) {
-        ccMode = 'all';
-        ccAllAmount = values[0];
+    const carrierCommsRaw = agencyData?.settings?.carrier_commissions || {};
+    // Normalize legacy plain-number entries (always meant "fixed SAR") to { type, value }
+    const carrierComms = {};
+    Object.entries(carrierCommsRaw).forEach(([code, entry]) => {
+      if (entry && typeof entry === 'object') {
+        carrierComms[code] = { type: entry.type === 'percent' ? 'percent' : 'fixed', value: Number(entry.value) || 0 };
       } else {
-        ccMode = 'per_carrier';
+        carrierComms[code] = { type: 'fixed', value: Number(entry) || 0 };
       }
-    }
+    });
+    const ccMode = Object.keys(carrierComms).length > 0 ? 'per_carrier' : 'all';
     setAgencySelfForm({
       commission_rate: agencyData?.commission_rate ?? 0,
       commission_model: commission.model || 'percent',
       commission_fixed_amount: commission.fixed_amount ?? 0,
       carrier_commission_mode: ccMode,
-      carrier_commission_all_amount: ccAllAmount,
       carrier_commissions: carrierComms,
       currency: (commission.currency || 'SAR').toUpperCase()
     });
@@ -852,6 +882,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           sama_code: agencyForm.sama_code || null
         },
         payment_methods: agencyForm.payment_methods || ['online'],
+        payment_mode: agencyForm.payment_mode || 'demo',
         widget_allowed_domains: parseWidgetDomains(agencyForm.widget_allowed_domains)
       };
       const { data, error } = await createAdminAgency(payload);
@@ -901,6 +932,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         brand_color: agencyForm.brand_color || '#1a3c8e',
         accent_color: agencyForm.accent_color || '#2468c4',
         payment_methods: agencyForm.payment_methods || ['online'],
+        payment_mode: agencyForm.payment_mode || 'demo',
         commission_model: agencyForm.commission_model || 'fixed',
         commission_fixed_amount: Number(agencyForm.commission_fixed_amount) || 0,
         commission_rate: Number(agencyForm.commission_rate) || 0,
@@ -991,6 +1023,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         brand_color: agencyForm.brand_color || '#1a3c8e',
         accent_color: agencyForm.accent_color || '#2468c4',
         payment_methods: agencyForm.payment_methods || ['online'],
+        payment_mode: agencyForm.payment_mode || 'demo',
         commission_model: agencyForm.commission_model || 'fixed',
         commission_fixed_amount: Number(agencyForm.commission_fixed_amount) || 0,
         commission_rate: Number(agencyForm.commission_rate) || 0,
@@ -1091,9 +1124,27 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       payment_methods: Array.isArray(agency?.settings?.payment_methods) && agency.settings.payment_methods.length
         ? agency.settings.payment_methods
         : ['online'],
+      payment_mode: agency?.settings?.payment_mode || (agency?.domain === 'almalektravel.aviaframe.com' ? 'live' : 'demo'),
       commission_model: agency?.settings?.commission?.model || 'fixed',
       commission_fixed_amount: agency?.settings?.commission?.fixed_amount ?? 0,
       commission_rate: agency?.commission_rate ?? 0,
+      currency: (agency?.settings?.commission?.currency || 'SAR').toUpperCase(),
+      ...(() => {
+        // Normalize legacy plain-number carrier_commissions entries (always "fixed SAR") to { type, value }
+        const rawCarrierComms = agency?.settings?.carrier_commissions || {};
+        const carrierComms = {};
+        Object.entries(rawCarrierComms).forEach(([code, entry]) => {
+          if (entry && typeof entry === 'object') {
+            carrierComms[code] = { type: entry.type === 'percent' ? 'percent' : 'fixed', value: Number(entry.value) || 0 };
+          } else {
+            carrierComms[code] = { type: 'fixed', value: Number(entry) || 0 };
+          }
+        });
+        return {
+          carrier_commission_mode: Object.keys(carrierComms).length > 0 ? 'per_carrier' : 'all',
+          carrier_commissions: carrierComms
+        };
+      })(),
       logo_url: site.logo_url || '',
       brand_color: site.brand_color || '#1a3c8e',
       accent_color: site.accent_color || '#2468c4',
@@ -1145,9 +1196,21 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           sama_code: agencyEditForm.sama_code || null
         },
         payment_methods: agencyEditForm.payment_methods || ['online'],
+        payment_mode: agencyEditForm.payment_mode || 'demo',
         commission_model: agencyEditForm.commission_model || 'fixed',
         commission_fixed_amount: Number(agencyEditForm.commission_fixed_amount) || 0,
         commission_rate: Number(agencyEditForm.commission_rate) || 0,
+        currency: agencyEditForm.currency || 'SAR',
+        // 'all' mode sends no per-carrier add-on: the global commission above already
+        // applies equally to every carrier, so a separate flat amount would be redundant.
+        carrier_commissions: agencyEditForm.carrier_commission_mode === 'per_carrier'
+          ? Object.entries(agencyEditForm.carrier_commissions || {}).reduce((acc, [code, entry]) => {
+              const type = entry?.type === 'percent' ? 'percent' : 'fixed';
+              const value = Number(entry?.value);
+              if (value > 0) acc[code] = { type, value };
+              return acc;
+            }, {})
+          : {},
         widget_allowed_domains: parseWidgetDomains(agencyEditForm.widget_allowed_domains),
         logo_url: agencyEditForm.logo_url || '',
         brand_color: agencyEditForm.brand_color || '#1a3c8e',
@@ -1331,21 +1394,18 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
   };
 
-  const handleSaveMyAgencySettings = async () => {
+  const _handleSaveMyAgencySettings = async () => {
     try {
       setAgencySelfLoading(true);
-      // Build carrier_commissions based on mode
+      // Build carrier_commissions based on mode.
+      // 'all' mode sends no per-carrier add-on: the global commission above already
+      // applies equally to every carrier, so a separate flat amount would be redundant.
       let carrierCommissionsPayload = {};
-      if (agencySelfForm.carrier_commission_mode === 'all') {
-        const allAmt = Number(agencySelfForm.carrier_commission_all_amount || 0);
-        if (allAmt > 0) {
-          CARRIERS.forEach(({ code }) => { carrierCommissionsPayload[code] = allAmt; });
-        }
-      } else {
-        // per_carrier mode — only include positive values
-        Object.entries(agencySelfForm.carrier_commissions || {}).forEach(([code, val]) => {
-          const v = Number(val);
-          if (v > 0) carrierCommissionsPayload[code] = v;
+      if (agencySelfForm.carrier_commission_mode === 'per_carrier') {
+        Object.entries(agencySelfForm.carrier_commissions || {}).forEach(([code, entry]) => {
+          const type = entry?.type === 'percent' ? 'percent' : 'fixed';
+          const value = Number(entry?.value);
+          if (value > 0) carrierCommissionsPayload[code] = { type, value };
         });
       }
 
@@ -1807,10 +1867,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
 
         {/* Agency Admin Settings */}
         {(userProfile?.role === 'agent' || isAgencyAdminPreview) && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-blue-100">
+          <Surface className="p-4 mb-6">
             <h2 className="text-lg font-bold text-gray-900 mb-3">Agency settings</h2>
             <p className="text-sm text-gray-600 mb-3">
-              Set commission model: percentage or fixed amount per sold ticket.
+              Onboarding status and widget embed setup for your agency.
             </p>
             {isAgencyAdminPreview && agencies.length > 0 && (
               <div className="mb-3 flex items-center gap-2">
@@ -1844,12 +1904,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${selectedOnboardingMeta.tone}`}>
+                  <StatusBadge tone={selectedOnboardingMeta.tone}>
                     {selectedOnboardingMeta.label}
-                  </span>
-                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${selectedDeployMeta.tone}`}>
+                  </StatusBadge>
+                  <StatusBadge tone={selectedDeployMeta.tone}>
                     {selectedDeployMeta.label}
-                  </span>
+                  </StatusBadge>
                 </div>
               </div>
 
@@ -1896,9 +1956,9 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                     </div>
                   </div>
                   {selectedAgencyDeploy?.last_error && (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    <Alert className="text-xs">
                       {selectedAgencyDeploy.last_error}
-                    </div>
+                    </Alert>
                   )}
                 </div>
               </div>
@@ -1922,124 +1982,6 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                   </button>
                 )}
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-              <select
-                value={agencySelfForm.commission_model}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_model: e.target.value }))}
-                className="border rounded px-2 py-1"
-              >
-                <option value="percent">Percent</option>
-                <option value="fixed">Fixed</option>
-              </select>
-              {agencySelfForm.commission_model === 'percent' ? (
-                <div className="flex items-center border rounded px-2 py-1">
-                  <input
-                    type="number"
-                    value={agencySelfForm.commission_rate}
-                    onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_rate: e.target.value }))}
-                    placeholder="Commission"
-                    className="w-full outline-none"
-                  />
-                  <span className="text-gray-500 text-sm">%</span>
-                </div>
-              ) : (
-                <input
-                  type="number"
-                  value={agencySelfForm.commission_fixed_amount}
-                  onChange={(e) => setAgencySelfForm((p) => ({ ...p, commission_fixed_amount: e.target.value }))}
-                  placeholder="Fixed amount"
-                  className="border rounded px-2 py-1"
-                />
-              )}
-              <select
-                value={agencySelfForm.currency}
-                onChange={(e) => setAgencySelfForm((p) => ({ ...p, currency: e.target.value.toUpperCase() }))}
-                className="border rounded px-2 py-1"
-              >
-                <option value="SAR">SAR</option>
-                <option value="EUR">EUR</option>
-                <option value="USD">USD</option>
-              </select>
-
-              {/* Per-carrier commission section */}
-              <div className="md:col-span-3 border border-amber-200 rounded-lg p-3 bg-amber-50/40">
-                <h3 className="text-sm font-semibold text-gray-800 mb-1">
-                  Per-carrier commission <span className="font-normal text-gray-500">(SAR, added on top of global commission)</span>
-                </h3>
-                <div className="flex gap-4 mb-3">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm">
-                    <input
-                      type="radio"
-                      name="carrier_commission_mode"
-                      value="all"
-                      checked={agencySelfForm.carrier_commission_mode === 'all'}
-                      onChange={() => setAgencySelfForm((p) => ({ ...p, carrier_commission_mode: 'all' }))}
-                    />
-                    Same for all carriers
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-sm">
-                    <input
-                      type="radio"
-                      name="carrier_commission_mode"
-                      value="per_carrier"
-                      checked={agencySelfForm.carrier_commission_mode === 'per_carrier'}
-                      onChange={() => setAgencySelfForm((p) => ({ ...p, carrier_commission_mode: 'per_carrier' }))}
-                    />
-                    Per carrier
-                  </label>
-                </div>
-
-                {agencySelfForm.carrier_commission_mode === 'all' ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={agencySelfForm.carrier_commission_all_amount}
-                      onChange={(e) => setAgencySelfForm((p) => ({ ...p, carrier_commission_all_amount: e.target.value }))}
-                      placeholder="0"
-                      className="border rounded px-2 py-1 w-36"
-                    />
-                    <span className="text-sm text-gray-600">SAR per ticket (all carriers)</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1 max-h-64 overflow-y-auto pr-1">
-                    {CARRIERS.map(({ code, name }) => (
-                      <div key={code} className="flex items-center gap-1">
-                        <span className="text-xs font-mono text-gray-700 w-7 shrink-0">{code}</span>
-                        <span className="text-xs text-gray-500 truncate flex-1 min-w-0" title={name}>{name}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={agencySelfForm.carrier_commissions[code] ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setAgencySelfForm((p) => ({
-                              ...p,
-                              carrier_commissions: {
-                                ...p.carrier_commissions,
-                                [code]: val === '' ? undefined : val
-                              }
-                            }));
-                          }}
-                          placeholder="0"
-                          className="border rounded px-1 py-0.5 w-16 text-xs shrink-0"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={handleSaveMyAgencySettings}
-                className="bg-blue-600 text-white rounded px-3 py-1"
-                disabled={agencySelfLoading}
-              >
-                {agencySelfLoading ? 'Saving...' : 'Save settings'}
-              </button>
             </div>
 
             <div className="mt-4 border border-indigo-100 rounded-lg p-3 bg-indigo-50/40">
@@ -2099,6 +2041,95 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 )}
               </div>
             </div>
+          </Surface>
+        )}
+
+        {/* Agency admin's own Sales Report — scoped to their own agency only.
+            No "Agency" filter here: the backend forces agency_id from the
+            authenticated profile for non-admin staff, this UI simply never
+            offers a way to ask for anyone else's data. */}
+        {(userProfile?.role === 'agent' || isAgencyAdminPreview) && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-green-100">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Sales Report</h2>
+            <p className="text-sm text-gray-500 mb-4">Export your agency's own sales for a given period.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Date from</label>
+                <input
+                  type="date"
+                  value={agencySalesReportFilters.date_from}
+                  onChange={(e) => setAgencySalesReportFilters((p) => ({ ...p, date_from: e.target.value }))}
+                  className="border rounded px-2 py-1 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Date to</label>
+                <input
+                  type="date"
+                  value={agencySalesReportFilters.date_to}
+                  onChange={(e) => setAgencySalesReportFilters((p) => ({ ...p, date_to: e.target.value }))}
+                  className="border rounded px-2 py-1 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Status</label>
+                <select
+                  value={agencySalesReportFilters.status}
+                  onChange={(e) => setAgencySalesReportFilters((p) => ({ ...p, status: e.target.value }))}
+                  className="border rounded px-2 py-1 w-full"
+                >
+                  <option value="">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="issued">Issued</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {['csv', 'xlsx', 'json', 'txt'].map((fmt) => (
+                <button
+                  key={fmt}
+                  disabled={agencySalesReportLoading}
+                  onClick={async () => {
+                    setAgencySalesReportLoading(true);
+                    try {
+                      const params = new URLSearchParams();
+                      if (agencySalesReportFilters.date_from) params.set('date_from', agencySalesReportFilters.date_from);
+                      if (agencySalesReportFilters.date_to) params.set('date_to', agencySalesReportFilters.date_to);
+                      if (agencySalesReportFilters.status) params.set('status', agencySalesReportFilters.status);
+                      params.set('format', fmt);
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const token = session?.access_token;
+                      const resp = await fetch(`/api/backend/admin/reports/sales?${params.toString()}`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                      });
+                      if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        throw new Error(err?.error?.message || `HTTP ${resp.status}`);
+                      }
+                      const blob = await resp.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      const from = agencySalesReportFilters.date_from || 'all';
+                      const to = agencySalesReportFilters.date_to || 'all';
+                      a.download = `sales_report_${from}_${to}.${fmt}`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch (err) {
+                      setNotice({ type: 'error', text: `Export failed: ${err.message}` });
+                    } finally {
+                      setAgencySalesReportLoading(false);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded font-medium text-sm uppercase tracking-wide ${agencySalesReportLoading ? 'bg-gray-200 text-gray-400' : 'bg-green-600 text-white hover:bg-green-700'}`}
+                >
+                  {agencySalesReportLoading ? '...' : fmt}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-3">Exports up to 50,000 rows. All fields included: order details, passenger contacts, pricing, payment, timestamps.</p>
           </div>
         )}
 
@@ -2130,8 +2161,20 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               >
                 Sales Report
               </button>
+              {userProfile?.role === 'super_admin' && (
+                <button
+                  onClick={() => setActiveAdminSection('partner_api')}
+                  className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'partner_api' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  Connect API
+                </button>
+              )}
             </div>
           </div>
+        )}
+
+        {userProfile?.role === 'super_admin' && isSuperAdminView && activeAdminSection === 'partner_api' && (
+          <ApiPartnersPanel />
         )}
 
         {/* SuperAdmin Tools */}
@@ -2249,6 +2292,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                       }
                     </div>
                     <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide pt-1">Payment methods</p>
+                    <label className="flex items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      <span><strong>Live payments</strong><br /><span className="text-xs">Off means demo checkout and no real ticket issuance.</span></span>
+                      <input type="checkbox" checked={agencyForm.payment_mode === 'live'} onChange={e => setAgencyForm(p => ({ ...p, payment_mode: e.target.checked ? 'live' : 'demo' }))} />
+                    </label>
                     <div className="flex gap-3 flex-wrap">
                       {['online', 'cash', 'invoice'].map(m => (
                         <label key={m} className="flex items-center gap-1 text-sm cursor-pointer">
@@ -3008,6 +3055,15 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                               <span className="text-xs text-gray-400">%</span>
                             </div>
                           )}
+                          <select
+                            value={agencyEditForm.currency}
+                            onChange={(e) => setAgencyEditForm((p) => ({ ...p, currency: e.target.value.toUpperCase() }))}
+                            className="border rounded px-2 py-1 text-sm"
+                          >
+                            <option value="SAR">SAR</option>
+                            <option value="EUR">EUR</option>
+                            <option value="USD">USD</option>
+                          </select>
                           <span className="text-xs text-gray-400">
                             {agencyEditForm.commission_model === 'fixed'
                               ? `Added to every ticket price (e.g. SAR ${agencyEditForm.commission_fixed_amount || 0} flat)`
@@ -3016,9 +3072,100 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         </div>
                       </div>
 
+                      {/* Per-carrier commission */}
+                      <div className="border border-amber-200 rounded-lg p-3 bg-amber-50/40">
+                        <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                          Per-carrier commission <span className="font-normal text-gray-500">(added on top of global commission — fixed SAR or % per carrier)</span>
+                        </h3>
+                        <div className="flex gap-4 mb-3">
+                          <label className="flex items-center gap-2 cursor-pointer text-sm">
+                            <input
+                              type="radio"
+                              name="edit_carrier_commission_mode"
+                              value="all"
+                              checked={agencyEditForm.carrier_commission_mode === 'all'}
+                              onChange={() => setAgencyEditForm((p) => ({ ...p, carrier_commission_mode: 'all' }))}
+                            />
+                            Same for all carriers
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer text-sm">
+                            <input
+                              type="radio"
+                              name="edit_carrier_commission_mode"
+                              value="per_carrier"
+                              checked={agencyEditForm.carrier_commission_mode === 'per_carrier'}
+                              onChange={() => setAgencyEditForm((p) => ({ ...p, carrier_commission_mode: 'per_carrier' }))}
+                            />
+                            Per carrier
+                          </label>
+                        </div>
+
+                        {agencyEditForm.carrier_commission_mode === 'all' ? (
+                          <p className="text-xs text-gray-500 italic">
+                            No extra per-carrier commission — the global commission set above applies equally to every carrier. Switch to "Per carrier" to add a fixed amount or % on top for specific airlines.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 max-h-64 overflow-y-auto pr-1">
+                            {CARRIERS.map(({ code, name }) => {
+                              const entry = agencyEditForm.carrier_commissions[code] || {};
+                              const entryType = entry.type === 'percent' ? 'percent' : 'fixed';
+                              const entryValue = entry.value ?? '';
+                              return (
+                                <div key={code} className="flex items-center gap-1">
+                                  <span className="text-xs font-mono text-gray-700 w-7 shrink-0">{code}</span>
+                                  <span className="text-xs text-gray-500 truncate flex-1 min-w-0" title={name}>{name}</span>
+                                  <select
+                                    value={entryType}
+                                    onChange={(e) => {
+                                      const type = e.target.value;
+                                      setAgencyEditForm((p) => {
+                                        const current = p.carrier_commissions[code] || {};
+                                        return {
+                                          ...p,
+                                          carrier_commissions: {
+                                            ...p.carrier_commissions,
+                                            [code]: { type, value: current.value ?? '' }
+                                          }
+                                        };
+                                      });
+                                    }}
+                                    className="border rounded px-1 py-0.5 text-xs shrink-0"
+                                  >
+                                    <option value="fixed">SAR</option>
+                                    <option value="percent">%</option>
+                                  </select>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={entryValue}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setAgencyEditForm((p) => ({
+                                        ...p,
+                                        carrier_commissions: {
+                                          ...p.carrier_commissions,
+                                          [code]: val === '' ? undefined : { type: entryType, value: val }
+                                        }
+                                      }));
+                                    }}
+                                    placeholder="0"
+                                    className="border rounded px-1 py-0.5 w-16 text-xs shrink-0"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Payment methods */}
                       <div>
                         <p className="text-xs text-gray-500 font-semibold mb-1">Payment methods</p>
+                        <label className="mb-2 flex items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                          <span><strong>Live payments</strong><br /><span className="text-xs">Off means demo checkout and no real ticket issuance.</span></span>
+                          <input type="checkbox" checked={agencyEditForm.payment_mode === 'live'} onChange={e => setAgencyEditForm(p => ({ ...p, payment_mode: e.target.checked ? 'live' : 'demo' }))} />
+                        </label>
                         <div className="flex gap-4">
                           {['online', 'cash', 'invoice'].map(m => (
                             <label key={m} className="flex items-center gap-1 text-sm cursor-pointer">
@@ -3144,17 +3291,17 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                         <div>Widget domains: {Array.isArray(a?.settings?.widget_allowed_domains) && a.settings.widget_allowed_domains.length ? a.settings.widget_allowed_domains.join(', ') : 'not set'}</div>
                         <div>Status: {a.is_active ? 'Active' : 'Inactive'}</div>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getOnboardingStatusMeta(a?.onboarding_state?.status).tone}`}>
+                          <StatusBadge tone={getOnboardingStatusMeta(a?.onboarding_state?.status).tone}>
                             {getOnboardingStatusMeta(a?.onboarding_state?.status).label}
-                          </span>
-                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getDeployStatusMeta(a?.deploy_state?.status).tone}`}>
+                          </StatusBadge>
+                          <StatusBadge tone={getDeployStatusMeta(a?.deploy_state?.status).tone}>
                             {getDeployStatusMeta(a?.deploy_state?.status).label}
-                          </span>
+                          </StatusBadge>
                         </div>
                         {a?.deploy_state?.last_error && (
-                          <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                          <Alert className="mt-2 text-xs">
                             {a.deploy_state.last_error}
-                          </div>
+                          </Alert>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">

@@ -357,6 +357,8 @@ h1 {
 }
 .step-card h3 { font-size: 18px; margin: 0 0 10px; font-weight: 700; }
 .step-card p { color: #475569; font-size: 14px; margin: 0; line-height: 1.7; }
+.step-card-link { display: inline-flex; margin-top: 16px; color: var(--blue); font-size: 14px; font-weight: 800; text-decoration: none; }
+.step-card-link:hover { text-decoration: underline; }
 
 /* ── PRICING ──────────────────────────────────────────────────────── */
 .pricing-grid {
@@ -517,6 +519,10 @@ h1 {
   padding: 34px;
   box-shadow: 0 12px 44px rgba(15,23,42,.07);
 }
+.onboarding-cta-card { display: flex; flex-direction: column; justify-content: center; min-height: 350px; }
+.onboarding-cta-card h3 { margin: 0 0 12px; font-size: 24px; letter-spacing: -.02em; }
+.onboarding-cta-card p { margin: 0 0 24px; color: #475569; font-size: 15px; line-height: 1.7; }
+.onboarding-cta-card .btn-form { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .contact-form { display: flex; flex-direction: column; gap: 16px; }
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .fg { display: flex; flex-direction: column; gap: 6px; }
@@ -699,6 +705,7 @@ html[dir="rtl"] .option-item { direction: rtl; }
 html[dir="rtl"] .option-item > div { text-align: right; }
 html[dir="rtl"] .option-tags { justify-content: flex-end; }
 html[dir="rtl"] .contact-grid { direction: rtl; }
+html[dir="rtl"] .onboarding-cta-card { text-align: right; }
 html[dir="rtl"] .contact-info { text-align: right; }
 html[dir="rtl"] .contact-channels { align-items: flex-end; }
 html[dir="rtl"] .contact-channel { flex-direction: row-reverse; }

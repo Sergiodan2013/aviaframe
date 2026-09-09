@@ -172,14 +172,14 @@
       var cfg = window.AVIAFRAME_RUNTIME_CONFIG || {};
       window.__AVIAFRAME_SITE_CONFIG__ = Object.assign(
         {
-          environment: 'production',
+          environment: 'sandbox-demo',
           backendUrl: 'https://peaceful-amazement-production-629f.up.railway.app',
           agencyKey: 'ag_eed8b706614bee6a4712686d1026f02b6a862485',
           portalUrl: 'https://admin.aviaframe.com',
-          defaultDryRunIssue: false,
-          showTestPaymentCards: false,
+          defaultDryRunIssue: true,
+          showTestPaymentCards: true,
           searchIsSandbox: false,
-          searchOriginHost: '',
+          searchOriginHost: window.location.hostname,
           bookingOriginHost: window.location.hostname,
           siteOriginHost: window.location.hostname,
           enableCardFeePreview: true,
@@ -205,6 +205,7 @@
         <a class="nav-link" href="/#pricing">Pricing</a>
         <a class="nav-link" href="/#contact">Contact</a>
         <a class="nav-cta" href="/#contact">Get Started</a>
+        <div id="customer-auth-nav"></div>
         <button class="lang-toggle" id="site-lang-trigger" aria-label="Toggle language">
           <span class="lt-opt lt-active" data-l="en">EN</span><span class="lt-sep">|</span><span class="lt-opt" data-l="ar">AR</span>
         </button>
@@ -261,7 +262,7 @@
 
   <!-- NOTE -->
   <div class="demo-note">
-    <strong id="demo-note-label">How it works:</strong> <span id="demo-note-copy">Search for a flight → select an offer → fill in passenger details → pay with your card via Moyasar.
+    <strong id="demo-note-label">How it works:</strong> <span id="demo-note-copy">Search for a flight → select an offer → sign in before booking continuation → fill in passenger details → pay with your card via Moyasar.
     After successful payment, a PDF e-ticket is generated and sent to the email you enter.
     The order appears in <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.</span>
     <br/><br/>
@@ -358,7 +359,16 @@
       }
     })();
   </script>
-  <script src="/aviaframe-widget.js?v=2026-07-31-3"></script>
+  <script src="/customer-account.js?v=2026-09-04-2"></script>
+  <script src="/display-currency.js?v=2026-09-01-1"></script>
+  <script src="/aviaframe-widget.js?v=2026-09-03-2"></script>
+  <script>
+    (function () {
+      const auth = window.AviaframeCustomerAuth;
+      if (!auth) return;
+      auth.mountNav('customer-auth-nav');
+    })();
+  </script>
   <script>
     (function(){
       var btn = document.getElementById('site-lang-trigger');
@@ -386,8 +396,8 @@
           c3t: 'Where to integrate',
           c3p: 'Use this demo to test search UX, then open the integration guide for the exact snippet, onboarding steps, and domain allowlist setup.',
           noteLabel: 'How it works:',
-          noteCopyTest: 'Search for a flight → select an offer → fill in passenger details → pay with your card via Moyasar test mode. After successful payment, a PDF e-ticket is generated and sent to the email you enter. The order appears in <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.',
-          noteCopyLive: 'Search for a flight → select an offer → fill in passenger details → pay with your card via Moyasar. After successful payment, a PDF e-ticket is generated and sent to the email you enter. The order appears in <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.',
+          noteCopyTest: 'Search for a flight → select an offer → sign in before booking continuation → fill in passenger details → pay with your card via Moyasar test mode. After successful payment, a PDF e-ticket is generated and sent to the email you enter. The order appears in <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.',
+          noteCopyLive: 'Search for a flight → select an offer → sign in before booking continuation → fill in passenger details → pay with your card via Moyasar. After successful payment, a PDF e-ticket is generated and sent to the email you enter. The order appears in <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> with status <strong>Issued</strong>.',
           embedLabel: 'To embed on your website:',
           embedCopy: 'use the secure loader with your public agency key. See <a href="/partner-integration.html">Partner Integration</a> for the exact snippet and onboarding steps.',
           noteCta1: 'Open Integration Guide',
@@ -415,8 +425,8 @@
           c3t: 'أين يتم التكامل',
           c3p: 'استخدم هذا العرض لاختبار تجربة البحث، ثم افتح دليل التكامل للحصول على الكود الجاهز وخطوات التهيئة وإعداد قائمة الدومينات المسموح بها.',
           noteLabel: 'كيف يعمل ذلك:',
-          noteCopyTest: 'ابحث عن رحلة ← اختر العرض المناسب ← أدخل بيانات المسافرين ← ادفع ببطاقتك عبر وضع الاختبار في Moyasar. بعد نجاح الدفع يتم إنشاء تذكرة PDF وإرسالها إلى البريد الإلكتروني الذي أدخلته. يظهر الطلب في <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> بحالة <strong>Issued</strong>.',
-          noteCopyLive: 'ابحث عن رحلة ← اختر العرض المناسب ← أدخل بيانات المسافرين ← ادفع ببطاقتك عبر Moyasar. بعد نجاح الدفع يتم إنشاء تذكرة PDF وإرسالها إلى البريد الإلكتروني الذي أدخلته. يظهر الطلب في <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> بحالة <strong>Issued</strong>.',
+          noteCopyTest: 'ابحث عن رحلة ← اختر العرض المناسب ← سجّل الدخول قبل متابعة الحجز ← أدخل بيانات المسافرين ← ادفع ببطاقتك عبر وضع الاختبار في Moyasar. بعد نجاح الدفع يتم إنشاء تذكرة PDF وإرسالها إلى البريد الإلكتروني الذي أدخلته. يظهر الطلب في <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> بحالة <strong>Issued</strong>.',
+          noteCopyLive: 'ابحث عن رحلة ← اختر العرض المناسب ← سجّل الدخول قبل متابعة الحجز ← أدخل بيانات المسافرين ← ادفع ببطاقتك عبر Moyasar. بعد نجاح الدفع يتم إنشاء تذكرة PDF وإرسالها إلى البريد الإلكتروني الذي أدخلته. يظهر الطلب في <a id="demo-portal-link" href="https://admin.aviaframe.com" target="_blank">admin.aviaframe.com</a> بحالة <strong>Issued</strong>.',
           embedLabel: 'للتضمين على موقعك:',
           embedCopy: 'استخدم أداة التحميل الآمنة مع مفتاح الوكالة العام. راجع <a href="/partner-integration.html">دليل التكامل</a> للاطلاع على الكود الجاهز وخطوات الإعداد.',
           noteCta1: 'افتح دليل التكامل',

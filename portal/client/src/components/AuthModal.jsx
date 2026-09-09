@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Mail, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase, signInWithEmail, signInWithGoogle } from '../lib/supabase';
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
+export default function AuthModal({ isOpen, onClose }) {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -15,7 +15,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError(null);
 
     try {
-      const { data, error } = await signInWithGoogle();
+      const { error } = await signInWithGoogle();
 
       if (error) {
         throw error;
@@ -35,10 +35,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
     try {
       // Apple Sign In via Supabase
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'apple',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: `${window.location.origin}${window.location.pathname}`
         }
       });
 

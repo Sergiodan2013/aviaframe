@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AviaFrame Widget UI System Preview</title>
+    <style>
+      :root {
+        background: #edf5f0;
+        color: #17342a;
+        font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+      }
+
+      body { margin: 0; padding: 48px 20px; }
+      main { margin: 0 auto; max-width: 880px; }
+      .note { color: #526b61; line-height: 1.5; margin: 0 0 24px; }
+      .preview-action {
+        background: #087f5b;
+        border: 0;
+        border-radius: 10px;
+        color: #fff;
+        cursor: pointer;
+        font: 700 14px/1 "Avenir Next", Avenir, "Segoe UI", sans-serif;
+        margin: 0 0 20px;
+        padding: 12px 16px;
+      }
+
+      /* This simulates agency branding without rebuilding the widget. */
+      #aviaframe-widget {
+        --af-primary: #087f5b;
+        --af-primary-hover: #056344;
+        --af-radius: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Agency-branded widget preview</h1>
+      <p class="note">The green primary action, focus state, dates, and rounded corners come from host-page CSS variables. Search uses the read-only offers endpoint; the demo action opens the passenger handoff without creating an order.</p>
+      <button type="button" class="preview-action" id="open-passenger-demo">Open passenger demo</button>
+      <div
+        id="aviaframe-widget"
+        data-api-url="/api/drct/search"
+        data-disable-checkout-redirect="true"
+      ></div>
+    </main>
+    <script src="../dist/aviaframe-widget.iife.js"></script>
+    <script>
+      document.getElementById('open-passenger-demo').addEventListener('click', () => {
+        window.AviaframeWidget.openPassengerStep({
+          offer_id: 'ui-preview-offer',
+          origin: 'LHR',
+          destination: 'CDG',
+          departure_time: '2026-10-16T09:30:00',
+          arrival_time: '2026-10-16T11:50:00',
+          airline_code: 'BA',
+          airline_name: 'British Airways',
+          price: { total: 485, currency: 'SAR' },
+        });
+      });
+    </script>
+  </body>
+</html>

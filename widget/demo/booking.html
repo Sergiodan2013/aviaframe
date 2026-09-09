@@ -124,100 +124,143 @@
         raw_offer_data: selectedOffer
       };
 
-      console.log('Creating Hold Booking via n8n webhook with passenger data:', passenger);
-      console.log('Sending complete order to n8n webhook:', payload);
+      const query = new URLSearchParams(window.location.search);
+      let savedDemoConfig = {};
+      try {
+        savedDemoConfig = JSON.parse(localStorage.getItem('aviaframeDemoWidgetConfig') || '{}');
+      } catch {
+        savedDemoConfig = {};
+      }
 
-      let responseData = null;
-      let lastError = null;
-      const idempotencyKey = `wgt_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      const requestOptions = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': idempotencyKey
-        },
-        body: JSON.stringify(payload)
+      const demoConfig = {
+        agency_key: String(query.get('agency_key') || savedDemoConfig.agency_key || '').trim(),
+        agency_domain: String(query.get('agency_domain') || savedDemoConfig.agency_domain || '').trim(),
+        backend_base: String(query.get('backend_base') || savedDemoConfig.backend_base || '/api/backend').replace(/\/+$/, ''),
+        origin_host: String(query.get('origin_host') || savedDemoConfig.origin_host || window.location.hostname || '').trim().toLowerCase(),
+        preview_mode: query.get('preview_mode') === '1' || savedDemoConfig.preview_mode === '1'
       };
 
       try {
-        const primaryUrl = '/api/n8n/webhook-test/drct/order/create';
-        let resp = await fetch(primaryUrl, requestOptions);
+        localStorage.setItem('aviaframeDemoWidgetConfig', JSON.stringify({
+          ...demoConfig,
+          preview_mode: demoConfig.preview_mode ? '1' : ''
+        }));
+      } catch (error) {
+        console.warn('Failed to persist demo widget config:', error);
+      }
 
-        if (!resp.ok && resp.status === 404) {
-          const fallbackUrl = '/api/n8n/webhook/drct/order/create';
-          resp = await fetch(fallbackUrl, requestOptions);
-          if (!resp.ok) {
-            let fallbackBody = '';
-            try {
-              fallbackBody = await resp.text();
-            } catch {
-              fallbackBody = '';
-            }
-            lastError = `HTTP ${resp.status} on ${fallbackUrl}${fallbackBody ? `: ${fallbackBody.slice(0, 220)}` : ''}`;
-          } else {
-            responseData = await resp.json().catch(() => ({}));
-          }
-        } else if (!resp.ok) {
-          let bodyText = '';
-          try {
-            bodyText = await resp.text();
-          } catch {
-            bodyText = '';
-          }
-          lastError = `HTTP ${resp.status} on ${primaryUrl}${bodyText ? `: ${bodyText.slice(0, 220)}` : ''}`;
-        } else {
-          responseData = await resp.json().catch(() => ({}));
+      if (!demoConfig.agency_key && !demoConfig.agency_domain) {
+        root.innerHTML = '<div class="error">This demo booking page no longer uses the public mutating webhook.\nOpen the widget demo with ?agency_key=YOUR_AGENCY_PUBLIC_WIDGET_KEY on an allowlisted domain, then restart the booking flow.</div>';
+        return;
+      }
+
+      const idempotencyKey = `wgt_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+      try {
+        console.log('Creating demo widget session before booking:', demoConfig);
+
+        const sessionResp = await fetch(`${demoConfig.backend_base}/widget/session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            agency_key: demoConfig.agency_key || undefined,
+            agency_domain: demoConfig.agency_domain || undefined,
+            origin_host: demoConfig.origin_host,
+            preview_mode: demoConfig.preview_mode
+          })
+        });
+        const sessionRaw = await sessionResp.text();
+        let sessionData = null;
+        try {
+          sessionData = sessionRaw ? JSON.parse(sessionRaw) : null;
+        } catch {
+          sessionData = null;
         }
-      } catch (e) {
-        lastError = String(e && e.message ? e.message : e);
-      }
 
-      if (!responseData) {
-        root.innerHTML = `<div class="error">Failed to create booking.\n${lastError || 'Unknown error'}\nCheck webhook drct/order/create and /api/* proxy.</div>`;
-        return;
-      }
+        if (!sessionResp.ok || !sessionData?.widget_token) {
+          const sessionMessage = sessionData?.error?.message || `Widget session failed (${sessionResp.status})`;
+          root.innerHTML = `<div class="error">Failed to initialize widget session.\n${sessionMessage}</div>`;
+          return;
+        }
 
-      console.log('Order created successfully via n8n:', responseData);
+        const response = await fetch(`${demoConfig.backend_base}/widget/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey,
+            Authorization: `Bearer ${sessionData.widget_token}`
+          },
+          body: JSON.stringify({
+            ...payload,
+            origin_host: demoConfig.origin_host,
+            preview_mode: demoConfig.preview_mode
+          })
+        });
+        const responseRaw = await response.text();
+        let responseData = null;
+        try {
+          responseData = responseRaw ? JSON.parse(responseRaw) : null;
+        } catch {
+          responseData = null;
+        }
 
-      const resolved = Array.isArray(responseData)
-        ? (responseData[0] || {})
-        : (responseData?.data && typeof responseData.data === 'object' ? responseData.data : responseData);
-      const orderNumber =
-        resolved?.order_number ||
-        resolved?.booking_number ||
-        resolved?.booking_reference ||
-        resolved?.drct_order_id ||
-        resolved?.order_id ||
-        resolved?.id ||
-        '—';
+        if (!response.ok || !responseData) {
+          const orderMessage = responseData?.error?.message || responseRaw || `Widget order create failed (${response.status})`;
+          root.innerHTML = `<div class="error">Failed to create booking.\n${String(orderMessage).slice(0, 300)}</div>`;
+          return;
+        }
 
-      if (orderNumber === '—' && (resolved?.error || resolved?.message)) {
-        root.innerHTML = `<div class="error">Failed to create booking.\n${resolved?.error || resolved?.message}</div>`;
-        return;
-      }
-      const total = Math.round(totalPrice).toLocaleString('en-US');
-      const departure = String(selectedOffer.departure_time || '').slice(0, 16).replace('T', ' ');
+        console.log('Order created successfully via widget session flow:', responseData);
 
-      root.innerHTML = `
-        <div class="center ok">✓</div>
-        <div class="center title">Booking created!</div>
-        <div class="center subtitle">Flight is booked and awaiting payment.</div>
-        <div class="number">Booking number: ${orderNumber}</div>
-        <div class="status">
-          <h3>Status: Awaiting payment</h3>
-          <p>Complete payment to finalize booking. Instructions were sent to ${passenger.email}.</p>
-        </div>
-        <div class="details">
-          <h4>Flight details</h4>
-          <div class="grid">
-            <div>Route:</div><div class="val">${selectedOffer.origin || '---'} → ${selectedOffer.destination || '---'}</div>
-            <div>Airline:</div><div class="val">${selectedOffer.airline_name || selectedOffer.airline_code || 'N/A'}</div>
-            <div>Departure:</div><div class="val">${departure}</div>
-            <div>Passenger:</div><div class="val">${passenger.firstName} ${passenger.lastName}</div>
-            <div class="due">Amount due:</div><div class="duev">${total} ${currency}</div>
+        const resolved = Array.isArray(responseData)
+          ? (responseData[0] || {})
+          : (responseData?.order && typeof responseData.order === 'object' ? {
+              ...responseData,
+              order_id: responseData.order.id || responseData.order_id,
+              order_number: responseData.order.order_number || responseData.order_number,
+              drct_order_id: responseData.order.drct_order_id || responseData.drct_order_id
+            } : responseData);
+        const orderNumber =
+          resolved?.order_number ||
+          resolved?.booking_number ||
+          resolved?.booking_reference ||
+          resolved?.drct_order_id ||
+          resolved?.order_id ||
+          resolved?.id ||
+          '—';
+
+        if (orderNumber === '—' && (resolved?.error || resolved?.message)) {
+          root.innerHTML = `<div class="error">Failed to create booking.\n${resolved?.error || resolved?.message}</div>`;
+          return;
+        }
+        const total = Math.round(totalPrice).toLocaleString('en-US');
+        const departure = String(selectedOffer.departure_time || '').slice(0, 16).replace('T', ' ');
+
+        root.innerHTML = `
+          <div class="center ok">✓</div>
+          <div class="center title">Booking created!</div>
+          <div class="center subtitle">Flight is booked and awaiting payment.</div>
+          <div class="number">Booking number: ${orderNumber}</div>
+          <div class="status">
+            <h3>Status: Awaiting payment</h3>
+            <p>Complete payment to finalize booking. Instructions were sent to ${passenger.email}.</p>
           </div>
-        </div>
-      `;
+          <div class="details">
+            <h4>Flight details</h4>
+            <div class="grid">
+              <div>Route:</div><div class="val">${selectedOffer.origin || '---'} → ${selectedOffer.destination || '---'}</div>
+              <div>Airline:</div><div class="val">${selectedOffer.airline_name || selectedOffer.airline_code || 'N/A'}</div>
+              <div>Departure:</div><div class="val">${departure}</div>
+              <div>Passenger:</div><div class="val">${passenger.firstName} ${passenger.lastName}</div>
+              <div class="due">Amount due:</div><div class="duev">${total} ${currency}</div>
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        root.innerHTML = `<div class="error">Failed to create booking.\n${String(e && e.message ? e.message : e).slice(0, 300)}</div>`;
+      }
     })();
   </script>
 </body>

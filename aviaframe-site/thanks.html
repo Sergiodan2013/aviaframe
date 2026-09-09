@@ -65,5 +65,101 @@
       <a class="thanks-back" href="/">← Back to AviaFrame</a>
     </div>
   </div>
+  <footer class="site-footer">
+    <div class="footer-wrap">
+      <div class="footer-brand">
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <svg style="width:24px;height:24px;opacity:.85" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 16 L14 8 L16 10 L12 13 L16 13 L22 7 L24 9 L18 17 L22 17 L20 21 L14 19 L11 23 L9 21 L13 17 L8 17 Z" fill="#ffffff"/>
+          </svg>
+          <span style="font-size:16px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:-.2px">Avia<span style="font-weight:400;color:rgba(147,197,253,.9)">Frame</span></span>
+        </span>
+        <span id="footer-tagline">White-label flight booking for travel agencies.</span>
+        <span class="footer-legal-name">© 2026 Consolidator Aviatech Limited (شركة توحيد أفياتيك المحدودة)</span>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-platform">Platform</div>
+          <a href="/widget-demo.html" id="footer-link-demo">Widget Demo</a>
+          <a href="/#pricing" id="footer-link-pricing">Pricing</a>
+          <a href="/docs/" id="footer-link-docs">Documentation</a>
+          <a href="/app-preview.html" id="footer-link-portal">Portal Preview</a>
+        </div>
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-contact">Contact</div>
+          <a href="/#contact" id="footer-link-sales">Contact Sales</a>
+          <a href="mailto:sales@aviaframe.com">sales@aviaframe.com</a>
+          <a href="mailto:support@aviaframe.com">support@aviaframe.com</a>
+          <a href="mailto:info.sa@consolodator.aero">info.sa@consolodator.aero</a>
+          <a href="https://wa.me/966567189306">WhatsApp +966 56 718 9306</a>
+        </div>
+        <div class="footer-col">
+          <div class="footer-col-title" id="footer-col-legal">Legal</div>
+          <a href="/legal/terms-and-conditions.html" id="footer-legal-terms">Terms &amp; Conditions</a>
+          <a href="/legal/refund-and-cancellation-policy.html" id="footer-legal-refund">Refund Policy</a>
+          <a href="/legal/privacy-policy.html" id="footer-legal-privacy">Privacy Policy</a>
+          <a href="/legal/contact-information.html" id="footer-legal-contact">Contact Information</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+  <script>
+    (function () {
+      var T = {
+        en: {
+          footer_tagline: 'White-label flight booking for travel agencies.',
+          footer_col_platform: 'Platform',
+          footer_col_contact: 'Contact',
+          footer_col_legal: 'Legal',
+          footer_lnk_demo: 'Widget Demo',
+          footer_lnk_pricing: 'Pricing',
+          footer_lnk_docs: 'Documentation',
+          footer_lnk_portal: 'Portal Preview',
+          footer_lnk_sales: 'Contact Sales',
+          legal_terms: 'Terms & Conditions',
+          legal_refund: 'Refund Policy',
+          legal_privacy: 'Privacy Policy',
+          legal_contact_info: 'Contact Information'
+        },
+        ar: {
+          footer_tagline: 'حجز تذاكر طيران بعلامتك التجارية لوكالات السفر.',
+          footer_col_platform: 'المنصة',
+          footer_col_contact: 'التواصل',
+          footer_col_legal: 'القانونية',
+          footer_lnk_demo: 'عرض الويدجت',
+          footer_lnk_pricing: 'الأسعار',
+          footer_lnk_docs: 'التوثيق',
+          footer_lnk_portal: 'معاينة البوابة',
+          footer_lnk_sales: 'تواصل مع المبيعات',
+          legal_terms: 'الشروط والأحكام',
+          legal_refund: 'سياسة الاسترداد',
+          legal_privacy: 'سياسة الخصوصية',
+          legal_contact_info: 'معلومات الاتصال'
+        }
+      };
+      function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value;
+      }
+      var lang = 'en';
+      try { lang = localStorage.getItem('aviaframe-lang') || 'en'; } catch (e) {}
+      var t = T[lang] || T.en;
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      setText('footer-tagline', t.footer_tagline);
+      setText('footer-col-platform', t.footer_col_platform);
+      setText('footer-col-contact', t.footer_col_contact);
+      setText('footer-col-legal', t.footer_col_legal);
+      setText('footer-link-demo', t.footer_lnk_demo);
+      setText('footer-link-pricing', t.footer_lnk_pricing);
+      setText('footer-link-docs', t.footer_lnk_docs);
+      setText('footer-link-portal', t.footer_lnk_portal);
+      setText('footer-link-sales', t.footer_lnk_sales);
+      setText('footer-legal-terms', t.legal_terms);
+      setText('footer-legal-refund', t.legal_refund);
+      setText('footer-legal-privacy', t.legal_privacy);
+      setText('footer-legal-contact', t.legal_contact_info);
+    })();
+  </script>
 </body>
 </html>

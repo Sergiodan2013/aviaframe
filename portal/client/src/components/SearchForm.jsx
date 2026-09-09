@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import AirportAutocomplete from './AirportAutocomplete';
+import { resolveAirportCode } from '../lib/airportInput';
+import { Alert, Button, Surface } from '@aviaframe/ui';
 
 export default function SearchForm({ onSearch, isLoading }) {
   const [formData, setFormData] = useState({
@@ -13,15 +15,39 @@ export default function SearchForm({ onSearch, isLoading }) {
     infants: 0,
     cabin_class: 'economy'
   });
+  const [validationError, setValidationError] = useState('');
+
+  const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    const origin = resolveAirportCode(formData.origin);
+    const destination = resolveAirportCode(formData.destination);
+    const departDate = String(formData.depart_date || '').trim();
+
+    if (!origin || origin.length !== 3) {
+      setValidationError('Select a valid departure airport from the suggestions.');
+      return;
+    }
+
+    if (!destination || destination.length !== 3) {
+      setValidationError('Select a valid arrival airport from the suggestions.');
+      return;
+    }
+
+    if (!isIsoDate(departDate)) {
+      setValidationError('Choose a valid departure date before searching.');
+      return;
+    }
+
+    setValidationError('');
+
     // Build search payload
     const payload = {
-      origin: formData.origin.toUpperCase(),
-      destination: formData.destination.toUpperCase(),
-      depart_date: formData.depart_date,
+      origin,
+      destination,
+      depart_date: departDate,
       adults: parseInt(formData.adults),
       children: parseInt(formData.children),
       infants: parseInt(formData.infants),
@@ -39,15 +65,21 @@ export default function SearchForm({ onSearch, isLoading }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (validationError) {
+      setValidationError('');
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleAirportChange = (name, value) => {
+    if (validationError) {
+      setValidationError('');
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6 space-y-4">
+    <Surface as="form" onSubmit={handleSubmit} className="p-6 space-y-4">
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Search Flights</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -174,11 +206,17 @@ export default function SearchForm({ onSearch, isLoading }) {
         </div>
       </div>
 
+      {validationError && (
+        <Alert>
+          {validationError}
+        </Alert>
+      )}
+
       {/* Submit Button */}
-      <button
+      <Button
         type="submit"
         disabled={isLoading}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-md transition-colors duration-200 flex items-center justify-center gap-2"
+        className="w-full"
       >
         {isLoading ? (
           <>
@@ -191,7 +229,7 @@ export default function SearchForm({ onSearch, isLoading }) {
             Search Flights
           </>
         )}
-      </button>
-    </form>
+      </Button>
+    </Surface>
   );
 }

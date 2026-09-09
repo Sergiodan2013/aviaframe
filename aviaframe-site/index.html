@@ -16,6 +16,7 @@
         window.location.replace('/app-preview.html');
       }
     </script>
+    <script src="/config.js"></script>
   </head>
   <body>
 
@@ -29,10 +30,12 @@
           <span class="brand-wordmark">Avia<span class="brand-frame">Frame</span></span>
         </a>
         <div class="nav-links">
+          <a class="nav-link nav-link-product" href="/connect-api.html">Flight API</a>
           <a class="nav-link" href="/widget-demo.html">Widget Demo</a>
+          <a class="nav-link" href="/partner-integration.html">Integration</a>
           <a class="nav-link" href="#pricing">Pricing</a>
           <a class="nav-link" href="/docs/">Docs</a>
-          <a class="nav-link btn-nav-cta" href="#contact">Contact Sales</a>
+          <a class="nav-link btn-nav-cta" href="/agency-onboard.html">Register your agency</a>
           <button class="lang-toggle" id="lang-toggle" aria-label="Toggle language">
             <span class="lt-opt lt-active" data-l="en">EN</span><span class="lt-sep">|</span><span class="lt-opt" data-l="ar">AR</span>
           </button>
@@ -56,8 +59,9 @@
             <span class="chip">Live in &lt;24h</span>
           </div>
           <div class="hero-actions animate" style="animation-delay:.18s">
-            <a class="btn-primary" href="#contact">Get Started — SAR 300/mo</a>
+            <a class="btn-primary" href="/agency-onboard.html">Register your agency</a>
             <a class="btn-ghost" href="/widget-demo.html">See Live Demo</a>
+            <a class="btn-ghost" href="/partner-integration.html">View Integration Guide</a>
           </div>
           <div class="hero-stats animate" style="animation-delay:.22s">
             <div class="stat-item"><strong>SAR 300</strong><span>flat monthly fee</span></div>
@@ -126,6 +130,35 @@
       </div>
     </section>
 
+    <!-- PRODUCT STREAMS -->
+    <section class="product-streams" id="products">
+      <div class="content-wrap">
+        <div class="section-header">
+          <span class="eyebrow">Two ways to build with AviaFrame</span>
+          <h2>Launch a storefront — or power your own product</h2>
+          <p>Choose a ready-made agency experience or integrate flight retailing directly into your platform.</p>
+        </div>
+        <div class="product-stream-grid">
+          <article class="product-stream-card">
+            <div class="product-stream-icon">✦</div>
+            <div class="product-stream-kicker">AviaFrame White Label</div>
+            <h3>A booking channel under your agency brand</h3>
+            <p>Branded website, embeddable widget, order portal, and customer communications — configured for your agency.</p>
+            <ul><li>Go live without a development team</li><li>Your logo, colors, domain, and markup</li><li>Built for travel agencies</li></ul>
+            <a class="btn-ghost" href="/widget-demo.html">Explore White Label</a>
+          </article>
+          <article class="product-stream-card product-stream-card-api">
+            <div class="product-stream-icon">&lt;/&gt;</div>
+            <div class="product-stream-kicker">AviaFrame Connect API · Alpha</div>
+            <h3>One flight API. Your customer experience.</h3>
+            <p>Connect enabled GDS, NDC, and low-cost content through one contract, with your commercial price applied before every offer reaches your customer.</p>
+            <ul><li>Search, price confirmation, and order creation</li><li>Fixed + percentage pricing by channel and carrier</li><li>Sandbox keys, tenant isolation, safe retries</li></ul>
+            <a class="btn-primary" href="/connect-api.html">Discover Connect API</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <!-- HOW IT WORKS -->
     <section class="section-light" id="how">
       <div class="content-wrap">
@@ -137,7 +170,8 @@
           <div class="step-card">
             <div class="step-num">01</div>
             <h3>Register your agency</h3>
-            <p>Create your agency account in the AviaFrame portal. Get your management dashboard and API key — ready in minutes.</p>
+            <p>Tell us about your agency and preferred setup. We review the application and prepare your branded booking channel.</p>
+            <a class="step-card-link" href="/agency-onboard.html">Register your agency →</a>
           </div>
           <div class="step-card">
             <div class="step-num">02</div>
@@ -184,7 +218,7 @@
               <span>Free onboarding</span>
               <span>Cancel any time</span>
             </div>
-            <a class="btn-pricing-cta" href="#contact">Get Started Today</a>
+            <a class="btn-pricing-cta" href="/agency-onboard.html">Register your agency</a>
           </div>
 
           <!-- Options -->
@@ -207,6 +241,9 @@
                 <h3>Embed on your existing site</h3>
                 <p>Already have a website? Add <strong>2 lines of HTML</strong> and your existing site instantly gets full-featured flight booking. Works on WordPress, plain HTML, React, Vue — anything.</p>
                 <div class="option-tags"><span>Free setup</span><span>Live in 30 minutes</span><span>Any website platform</span></div>
+                <div style="margin-top:14px;">
+                  <a href="/partner-integration.html" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;text-decoration:none;font-weight:700;">Open Integration Guide</a>
+                </div>
               </div>
             </div>
             <div class="option-item option-item-accent">
@@ -298,7 +335,7 @@
 
         <div class="features-cta">
           <p>Ready to launch your agency online?</p>
-          <a class="btn-primary" href="#contact">Contact Sales →</a>
+          <a class="btn-primary" href="/agency-onboard.html">Register your agency →</a>
         </div>
       </div>
     </section>
@@ -318,11 +355,11 @@
                 </span>
                 sales@aviaframe.com
               </a>
-              <a class="contact-channel" href="https://wa.me/966595743909">
+              <a class="contact-channel" href="https://wa.me/966567189306">
                 <span class="cc-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                 </span>
-                WhatsApp +966 59 574 3909
+                WhatsApp +966 56 718 9306
               </a>
               <div class="contact-channel">
                 <span class="cc-icon">
@@ -351,62 +388,11 @@
             </div>
           </div>
 
-          <div class="contact-form-card">
-            <form class="contact-form" name="contact-sales" method="POST" action="/thanks.html" data-netlify="true" netlify>
-              <input type="hidden" name="form-name" value="contact-sales" />
-              <div class="form-row-2">
-                <div class="fg">
-                  <label for="f-company">Agency / Company Name *</label>
-                  <input id="f-company" name="company" type="text" placeholder="Al Salam Travel Agency" required />
-                </div>
-                <div class="fg">
-                  <label for="f-name">Your Name *</label>
-                  <input id="f-name" name="name" type="text" placeholder="Mohammed Al-Rashid" required />
-                </div>
-              </div>
-              <div class="form-row-2">
-                <div class="fg">
-                  <label for="f-email">Email Address *</label>
-                  <input id="f-email" name="email" type="email" placeholder="you@agency.com" required />
-                </div>
-                <div class="fg">
-                  <label for="f-phone">Phone / WhatsApp *</label>
-                  <input id="f-phone" name="phone" type="tel" placeholder="+966 5X XXX XXXX" required />
-                </div>
-              </div>
-              <div class="fg">
-                <label for="f-website">Agency Website (if you have one)</label>
-                <input id="f-website" name="website" type="url" placeholder="https://youragency.com" />
-              </div>
-              <div class="form-row-2">
-                <div class="fg">
-                  <label for="f-volume">Monthly bookings</label>
-                  <select id="f-volume" name="volume">
-                    <option value="">Select range…</option>
-                    <option>Less than 50/month</option>
-                    <option>50 – 200/month</option>
-                    <option>200 – 500/month</option>
-                    <option>500+/month</option>
-                  </select>
-                </div>
-                <div class="fg">
-                  <label for="f-setup">Preferred setup</label>
-                  <select id="f-setup" name="setup">
-                    <option value="">Select…</option>
-                    <option>Ready-made site on subdomain</option>
-                    <option>Embed widget on my site</option>
-                    <option>Both options</option>
-                    <option>Not sure yet</option>
-                  </select>
-                </div>
-              </div>
-              <div class="fg">
-                <label for="f-message">Questions or comments</label>
-                <textarea id="f-message" name="message" rows="3" placeholder="Tell us about your agency, or ask anything…"></textarea>
-              </div>
-              <button class="btn-form" type="submit">Send Request →</button>
-              <p class="form-note">We reply within 1 business day. Your info is never shared with third parties.</p>
-            </form>
+          <div class="contact-form-card onboarding-cta-card">
+            <span class="eyebrow" id="onboarding-card-eyebrow">Complete application</span>
+            <h3 id="onboarding-card-title">Tell us everything once</h3>
+            <p id="onboarding-card-copy">Complete the full onboarding form with your agency, branding, payment, and contact details. It takes a few minutes and lets us prepare your setup without follow-up.</p>
+            <a class="btn-form" id="onboarding-card-cta" href="/agency-onboard.html">Open full agency form →</a>
           </div>
         </div>
       </div>
@@ -438,7 +424,8 @@
             <a href="#contact">Contact Sales</a>
             <a href="mailto:sales@aviaframe.com">sales@aviaframe.com</a>
             <a href="mailto:support@aviaframe.com">support@aviaframe.com</a>
-            <a href="https://wa.me/966595743909">WhatsApp +966 59 574 3909</a>
+            <a href="mailto:info.sa@consolodator.aero">info.sa@consolodator.aero</a>
+            <a href="https://wa.me/966567189306">WhatsApp +966 56 718 9306</a>
           </div>
           <div class="footer-col">
             <div class="footer-col-title">Legal</div>
@@ -448,25 +435,46 @@
             <a href="/legal/contact-information.html">Contact Information</a>
           </div>
         </div>
+
+        <!-- Part of Consolidator Aero -->
+        <div style="border-top:1px solid rgba(255,255,255,.1);margin-top:32px;padding-top:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <a href="https://consolidator.aero" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:10px;text-decoration:none;opacity:.75;transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity='.75'">
+            <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="16" cy="16" r="15" stroke="rgba(147,197,253,0.6)" stroke-width="1.5"/>
+              <path d="M8 16 C8 16 10 10 16 10 C22 10 24 16 24 16 C24 16 22 22 16 22 C10 22 8 16 8 16Z" stroke="rgba(147,197,253,0.8)" stroke-width="1.2" fill="none"/>
+              <path d="M16 10 L16 22 M8 16 L24 16" stroke="rgba(147,197,253,0.5)" stroke-width="1"/>
+              <path d="M13 11.5 C13 11.5 14.5 14 14.5 16 C14.5 18 13 20.5 13 20.5 M19 11.5 C19 11.5 17.5 14 17.5 16 C17.5 18 19 20.5 19 20.5" stroke="rgba(147,197,253,0.5)" stroke-width="0.8" fill="none"/>
+            </svg>
+            <span style="font-size:13px;color:rgba(255,255,255,.7);">Part of <strong style="color:rgba(147,197,253,.9);font-weight:600;">Consolidator Aero</strong></span>
+          </a>
+          <span style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.5;">AviaFrame is a product of Consolidator Aviatech — a global air consolidation and travel technology company serving agencies across the Middle East and beyond.</span>
+        </div>
+
       </div>
     </footer>
 
+  <script src="/customer-account.js?v=2026-09-04-3"></script>
+  <script>
+    // Supabase may return to the site root after OAuth. Initialise auth here
+    // so an in-progress booking can be restored immediately.
+    window.AviaframeCustomerAuth?.init();
+  </script>
   <script>
   (function () {
     var T = {
       en: {
-        nav_demo:'Widget Demo', nav_pricing:'Pricing', nav_docs:'Docs', nav_contact:'Contact Sales',
+        nav_demo:'Widget Demo', nav_pricing:'Pricing', nav_docs:'Docs', nav_contact:'Register your agency',
         hero_eyebrow:'White-label flight booking · Travel agencies',
         hero_h1:'Your clients book flights under your brand. Live in a day.',
         hero_lead:'AviaFrame is a ready-made booking platform — embeddable widget, order management portal, automated notifications. Under your brand, without months of development.',
         hero_chip1:'Branded widget', hero_chip2:'Free subdomain setup', hero_chip3:'Order management', hero_chip4:'Live in <24h',
-        hero_cta1:'Get Started — SAR 300/mo', hero_cta2:'See Live Demo',
+        hero_cta1:'Register your agency', hero_cta2:'See Live Demo',
         hero_stat1v:'SAR 300', hero_stat1l:'flat monthly fee',
         hero_stat2v:'Free', hero_stat2l:'setup & onboarding',
         hero_stat3v:'<24h', hero_stat3l:'from sign-up to live',
         airlines_from:'Flights from',
         how_h2:'Up and running in 3 steps', how_p:'We handle the technical setup. You handle the bookings.',
-        step1_h3:'Register your agency', step1_p:'Create your agency account in the AviaFrame portal. Get your management dashboard and API key — ready in minutes.',
+        step1_h3:'Register your agency', step1_p:'Tell us about your agency and preferred setup. We review the application and prepare your branded booking channel.',
         step2_h3:'Choose your setup', step2_p:'Get a ready-made booking site at agency.aviaframe.com — or embed the widget on your existing website with 2 lines of code. Both are free to set up.',
         step3_h3:'Start taking bookings', step3_p:'Your clients search, book, and pay online 24/7. Orders appear in your portal instantly. E-tickets are delivered automatically.',
         pricing_eyebrow:'Pricing', pricing_h2:'One plan. Everything included.', pricing_subp:'No setup fees. No per-booking charges. No surprises. Cancel any time.',
@@ -474,7 +482,7 @@
         feat1:'Real-time flight search (50+ airports)', feat2:'Branded site on your subdomain — free', feat3:'Embeddable widget for your existing site',
         feat4:'Order management & ticketing portal', feat5:'Automated e-ticket PDF delivery', feat6:'Email notifications to clients',
         feat7:'Agency markup configuration', feat8:'Multi-passenger bookings', feat9:'24/7 client self-service booking',
-        badge1:'Free setup', badge2:'Free onboarding', badge3:'Cancel any time', pricing_cta:'Get Started Today',
+        badge1:'Free setup', badge2:'Free onboarding', badge3:'Cancel any time', pricing_cta:'Register your agency',
         opt1_h3:'Ready-made booking site', opt2_h3:'Embed on your existing site', opt3_h3:'Both options in one subscription',
         opt1_p:'Get <strong>agency.aviaframe.com</strong> — a fully branded flight booking website, live within 24 hours. Your clients can search and book online around the clock. Zero development, zero delays.',
         opt2_p:'Already have a website? Add <strong>2 lines of HTML</strong> and your existing site instantly gets full-featured flight booking. Works on WordPress, plain HTML, React, Vue — anything.',
@@ -488,10 +496,11 @@
         fc4_h3:'Agency Markup', fc4_p:'Set a fixed SAR amount or a percentage margin on every ticket. You control what your clients pay. Your fee is yours — paid monthly by invoice.',
         fc5_h3:'Isolated & Secure', fc5_p:'Each agency is completely isolated — your clients, orders, and data are never mixed with anyone else. Role-based access for your team.',
         fc6_h3:'Mobile-Ready', fc6_p:'The widget and booking flow are fully responsive. Clients search and book on phone, tablet, or desktop — no app required.',
-        features_cta_p:'Ready to launch your agency online?', features_cta_btn:'Contact Sales →',
+        features_cta_p:'Ready to launch your agency online?', features_cta_btn:'Register your agency →',
         contact_eyebrow:'Get started', contact_h2:"Let's set up your agency",
         contact_lead:"Tell us about your agency and we'll get back to you within one business day. Setup is free and takes under 24 hours.",
         contact_ch3:'Response within 1 business day',
+        onboarding_card_eyebrow:'Complete application', onboarding_card_title:'Tell us everything once', onboarding_card_copy:'Complete the full onboarding form with your agency, branding, payment, and contact details. It takes a few minutes and lets us prepare your setup without follow-up.', onboarding_card_cta:'Open full agency form →',
         promise1:'Free setup & onboarding', promise2:'No technical skills required', promise3:'Live in under 24 hours', promise4:'Cancel any time',
         form_company:'Agency / Company Name *', form_name:'Your Name *', form_email:'Email Address *', form_phone:'Phone / WhatsApp *',
         form_website:'Agency Website (if you have one)', form_volume:'Monthly bookings', form_setup:'Preferred setup',
@@ -506,18 +515,18 @@
         setup_placeholder:'Select…', setup1:'Ready-made site on subdomain', setup2:'Embed widget on my site', setup3:'Both options', setup4:'Not sure yet',
       },
       ar: {
-        nav_demo:'عرض الويدجت', nav_pricing:'الأسعار', nav_docs:'الوثائق', nav_contact:'تواصل معنا',
+        nav_demo:'عرض الويدجت', nav_pricing:'الأسعار', nav_docs:'الوثائق', nav_contact:'سجّل وكالتك',
         hero_eyebrow:'حجز رحلات بعلامتك التجارية · وكالات السفر',
         hero_h1:'عملاؤك يحجزون رحلاتهم تحت علامتك التجارية. جاهز خلال يوم.',
         hero_lead:'أفياإطار منصة حجز جاهزة — ويدجت قابل للتضمين، بوابة إدارة الطلبات، إشعارات تلقائية. تحت علامتك التجارية، دون أشهر من التطوير.',
         hero_chip1:'ويدجت بعلامتك', hero_chip2:'إعداد نطاق مجاني', hero_chip3:'إدارة الطلبات', hero_chip4:'جاهز في أقل من 24 ساعة',
-        hero_cta1:'ابدأ الآن — 300 ريال/شهر', hero_cta2:'شاهد العرض المباشر',
+        hero_cta1:'سجّل وكالتك', hero_cta2:'شاهد العرض المباشر',
         hero_stat1v:'300 ريال', hero_stat1l:'رسوم شهرية ثابتة',
         hero_stat2v:'مجاناً', hero_stat2l:'الإعداد والتأهيل',
         hero_stat3v:'أقل من 24 ساعة', hero_stat3l:'من التسجيل حتى الإطلاق',
         airlines_from:'رحلات من',
         how_h2:'جاهز للعمل في 3 خطوات', how_p:'نتولى الإعداد التقني. أنت تتولى الحجوزات.',
-        step1_h3:'سجّل وكالتك', step1_p:'أنشئ حساب وكالتك في بوابة أفياإطار. احصل على لوحة الإدارة ومفتاح API — جاهز في دقائق.',
+        step1_h3:'سجّل وكالتك', step1_p:'أخبرنا عن وكالتك والإعداد المفضل. نراجع الطلب ونجهز قناة الحجز بعلامتك التجارية.',
         step2_h3:'اختر إعدادك', step2_p:'احصل على موقع حجز جاهز على agency.aviaframe.com — أو ضمّن الويدجت في موقعك الحالي بسطرين من الكود. كلاهما مجاني الإعداد.',
         step3_h3:'ابدأ في استقبال الحجوزات', step3_p:'يبحث عملاؤك ويحجزون ويدفعون إلكترونياً على مدار الساعة. تظهر الطلبات في بوابتك فوراً. تُسلَّم التذاكر الإلكترونية تلقائياً.',
         pricing_eyebrow:'الأسعار', pricing_h2:'خطة واحدة. كل شيء متضمّن.', pricing_subp:'لا رسوم إعداد. لا رسوم لكل حجز. لا مفاجآت. إلغاء في أي وقت.',
@@ -525,7 +534,7 @@
         feat1:'بحث فوري عن الرحلات (50+ مطار)', feat2:'موقع بعلامتك على نطاقك الفرعي — مجاناً', feat3:'ويدجت قابل للتضمين في موقعك الحالي',
         feat4:'بوابة إدارة الطلبات وإصدار التذاكر', feat5:'تسليم تلقائي لتذاكر PDF الإلكترونية', feat6:'إشعارات البريد الإلكتروني للعملاء',
         feat7:'إعداد هامش ربح الوكالة', feat8:'حجوزات متعددة الركاب', feat9:'حجز ذاتي للعملاء على مدار الساعة',
-        badge1:'إعداد مجاني', badge2:'تأهيل مجاني', badge3:'إلغاء في أي وقت', pricing_cta:'ابدأ اليوم',
+        badge1:'إعداد مجاني', badge2:'تأهيل مجاني', badge3:'إلغاء في أي وقت', pricing_cta:'سجّل وكالتك',
         opt1_h3:'موقع حجز جاهز', opt2_h3:'ضمّن في موقعك الحالي', opt3_h3:'كلا الخيارين في اشتراك واحد',
         opt1_p:'احصل على <strong>agency.aviaframe.com</strong> — موقع حجز جاهز بعلامتك التجارية، جاهز خلال 24 ساعة. عملاؤك يبحثون ويحجزون على مدار الساعة. بدون تطوير، بدون تأخير.',
         opt2_p:'هل لديك موقع بالفعل؟ أضف <strong>سطرين من HTML</strong> ويحصل موقعك فوراً على ميزات حجز الرحلات الكاملة. يعمل على WordPress والـ HTML العادي وReact وVue — وأي شيء آخر.',
@@ -539,10 +548,11 @@
         fc4_h3:'هامش ربح الوكالة', fc4_p:'حدد مبلغاً ثابتاً بالريال أو هامش نسبة مئوية على كل تذكرة. أنت تتحكم في ما يدفعه عملاؤك. رسومك لك — تُدفع شهرياً بالفاتورة.',
         fc5_h3:'معزول وآمن', fc5_p:'كل وكالة معزولة تماماً — عملاؤك وطلباتك وبياناتك لا تختلط مع أي شخص آخر. وصول قائم على الأدوار لفريقك.',
         fc6_h3:'متوافق مع الموبايل', fc6_p:'الويدجت وتدفق الحجز متجاوبان بالكامل. يبحث العملاء ويحجزون عبر الهاتف أو الجهاز اللوحي أو الكمبيوتر — لا تطبيق مطلوب.',
-        features_cta_p:'هل أنت مستعد لإطلاق وكالتك عبر الإنترنت؟', features_cta_btn:'تواصل مع المبيعات ←',
+        features_cta_p:'هل أنت مستعد لإطلاق وكالتك عبر الإنترنت؟', features_cta_btn:'سجّل وكالتك ←',
         contact_eyebrow:'ابدأ الآن', contact_h2:'لنقم بإعداد وكالتك',
         contact_lead:'أخبرنا عن وكالتك وسنعود إليك خلال يوم عمل واحد. الإعداد مجاني ويستغرق أقل من 24 ساعة.',
         contact_ch3:'الرد خلال يوم عمل واحد',
+        onboarding_card_eyebrow:'أكمل الطلب', onboarding_card_title:'أخبرنا بكل شيء مرة واحدة', onboarding_card_copy:'أكمل نموذج التأهيل الكامل ببيانات وكالتك وهويتك البصرية والدفع والتواصل. يستغرق دقائق ويساعدنا على تجهيز إعدادك دون متابعة إضافية.', onboarding_card_cta:'افتح نموذج الوكالة الكامل ←',
         promise1:'إعداد وتأهيل مجاني', promise2:'لا تحتاج مهارات تقنية', promise3:'جاهز في أقل من 24 ساعة', promise4:'إلغاء في أي وقت',
         form_company:'اسم الوكالة / الشركة *', form_name:'اسمك *', form_email:'عنوان البريد الإلكتروني *', form_phone:'الهاتف / واتساب *',
         form_website:'موقع الوكالة (إن وجد)', form_volume:'الحجوزات الشهرية', form_setup:'الإعداد المفضل',
@@ -635,6 +645,10 @@
       setText('#contact .eyebrow', t.contact_eyebrow);
       setText('#contact h2', t.contact_h2);
       setText('.contact-lead', t.contact_lead);
+      setText('#onboarding-card-eyebrow', t.onboarding_card_eyebrow);
+      setText('#onboarding-card-title', t.onboarding_card_title);
+      setText('#onboarding-card-copy', t.onboarding_card_copy);
+      setText('#onboarding-card-cta', t.onboarding_card_cta);
       var chs = selAll('.contact-channel');
       if(chs[2]){ var chspan=chs[2].querySelector(':last-child'); if(chspan&&chspan.nodeType===undefined){}; var chNodes=[].slice.call(chs[2].childNodes).filter(function(n){return n.nodeType===3&&n.textContent.trim();}); if(chNodes[0]) chNodes[0].textContent=' '+t.contact_ch3; else { var lastChild=chs[2].lastChild; if(lastChild&&lastChild.nodeType===3) lastChild.textContent=' '+t.contact_ch3; } }
       var promises = selAll('.promise');

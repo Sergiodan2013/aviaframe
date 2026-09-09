@@ -10,7 +10,7 @@
     "lint": "eslint src tests"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.22.2",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {}
