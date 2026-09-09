@@ -3,6 +3,18 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const logger = require('../lib/logger');
+const displayFxService = require('./displayFxService');
+
+// Best-effort FX snapshot fetch — never let a rate-fetch failure block a
+// search/price/booking. Falls back to the static reference rates baked
+// into displayFxService when the live snapshot can't be fetched in time.
+async function getFxSnapshotSafe() {
+  try {
+    return await displayFxService.getDisplayFxSnapshot();
+  } catch (_) {
+    return null;
+  }
+}
 
 const DRCT_CREATE_TIMEOUT_MS = Math.max(60000, Number(process.env.DRCT_CREATE_TIMEOUT_MS || 120000));
 const DRCT_CREATE_MAX_ATTEMPTS = Math.max(1, Number(process.env.DRCT_CREATE_MAX_ATTEMPTS || 2));
@@ -18,6 +30,21 @@ const DRCT_CREATE_RETRYABLE_CODES = new Set([
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveTraceId(preferred = null) {
+  const value = typeof preferred === 'string' ? preferred.trim() : '';
+  // DRCT requires X-TRACE-ID ≤ 36 chars (UUID format). Prefixed idempotency keys
+  // like "order-create-<uuid>" exceed this limit and cause 404 on strict NDC channels.
+  if (value && value.length <= 36) return value;
+  return crypto.randomUUID();
+}
+
+function attachTraceId(error, traceId) {
+  if (error && traceId && !error.traceId) {
+    error.traceId = traceId;
+  }
+  return error;
 }
 
 function isRetryableDrctCreateError(error) {
@@ -54,7 +81,7 @@ function getDrctConfig({ sandbox = false } = {}) {
   };
 }
 
-function buildHeaders({ sandbox = false } = {}) {
+function buildHeaders({ sandbox = false, traceId = null } = {}) {
   const { token, version, label } = getDrctConfig({ sandbox });
   if (!token) {
     const err = new Error(`DRCT ${label} token is not configured`);
@@ -66,6 +93,7 @@ function buildHeaders({ sandbox = false } = {}) {
     Authorization: `Bearer ${token}`,
     'DRCT-Version': version,
     'Content-Type': 'application/json',
+    'X-TRACE-ID': traceId || crypto.randomUUID(),
   };
 }
 
@@ -152,10 +180,11 @@ function mapSearchSegmentsForWidget(segment = {}) {
   };
 }
 
-function normalizeSearchResponse(response = {}) {
+function normalizeSearchResponse(response = {}, fxSnapshot = null) {
   const payload = unwrapProviderEnvelope(response);
   const segments = Array.isArray(payload.segments) ? payload.segments : [];
   const fares = Array.isArray(payload.fares) ? payload.fares : [];
+
   const flightOptions = Array.isArray(payload.flights_options) ? payload.flights_options : [];
   const directOffers = Array.isArray(payload.offers) ? payload.offers : [];
 
@@ -181,11 +210,11 @@ function normalizeSearchResponse(response = {}) {
       offer_id: offer?.id || `offer_${idx}`,
       id: offer?.id || `offer_${idx}`,
       channel: offer?.channel || payload.channel || airlineName || null,
-      price: {
+      price: displayFxService.convertOfferPriceToSar({
         total: Number(offer?.price?.amount || 0),
         amount: Number(offer?.price?.amount || 0),
         currency: offer?.price?.currency || 'SAR',
-      },
+      }, fxSnapshot),
       airline_code: airlineCode,
       airline_name: airlineName,
       airline: airlineCode,
@@ -291,12 +320,13 @@ async function searchOffers(searchParams = {}, { sandbox = false } = {}) {
   }
 
   const { baseUrl } = getDrctConfig({ sandbox });
+  const traceId = resolveTraceId(searchParams.trace_id || searchParams.traceId || null);
 
   try {
     const { data, status } = await axios({
       method: 'POST',
       url: `${baseUrl}/offers_search`,
-      headers: buildHeaders({ sandbox }),
+      headers: buildHeaders({ sandbox, traceId }),
       data: requestBody,
       timeout: 60000,
       validateStatus: () => true,
@@ -311,30 +341,32 @@ async function searchOffers(searchParams = {}, { sandbox = false } = {}) {
       err.code = 'DRCT_INVALID_RESPONSE';
       err.statusCode = 502;
       err.responseBody = data;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
     if (payload.error) {
       const err = new Error(payload.error?.message || 'Failed to search offers');
       err.code = payload.error?.code || 'DRCT_API_ERROR';
       err.statusCode = payload.error?.status_code || status || 502;
       err.responseBody = payload;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
 
-    return normalizeSearchResponse(payload);
+    const fxSnapshot = await getFxSnapshotSafe();
+    return normalizeSearchResponse(payload, fxSnapshot);
   } catch (error) {
     logger.warn({
       err: error.message,
       origin,
       destination,
       sandbox,
+      trace_id: error.traceId || traceId,
       status: error.response?.status || error.statusCode || null,
     }, 'drctDirectClient search failed');
     throw error;
   }
 }
 
-function normalizeCreateResponse(response = {}, fallbackOfferId = null) {
+function normalizeCreateResponse(response = {}, fallbackOfferId = null, fxSnapshot = null) {
   const payload = unwrapProviderEnvelope(response);
   const currency = payload.price?.currency || 'USD';
 
@@ -345,7 +377,7 @@ function normalizeCreateResponse(response = {}, fallbackOfferId = null) {
     pnr: payload.pnr || payload.locator || payload.airline_locators?.[0]?.locator || null,
     locator: payload.locator || null,
     airline_locators: payload.airline_locators || [],
-    price: {
+    price: displayFxService.convertOfferPriceToSar({
       total: Number(payload.price?.amount || payload.price?.total || 0),
       currency,
       breakdown: {
@@ -355,7 +387,7 @@ function normalizeCreateResponse(response = {}, fallbackOfferId = null) {
         surcharges: Number(payload.price?.surcharges || 0),
       },
       per_passenger: mapPerPassengerPrice(payload.price_details, currency),
-    },
+    }, fxSnapshot),
     passengers: payload.passengers || [],
     segments: mapSegments(payload.flights),
     fares: payload.fares || [],
@@ -375,13 +407,13 @@ function normalizeCreateResponse(response = {}, fallbackOfferId = null) {
   };
 }
 
-function normalizePriceResponse(response = {}, fallbackOfferId = null) {
+function normalizePriceResponse(response = {}, fallbackOfferId = null, fxSnapshot = null) {
   const payload = unwrapProviderEnvelope(response);
   const currency = payload.price?.currency || 'USD';
 
   return {
     offer_id: payload.offer_id || payload.id || fallbackOfferId || null,
-    price: {
+    price: displayFxService.convertOfferPriceToSar({
       total: Number(payload.price?.amount || payload.price?.total || 0),
       currency,
       breakdown: {
@@ -391,7 +423,7 @@ function normalizePriceResponse(response = {}, fallbackOfferId = null) {
         surcharges: Number(payload.price?.surcharges || 0),
       },
       per_passenger: mapPerPassengerPrice(payload.price_details, currency),
-    },
+    }, fxSnapshot),
     expiration: payload.expire_at || payload.expiration || payload.expires_at || null,
     rules: payload.rules || payload.fares?.[0] || {},
     fare_details: payload.fare_details || payload.fares || [],
@@ -489,6 +521,7 @@ async function createOrder(orderParams = {}, { idempotencyKey = null, sandbox = 
 
   const { baseUrl } = getDrctConfig({ sandbox });
   const safeIdempotencyKey = idempotencyKey || crypto.randomUUID();
+  const traceId = resolveTraceId(safeIdempotencyKey);
   let lastError = null;
 
   for (let attempt = 1; attempt <= DRCT_CREATE_MAX_ATTEMPTS; attempt += 1) {
@@ -497,13 +530,12 @@ async function createOrder(orderParams = {}, { idempotencyKey = null, sandbox = 
         method: 'POST',
         url: `${baseUrl}/orders`,
         headers: {
-          ...buildHeaders({ sandbox }),
+          ...buildHeaders({ sandbox, traceId }),
           'Idempotency-Key': safeIdempotencyKey,
         },
         data: {
           offer_id: orderParams.offer_id,
           passengers: orderParams.passengers,
-          payment_method: orderParams.payment_method || 'CARD',
         },
         timeout: DRCT_CREATE_TIMEOUT_MS,
         validateStatus: () => true,
@@ -515,14 +547,14 @@ async function createOrder(orderParams = {}, { idempotencyKey = null, sandbox = 
         err.code = 'DRCT_INVALID_RESPONSE';
         err.statusCode = 502;
         err.responseBody = data;
-        throw err;
+        throw attachTraceId(err, traceId);
       }
       if (payload.error) {
         const err = new Error(payload.error?.message || 'Failed to create order');
         err.code = payload.error?.code || 'DRCT_API_ERROR';
         err.statusCode = payload.error?.status_code || status || 502;
         err.responseBody = payload;
-        throw err;
+        throw attachTraceId(err, traceId);
       }
 
       if (attempt > 1) {
@@ -534,7 +566,8 @@ async function createOrder(orderParams = {}, { idempotencyKey = null, sandbox = 
         }, 'drctDirectClient create recovered after retry');
       }
 
-      return normalizeCreateResponse(payload, orderParams.offer_id);
+      const fxSnapshot = await getFxSnapshotSafe();
+      return normalizeCreateResponse(payload, orderParams.offer_id, fxSnapshot);
     } catch (error) {
       lastError = error;
       const retryable = attempt < DRCT_CREATE_MAX_ATTEMPTS && isRetryableDrctCreateError(error);
@@ -547,6 +580,7 @@ async function createOrder(orderParams = {}, { idempotencyKey = null, sandbox = 
           nextAttempt: attempt + 1,
           maxAttempts: DRCT_CREATE_MAX_ATTEMPTS,
           timeoutMs: DRCT_CREATE_TIMEOUT_MS,
+          trace_id: error.traceId || traceId,
           code: error.code || null,
           status: error.response?.status || error.statusCode || null
         }, 'drctDirectClient create transient failure — retrying');
@@ -562,6 +596,7 @@ async function createOrder(orderParams = {}, { idempotencyKey = null, sandbox = 
           response: error.response.data,
           attempt,
           maxAttempts: DRCT_CREATE_MAX_ATTEMPTS,
+          trace_id: error.traceId || traceId,
           timeoutMs: DRCT_CREATE_TIMEOUT_MS
         }, 'drctDirectClient create failed');
       } else {
@@ -571,6 +606,7 @@ async function createOrder(orderParams = {}, { idempotencyKey = null, sandbox = 
           code: error.code || null,
           attempt,
           maxAttempts: DRCT_CREATE_MAX_ATTEMPTS,
+          trace_id: error.traceId || traceId,
           timeoutMs: DRCT_CREATE_TIMEOUT_MS
         }, 'drctDirectClient create failed');
       }
@@ -598,13 +634,14 @@ async function priceOffer(priceParams = {}, { idempotencyKey = null, sandbox = f
 
   const { baseUrl } = getDrctConfig({ sandbox });
   const safeIdempotencyKey = idempotencyKey || crypto.randomUUID();
+  const traceId = resolveTraceId(safeIdempotencyKey);
 
   try {
     const { data, status } = await axios({
       method: 'PATCH',
       url: `${baseUrl}/offers/${encodeURIComponent(offerId)}/price`,
       headers: {
-        ...buildHeaders({ sandbox }),
+        ...buildHeaders({ sandbox, traceId }),
         'Idempotency-Key': safeIdempotencyKey,
       },
       data: {
@@ -620,17 +657,18 @@ async function priceOffer(priceParams = {}, { idempotencyKey = null, sandbox = f
       err.code = 'DRCT_INVALID_RESPONSE';
       err.statusCode = 502;
       err.responseBody = data;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
     if (payload.error) {
       const err = new Error(payload.error?.message || 'Failed to price offer');
       err.code = payload.error?.code || 'DRCT_API_ERROR';
       err.statusCode = payload.error?.status_code || status || 502;
       err.responseBody = payload;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
 
-    return normalizePriceResponse(payload, offerId);
+    const fxSnapshot = await getFxSnapshotSafe();
+    return normalizePriceResponse(payload, offerId, fxSnapshot);
   } catch (error) {
     if (error.response?.data) {
       logger.warn({
@@ -638,12 +676,14 @@ async function priceOffer(priceParams = {}, { idempotencyKey = null, sandbox = f
         offer_id: offerId,
         status: error.response.status,
         response: error.response.data,
+        trace_id: error.traceId || traceId,
       }, 'drctDirectClient price failed');
     } else {
       logger.warn({
         err: error.message,
         offer_id: offerId,
         code: error.code || null,
+        trace_id: error.traceId || traceId,
       }, 'drctDirectClient price failed');
     }
     throw error;
@@ -666,13 +706,14 @@ async function issueOrder(issueParams = {}, { idempotencyKey = null, sandbox = f
 
   const { baseUrl } = getDrctConfig({ sandbox });
   const safeIdempotencyKey = idempotencyKey || crypto.randomUUID();
+  const traceId = resolveTraceId(safeIdempotencyKey);
 
   try {
     const { data, status } = await axios({
       method: 'POST',
       url: `${baseUrl}/orders/${encodeURIComponent(orderId)}/issue`,
       headers: {
-        ...buildHeaders({ sandbox }),
+        ...buildHeaders({ sandbox, traceId }),
         'Idempotency-Key': safeIdempotencyKey,
       },
       data: requestBody,
@@ -686,14 +727,14 @@ async function issueOrder(issueParams = {}, { idempotencyKey = null, sandbox = f
       err.code = 'DRCT_INVALID_RESPONSE';
       err.statusCode = 502;
       err.responseBody = data;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
     if (payload.error) {
       const err = new Error(payload.error?.message || 'Failed to issue order');
       err.code = payload.error?.code || 'DRCT_API_ERROR';
       err.statusCode = payload.error?.status_code || status || 502;
       err.responseBody = payload;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
 
     return normalizeIssueResponse(payload, orderId);
@@ -704,12 +745,14 @@ async function issueOrder(issueParams = {}, { idempotencyKey = null, sandbox = f
         order_id: orderId,
         status: error.response.status,
         response: error.response.data,
+        trace_id: error.traceId || traceId,
       }, 'drctDirectClient issue failed');
     } else {
       logger.warn({
         err: error.message,
         order_id: orderId,
         code: error.code || null,
+        trace_id: error.traceId || traceId,
       }, 'drctDirectClient issue failed');
     }
     throw error;
@@ -731,12 +774,13 @@ async function cancelOrder(cancelParams = {}) {
   };
 
   const { baseUrl } = getDrctConfig();
+  const traceId = resolveTraceId(cancelParams.trace_id || cancelParams.traceId || null);
 
   try {
     const { data, status } = await axios({
       method: 'DELETE',
       url: `${baseUrl}/orders/${encodeURIComponent(orderId)}`,
-      headers: buildHeaders(),
+      headers: buildHeaders({ traceId }),
       data: requestBody,
       timeout: 30000,
       validateStatus: () => true,
@@ -747,7 +791,7 @@ async function cancelOrder(cancelParams = {}) {
       err.code = 'DRCT_INVALID_RESPONSE';
       err.statusCode = 502;
       err.responseBody = data;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
 
     if (data.error) {
@@ -755,7 +799,7 @@ async function cancelOrder(cancelParams = {}) {
       err.code = data.error?.code || 'DRCT_API_ERROR';
       err.statusCode = data.error?.status_code || status || 502;
       err.responseBody = data;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
 
     return normalizeCancelResponse(data, orderId);
@@ -766,12 +810,14 @@ async function cancelOrder(cancelParams = {}) {
         order_id: orderId,
         status: error.response.status,
         response: error.response.data,
+        trace_id: error.traceId || traceId,
       }, 'drctDirectClient cancel failed');
     } else {
       logger.warn({
         err: error.message,
         order_id: orderId,
         code: error.code || null,
+        trace_id: error.traceId || traceId,
       }, 'drctDirectClient cancel failed');
     }
     throw error;
@@ -792,12 +838,13 @@ async function getOrder(orderId, { sandbox = false } = {}) {
   }
 
   const { baseUrl } = getDrctConfig({ sandbox });
+  const traceId = resolveTraceId(orderId);
 
   try {
     const { data, status } = await axios({
       method: 'GET',
       url: `${baseUrl}/orders/${encodeURIComponent(id)}`,
-      headers: buildHeaders({ sandbox }),
+      headers: buildHeaders({ sandbox, traceId }),
       timeout: 30000,
       validateStatus: () => true,
     });
@@ -808,14 +855,14 @@ async function getOrder(orderId, { sandbox = false } = {}) {
       err.code = 'DRCT_INVALID_RESPONSE';
       err.statusCode = 502;
       err.responseBody = data;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
     if (status >= 400 || payload.error) {
       const err = new Error(payload.error?.message || `Failed to get order (${status})`);
       err.code = payload.error?.code || 'DRCT_GET_ORDER_FAILED';
       err.statusCode = payload.error?.status_code || status || 502;
       err.responseBody = payload;
-      throw err;
+      throw attachTraceId(err, traceId);
     }
 
     return {
@@ -837,6 +884,7 @@ async function getOrder(orderId, { sandbox = false } = {}) {
     logger.warn({
       err: error.message,
       order_id: id,
+      trace_id: error.traceId || traceId,
       status: error.response?.status || error.statusCode || null,
       code: error.code || null,
     }, 'drctDirectClient getOrder failed');

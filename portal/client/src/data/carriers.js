@@ -1,0 +1,21 @@
+export const CARRIERS = [
+  { code: 'AF', name: 'Air France' }, { code: 'AM', name: 'Aeromexico' }, { code: 'A3', name: 'Aegean Airlines' },
+  { code: 'BG', name: 'Biman Bangladesh' }, { code: 'BJ', name: 'Nouvelair' }, { code: 'BS', name: 'US-Bangla Airlines' },
+  { code: 'B4', name: 'ZanAir' }, { code: 'DT', name: 'TAAG Angola Airlines' }, { code: 'EK', name: 'Emirates' },
+  { code: 'ET', name: 'Ethiopian Airlines' }, { code: 'EY', name: 'Etihad Airways' }, { code: 'FZ', name: 'flydubai' },
+  { code: 'F3', name: 'flyadeal' }, { code: 'GA', name: 'Garuda Indonesia' }, { code: 'GF', name: 'Gulf Air' },
+  { code: 'GP', name: 'APG Airlines' }, { code: 'GQ', name: 'SKY express' }, { code: 'HC', name: 'Air Senegal' },
+  { code: 'HR', name: 'Hahn Air' }, { code: 'J4', name: 'Buffalo Airways' }, { code: 'J9', name: 'Jazeera Airways' },
+  { code: 'KL', name: 'KLM' }, { code: 'LH', name: 'Lufthansa' }, { code: 'LO', name: 'LOT Polish Airlines' },
+  { code: 'LX', name: 'SWISS' }, { code: 'MF', name: 'XiamenAir' }, { code: 'MH', name: 'Malaysia Airlines' },
+  { code: 'NE', name: 'Nesma Airlines' }, { code: 'NP', name: 'Nile Air' }, { code: 'NX', name: 'Air Macau' },
+  { code: 'OV', name: 'SalamAir' }, { code: 'PK', name: 'Pakistan International Airlines' }, { code: 'PR', name: 'Philippine Airlines' },
+  { code: 'QP', name: 'Akasa Air' }, { code: 'QR', name: 'Qatar Airways' }, { code: 'Q4', name: 'Euroairlines' },
+  { code: 'RJ', name: 'Royal Jordanian' }, { code: 'R5', name: 'Jordan Aviation' }, { code: 'SM', name: 'Air Cairo' },
+  { code: 'SQ', name: 'Singapore Airlines' }, { code: 'SV', name: 'Saudia' }, { code: 'TC', name: 'Air Tanzania' },
+  { code: 'TK', name: 'Turkish Airlines' }, { code: 'TP', name: 'TAP Air Portugal' }, { code: 'UJ', name: 'AlMasria Universal Airlines' },
+  { code: 'UL', name: 'SriLankan Airlines' }, { code: 'VF', name: 'AJet' }, { code: 'WB', name: 'RwandAir' },
+  { code: 'WY', name: 'Oman Air' }, { code: 'W2', name: 'FlexFlight' }, { code: 'XJ', name: 'Thai AirAsia X' },
+  { code: 'XY', name: 'flynas' }, { code: '5J', name: 'Cebu Pacific' }, { code: '6E', name: 'IndiGo' },
+];
+

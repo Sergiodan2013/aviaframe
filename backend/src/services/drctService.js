@@ -56,7 +56,13 @@ function drctCall(breaker, payload, label) {
 }
 
 async function searchOffers(searchParams, tenantId) {
-  return drctCall(breakers.search, { params: searchParams, tenantId }, 'drct-search');
+  // Use direct DRCT client — bypasses n8n, correctly populates with_baggage
+  return drctQueue.schedule(() =>
+    withRetry(async () => {
+      const result = await drctDirectClient.searchOffers(searchParams);
+      return { success: true, data: result };
+    }, { label: 'drct-search-direct', maxAttempts: 3 })
+  );
 }
 
 async function priceOffer(priceParams, tenantId) {

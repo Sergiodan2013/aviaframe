@@ -10,6 +10,7 @@ const { getAirportAutocomplete } = require('../services/airportAutocompleteServi
 const { getDisplayFxSnapshot } = require('../services/displayFxService');
 const { createMemoryRateLimiter, hasValidInternalToken } = require('../middleware/requestGuards');
 const { lookupCustomerProfile } = require('../services/customerProfile');
+const { parseWidgetToken, getRequestOriginHost, normalizeHost } = require('../utils/helpers');
 
 const PUBLIC_SEARCH_CACHE_TTL_MS = Number(process.env.PUBLIC_SEARCH_CACHE_TTL_MS || 90 * 1000);
 const PUBLIC_SEARCH_MAX_PAIRS = Number(process.env.PUBLIC_SEARCH_MAX_PAIRS || 25);
@@ -426,28 +427,61 @@ router.post('/search', publicSearchRateLimiter, async (req, res) => {
 
 const profileLookupLimiter = createMemoryRateLimiter({
   bucket: 'public-profile-lookup',
-  max: 10,
+  max: 3,
   windowMs: 60_000,
 });
 
-// GET /public/customer-profile?email=X&agency_domain=Y
+function extractWidgetToken(req) {
+  const authHeader = String(req.headers.authorization || '').trim();
+  if (authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+  return String(req.query.widget_token || '').trim();
+}
+
+// GET /public/customer-profile?email=X&widget_token=Y
 // Used by the widget to autofill passenger form for returning customers.
 router.get('/customer-profile', profileLookupLimiter, async (req, res) => {
-  const { email, agency_domain } = req.query;
-  if (!email || !agency_domain) {
-    return res.json({ found: false });
+  const { email } = req.query;
+  const widgetToken = extractWidgetToken(req);
+
+  res.setHeader('Cache-Control', 'no-store');
+
+  if (!email || !widgetToken) {
+    return res.status(401).json({
+      error: {
+        code: 'WIDGET_TOKEN_REQUIRED',
+        message: 'A valid widget session token is required'
+      }
+    });
   }
 
   try {
-    const { data: agency } = await supabase
-      .from('agencies')
-      .select('id')
-      .eq('domain', String(agency_domain).toLowerCase().trim())
-      .maybeSingle();
+    const parsed = parseWidgetToken(widgetToken);
+    if (parsed.error || parsed.payload?.typ !== 'widget_session' || !parsed.payload?.agency_id) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_WIDGET_TOKEN',
+          message: 'Invalid or expired widget session token'
+        }
+      });
+    }
 
-    if (!agency) return res.json({ found: false });
+    const requestHost = getRequestOriginHost(req);
+    const tokenHost = normalizeHost(parsed.payload.origin_host || '');
+    if (requestHost && tokenHost && requestHost !== tokenHost) {
+      return res.status(403).json({
+        error: {
+          code: 'WIDGET_ORIGIN_MISMATCH',
+          message: 'Widget token origin does not match request origin'
+        }
+      });
+    }
 
-    const profile = await lookupCustomerProfile({ agencyId: agency.id, email: String(email) });
+    const profile = await lookupCustomerProfile({
+      agencyId: parsed.payload.agency_id,
+      email: String(email)
+    });
     if (!profile) return res.json({ found: false });
 
     return res.json({
@@ -458,9 +492,6 @@ router.get('/customer-profile', profileLookupLimiter, async (req, res) => {
         phone: profile.phone,
         gender: profile.gender,
         date_of_birth: profile.date_of_birth,
-        passport_number: profile.passport_number,
-        passport_expiry: profile.passport_expiry,
-        nationality: profile.nationality,
       },
     });
   } catch (err) {
