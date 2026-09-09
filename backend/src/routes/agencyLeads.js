@@ -8,6 +8,11 @@ const { createMemoryRateLimiter } = require('../middleware/requestGuards');
 const { sendAgencyLeadEmail } = require('../services/emailService');
 
 const MAX_FIELD_LENGTH = 2000;
+// Logo URL now carries a base64 data: URL from the onboarding form's file
+// upload (see aviaframe-site/agency-onboard.html), not a short link, so it
+// needs its own cap well above MAX_FIELD_LENGTH: enough for the 5MB file
+// limit enforced client-side (~6.99M base64 chars) plus the data: URL prefix.
+const LOGO_DATA_URL_MAX_LENGTH = 7500000;
 const REQUIRED_FIELDS = [
   'Agency Name (EN)', 'Admin Email', 'Contact Phone', 'Subdomain', 'Country',
   'Commission Rate %', 'Site Language', 'Logo URL', 'Primary Color', 'Accent Color',
@@ -34,6 +39,12 @@ function isEmail(value) {
 function buildLead(rawForm) {
   const form = rawForm && typeof rawForm === 'object' && !Array.isArray(rawForm) ? rawForm : {};
   const values = Object.fromEntries(Object.entries(form).map(([key, value]) => [clean(key, 100), clean(value)]));
+  // The generic map above truncates every field (including Logo URL) to
+  // MAX_FIELD_LENGTH, which silently corrupts the base64 logo. Re-clean it
+  // from the untouched raw value with its own, much larger cap.
+  if (form['Logo URL'] !== undefined) {
+    values['Logo URL'] = clean(form['Logo URL'], LOGO_DATA_URL_MAX_LENGTH);
+  }
   const missing = REQUIRED_FIELDS.filter((field) => !values[field]);
   const services = Object.entries(values)
     .filter(([key, value]) => key.startsWith('Service:') && value)

@@ -136,7 +136,10 @@ function isAllowedCorsOrigin(origin) {
 // Moyasar webhook needs raw body for HMAC signature verification — must be before express.json()
 app.use('/api/webhooks/moyasar', express.raw({ type: '*/*' }));
 
-app.use(express.json());
+// Raised from Express's 100kb default: the agency onboarding form now
+// submits the logo as a base64 data: URL (up to ~5MB file -> ~6.7MB
+// base64) in this same JSON body. See routes/agencyLeads.js.
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(helmet({
   // This process is an API, not an HTML document origin. Keep the remaining
