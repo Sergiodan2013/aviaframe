@@ -1545,6 +1545,128 @@ router.get('/tickets', async (req, res) => {
   }
 });
 
+// GET /api/admin/leads — list agency onboarding applications (lightweight, no logo data)
+router.get('/leads', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+  if (!ensureAdmin(auth, res)) return;
+
+  const rawLimit = Number(req.query.limit || 200);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 1000) : 200;
+  const { status, q } = req.query;
+
+  try {
+    let query = supabase
+      .from('agency_leads')
+      // Deliberately excludes form_data: it can carry a multi-MB base64 logo,
+      // which would make listing dozens of leads slow. Fetched separately by
+      // GET /leads/:id when a single application is opened.
+      .select('id,agency_name,supervisor_name,contact_email,contact_phone,country,subdomain,services,source,status,notification_status,notification_error,created_at,updated_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (status) query = query.eq('status', status);
+    if (q) {
+      const escaped = String(q).replace(/,/g, '');
+      query = query.or(`agency_name.ilike.%${escaped}%,contact_email.ilike.%${escaped}%,subdomain.ilike.%${escaped}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      return res.status(500).json({ error: { code: 'LEADS_LIST_FAILED', message: error.message } });
+    }
+
+    return res.json({ leads: data || [] });
+  } catch (err) {
+    console.error('Admin leads list error:', err);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
+      }
+    });
+  }
+});
+
+// GET /api/admin/leads/:id — single application, full form_data (incl. logo)
+router.get('/leads/:id', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+  if (!ensureAdmin(auth, res)) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('agency_leads')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (error) {
+      return res.status(500).json({ error: { code: 'LEAD_FETCH_FAILED', message: error.message } });
+    }
+    if (!data) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Application not found' } });
+    }
+
+    return res.json({ lead: data });
+  } catch (err) {
+    console.error('Admin lead fetch error:', err);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
+      }
+    });
+  }
+});
+
+// PATCH /api/admin/leads/:id — update application status (triage)
+router.patch('/leads/:id', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+  if (!ensureAdmin(auth, res)) return;
+
+  const LEAD_STATUSES = ['new', 'reviewing', 'contacted', 'qualified', 'won', 'lost', 'spam'];
+  const { status } = req.body || {};
+  if (!status || !LEAD_STATUSES.includes(status)) {
+    return res.status(400).json({
+      error: { code: 'INVALID_STATUS', message: `Status must be one of: ${LEAD_STATUSES.join(', ')}` }
+    });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('agency_leads')
+      .update({ status })
+      .eq('id', req.params.id)
+      .select('id,status')
+      .maybeSingle();
+
+    if (error) {
+      return res.status(500).json({ error: { code: 'LEAD_UPDATE_FAILED', message: error.message } });
+    }
+    if (!data) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Application not found' } });
+    }
+
+    return res.json({ lead: data });
+  } catch (err) {
+    console.error('Admin lead update error:', err);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
+      }
+    });
+  }
+});
+
 // POST /api/admin/upload/logo — upload agency logo to Supabase Storage
 router.post('/upload/logo', upload.single('file'), async (req, res) => {
   const auth = await resolveAuthContext(req);

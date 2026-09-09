@@ -1204,6 +1204,28 @@ export const getAdminTickets = async (params = {}) => {
   return { data: data?.tickets || null, error };
 };
 
+export const getAdminLeads = async (params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
+  });
+  const { data, error } = await backendApiRequest(`/admin/leads?${query.toString()}`, { method: 'GET' });
+  return { data: data?.leads || null, error };
+};
+
+export const getAdminLead = async (leadId) => {
+  const { data, error } = await backendApiRequest(`/admin/leads/${leadId}`, { method: 'GET' });
+  return { data: data?.lead || null, error };
+};
+
+export const updateAdminLead = async (leadId, payload) => {
+  const { data, error } = await backendApiRequest(`/admin/leads/${leadId}`, {
+    method: 'PATCH',
+    body: payload
+  });
+  return { data: data?.lead || null, error };
+};
+
 export const createAdminInvoice = async (payload) => {
   const { data, error } = await backendApiRequest('/admin/invoices', {
     method: 'POST',

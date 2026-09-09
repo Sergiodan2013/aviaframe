@@ -13,6 +13,9 @@ import {
   getAdminOrdersSummary,
   getAdminInvoices,
   getAdminTickets,
+  getAdminLeads,
+  getAdminLead,
+  updateAdminLead,
   createAdminInvoice,
   updateAdminInvoice,
   generateAdminInvoicePdf,
@@ -62,6 +65,17 @@ function sanitizeDestinations(destinations) {
   });
 }
 
+
+const LEAD_STATUS_STYLES = {
+  new: 'bg-blue-100 text-blue-800',
+  reviewing: 'bg-amber-100 text-amber-800',
+  contacted: 'bg-purple-100 text-purple-800',
+  qualified: 'bg-teal-100 text-teal-800',
+  won: 'bg-green-100 text-green-800',
+  lost: 'bg-gray-200 text-gray-700',
+  spam: 'bg-red-100 text-red-800'
+};
+
 export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_admin', initialSection = 'agencies' }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -79,11 +93,16 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
   const [reportSummary, setReportSummary] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [leads, setLeads] = useState([]);
   const [superAdmins, setSuperAdmins] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [agenciesLoading, setAgenciesLoading] = useState(false);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedLeadLoading, setSelectedLeadLoading] = useState(false);
+  const [leadStatusSaving, setLeadStatusSaving] = useState(false);
   const [superAdminsLoading, setSuperAdminsLoading] = useState(false);
   const [creatingSuperAdmin, setCreatingSuperAdmin] = useState(false);
   const [activeAdminSection, setActiveAdminSection] = useState(initialSection);
@@ -110,6 +129,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     email_status: '',
     date_from: '',
     date_to: '',
+    q: ''
+  });
+  const [leadFilters, setLeadFilters] = useState({
+    status: '',
     q: ''
   });
   const [agencyEditId, setAgencyEditId] = useState(null);
@@ -394,6 +417,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
     }
     if (activeAdminSection === 'tickets') {
       void loadTickets();
+      return;
+    }
+    if (activeAdminSection === 'leads') {
+      void loadLeads();
     }
   }, [activeAdminSection, userProfile?.role]);
 
@@ -829,6 +856,52 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
       setNotice({ type: 'error', text: `Failed to load invoices: ${err.message}` });
     } finally {
       setInvoicesLoading(false);
+    }
+  };
+
+  const loadLeads = async () => {
+    try {
+      setLeadsLoading(true);
+      const params = {
+        status: leadFilters.status || undefined,
+        q: leadFilters.q || undefined
+      };
+      const { data, error } = await getAdminLeads(params);
+      if (error) throw new Error(error.message || 'Applications load failed');
+      setLeads(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to load applications: ${err.message}` });
+    } finally {
+      setLeadsLoading(false);
+    }
+  };
+
+  const openLead = async (leadId) => {
+    try {
+      setSelectedLeadLoading(true);
+      setSelectedLead({ id: leadId });
+      const { data, error } = await getAdminLead(leadId);
+      if (error) throw new Error(error.message || 'Application load failed');
+      setSelectedLead(data);
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to load application: ${err.message}` });
+      setSelectedLead(null);
+    } finally {
+      setSelectedLeadLoading(false);
+    }
+  };
+
+  const handleUpdateLeadStatus = async (leadId, status) => {
+    try {
+      setLeadStatusSaving(true);
+      const { data, error } = await updateAdminLead(leadId, { status });
+      if (error) throw new Error(error.message || 'Status update failed');
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, status } : l)));
+      setSelectedLead((prev) => (prev && prev.id === leadId ? { ...prev, status } : prev));
+    } catch (err) {
+      setNotice({ type: 'error', text: `Failed to update status: ${err.message}` });
+    } finally {
+      setLeadStatusSaving(false);
     }
   };
 
@@ -2154,6 +2227,12 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
                 className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'tickets' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
                 Tickets
+              </button>
+              <button
+                onClick={() => setActiveAdminSection('leads')}
+                className={`px-3 py-2 rounded text-sm font-medium ${activeAdminSection === 'leads' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Applications
               </button>
               <button
                 onClick={() => setActiveAdminSection('sales_report')}
@@ -3511,6 +3590,66 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
           </div>
         )}
 
+        {/* Applications List (agency onboarding leads) */}
+        {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'leads' && (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-900">Applications</h2>
+              <button onClick={loadLeads} className="bg-gray-100 px-3 py-1 rounded text-sm">
+                {leadsLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+              <input
+                type="text"
+                value={leadFilters.q}
+                onChange={(e) => setLeadFilters((p) => ({ ...p, q: e.target.value }))}
+                placeholder="Search by agency, email, subdomain"
+                className="border rounded px-2 py-1"
+              />
+              <select value={leadFilters.status} onChange={(e) => setLeadFilters((p) => ({ ...p, status: e.target.value }))} className="border rounded px-2 py-1">
+                <option value="">All statuses</option>
+                <option value="new">New</option>
+                <option value="reviewing">Reviewing</option>
+                <option value="contacted">Contacted</option>
+                <option value="qualified">Qualified</option>
+                <option value="won">Won</option>
+                <option value="lost">Lost</option>
+                <option value="spam">Spam</option>
+              </select>
+              <button onClick={loadLeads} className="bg-blue-600 text-white rounded px-3 py-1">Filter</button>
+            </div>
+            <div className="space-y-2 text-sm">
+              {leads.map((lead) => (
+                <button
+                  key={lead.id}
+                  onClick={() => openLead(lead.id)}
+                  className="w-full text-left border rounded px-3 py-2 flex items-center justify-between hover:bg-gray-50"
+                >
+                  <div>
+                    <div className="font-semibold text-gray-900">{lead.agency_name}</div>
+                    <div className="text-gray-600">{lead.supervisor_name} • {lead.contact_email} • {lead.country}</div>
+                    <div className="text-gray-400 text-xs mt-0.5">
+                      {lead.subdomain}.aviaframe.com • {new Date(lead.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {lead.notification_status === 'failed' && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800" title={lead.notification_error || 'Notification email failed'}>
+                        Email failed
+                      </span>
+                    )}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${LEAD_STATUS_STYLES[lead.status] || 'bg-gray-100 text-gray-700'}`}>
+                      {lead.status}
+                    </span>
+                  </div>
+                </button>
+              ))}
+              {leads.length === 0 && <p className="text-gray-500">No applications</p>}
+            </div>
+          </div>
+        )}
+
         {/* Sales Report */}
         {['admin', 'super_admin'].includes(userProfile?.role) && isSuperAdminView && activeAdminSection === 'sales_report' && (
           <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-green-100">
@@ -3856,6 +3995,92 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         ))}
 
         {/* Order Details Modal */}
+        {selectedLead && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedLead(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[88vh] overflow-y-auto p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {selectedLead.agency_name || 'Application'}
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Submitted {selectedLead.created_at ? new Date(selectedLead.created_at).toLocaleString() : '...'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedLead(null)}
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {selectedLeadLoading && !selectedLead.form_data && (
+                <p className="text-sm text-gray-500">Loading application...</p>
+              )}
+
+              {selectedLead.form_data && (
+                <>
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <span className="text-xs text-gray-500">Status:</span>
+                    {['new', 'reviewing', 'contacted', 'qualified', 'won', 'lost', 'spam'].map((s) => (
+                      <button
+                        key={s}
+                        disabled={leadStatusSaving}
+                        onClick={() => handleUpdateLeadStatus(selectedLead.id, s)}
+                        className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                          selectedLead.status === s
+                            ? (LEAD_STATUS_STYLES[s] || 'bg-gray-100 text-gray-700') + ' border-transparent'
+                            : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedLead.form_data['Logo URL'] && (
+                    <div className="mb-4">
+                      <p className="text-xs text-gray-500 mb-1">Logo</p>
+                      <img
+                        src={selectedLead.form_data['Logo URL']}
+                        alt="Agency logo"
+                        className="h-20 w-40 object-contain border border-gray-100 rounded bg-gray-50"
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                    {Object.entries(selectedLead.form_data)
+                      .filter(([key]) => key !== 'Logo URL')
+                      .map(([key, value]) => (
+                        <div key={key}>
+                          <p className="text-xs text-gray-500">{key}</p>
+                          <p className="text-gray-900 whitespace-pre-wrap break-words">
+                            {value === '' || value === null || value === undefined ? '—' : String(value)}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+
+                  {selectedLead.notification_status === 'failed' && (
+                    <div className="mt-4 bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-700">
+                      Notification email failed to send{selectedLead.notification_error ? `: ${selectedLead.notification_error}` : '.'}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {selectedOrder && (
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
