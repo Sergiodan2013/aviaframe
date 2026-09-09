@@ -53,6 +53,17 @@ function carrierSelectValue(value) {
   return '__CUSTOM__';
 }
 
+function offerBaggageText(offer) {
+  const bags = Array.isArray(offer?.baggage) ? offer.baggage : [];
+  if (typeof offer?.baggage_text === 'string' && offer.baggage_text) return offer.baggage_text;
+  const checked = bags.find((bag) => bag?.type === 'checked');
+  const hasChecked = typeof offer?.with_baggage === 'boolean'
+    ? offer.with_baggage
+    : Boolean(checked && Number(checked.quantity || 0) > 0);
+  if (!hasChecked) return 'No checked bag';
+  return checked?.quantity ? `${checked.quantity} checked bag(s)${checked.max_weight?.value ? ` · up to ${checked.max_weight.value}${checked.max_weight.unit?.toLowerCase() || 'kg'}` : ''}` : 'Checked bag included';
+}
+
 function statusTone(status) {
   if (status === 'ACTIVE') return 'success';
   if (status === 'SANDBOX' || status === 'DRAFT') return 'info';
@@ -248,6 +259,14 @@ export default function ApiPartnersPanel() {
     });
     if (invalidCarrierIndex >= 0) {
       setNotice({ tone: 'danger', text: `Select a carrier or enter a valid 2–3 character IATA code in rule ${invalidCarrierIndex + 1}.` });
+      return;
+    }
+    const hasDefaultRule = rules.some((rule) => (
+      String(rule.channel || '').trim().toUpperCase() === 'ANY'
+      && String(rule.carrier_code || '').trim().toUpperCase() === 'ANY'
+    ));
+    if (!hasDefaultRule) {
+      setNotice({ tone: 'danger', text: 'A default rule with Channel = ANY and Carrier = ANY is required. Set one row to ANY / ANY before publishing.' });
       return;
     }
     setSaving(true);
@@ -581,7 +600,7 @@ export default function ApiPartnersPanel() {
                         <div className="grid gap-3 xl:grid-cols-2">
                           {testResult.offers?.slice(0, 10).map((offer) => (
                             <div key={offer.offer_id} className="rounded-xl border border-[var(--af-border)] p-4">
-                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="font-semibold text-[var(--af-text)]">{offer.airline_name || offer.validating_carrier || 'Carrier'} · {offer.origin} → {offer.destination}</div><div className="mt-1 text-xs text-[var(--af-text-muted)]">{offer.validating_carrier || '—'} · {offer.distribution_channel || 'UNKNOWN'} · Outbound {offer.departure_time || 'time unavailable'}</div>{testSearch.trip_type === 'round_trip' && <div className="mt-1 text-xs font-medium text-[var(--af-text-muted)]">Return {offer.return_departure_time || `${testSearch.return_date} · see segments in Raw JSON`}</div>}</div><div className="text-left sm:text-right"><div className="font-bold text-[var(--af-primary)]">{offer.price?.total} {offer.price?.currency}</div><div className="text-xs text-[var(--af-text-muted)]">client sell price</div></div></div>
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="font-semibold text-[var(--af-text)]">{offer.airline_name || offer.validating_carrier || 'Carrier'} · {offer.origin} → {offer.destination}</div><div className="mt-1 text-xs text-[var(--af-text-muted)]">{offer.validating_carrier || '—'} · {offer.distribution_channel || 'UNKNOWN'} · Outbound {offer.departure_time || 'time unavailable'}</div>{testSearch.trip_type === 'round_trip' && <div className="mt-1 text-xs font-medium text-[var(--af-text-muted)]">Return {offer.return_departure_time || `${testSearch.return_date} · see segments in Raw JSON`}</div>}<div className="mt-2"><StatusBadge tone={/no checked bag/i.test(offerBaggageText(offer)) ? 'neutral' : 'success'}>{offerBaggageText(offer)}</StatusBadge></div></div><div className="text-left sm:text-right"><div className="font-bold text-[var(--af-primary)]">{offer.price?.total} {offer.price?.currency}</div><div className="text-xs text-[var(--af-text-muted)]">client sell price</div></div></div>
                               <div className="mt-3 grid gap-2 sm:grid-cols-2"><Button variant="secondary" disabled={Boolean(testPricingOfferId)} onClick={() => handleTestPrice(offer.offer_id)}>{testPricingOfferId === offer.offer_id ? 'Confirming…' : 'Confirm current price'}</Button><Button variant="secondary" disabled={testAuditLoadingId === offer.price_quote_id} onClick={() => handleTestAudit(offer.price_quote_id)}>{testAuditLoadingId === offer.price_quote_id ? 'Loading…' : 'View markup'}</Button></div>
                             </div>
                           ))}
