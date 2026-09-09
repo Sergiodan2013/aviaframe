@@ -1,14 +1,14 @@
 # AviaFrame Connect API: план выкладки и тестирования
 
-Дата: 2026-09-05  
-Контракт: `1.0.0-alpha.2`  
-Текущий статус: код и локальные проверки готовы; staging-база, backend и hosted UI ещё не обновлены.
+Дата обновления: 2026-09-09  
+Контракт: `1.0.0-alpha.3`  
+Текущий статус: staging-база, backend и hosted super-admin UI развёрнуты; production activation остаётся отдельным этапом.
 
-## 1. Что входит в alpha.2
+## 1. Что входит в alpha.3
 
 - публичный поток `search -> price -> create order -> retrieve order`;
 - изолированные sandbox/production API-клиенты и ключи;
-- права `offers:search`, `offers:price`, `orders:create`, `orders:read`;
+- права `offers:read`, `orders:create`, `orders:read`;
 - разрешённые каналы GDS, NDC и LCC;
 - versioned pricing rules: процент + fixed amount по умолчанию, каналу,
   перевозчику или комбинации channel + carrier;
@@ -16,6 +16,15 @@
 - opaque AviaFrame identifiers без выдачи DRCT credentials, DRCT IDs и supplier cost;
 - super-admin интерфейс создания контрагента, ротации ключей, entitlements и публикации цен;
 - публичный marketing page и developer guide.
+
+Встроенный `Sandbox API tester` в Super Admin поддерживает:
+
+- one-way и round trip с двумя обратными `slices`;
+- ADT, CHD и INF с проверкой лимита 9 пассажиров и правила infant <= adult;
+- economy, premium economy, business и first;
+- `Search -> Reprice -> Create DRCT sandbox order`;
+- визуальные предложения, Raw JSON с correlation ID и закрытый super-admin Price audit;
+- разбор `supplier total + percentage markup + fixed markup = client sell price`.
 
 Не входят: ticketing, cancellation, exchanges/refunds, webhooks, usage billing и B2C.
 
