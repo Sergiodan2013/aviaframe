@@ -425,7 +425,7 @@ async function buildLegacyTicketPdf({ order, passengers = [], issuance = {} }) {
     doc.fontSize(7).font('Helvetica').fillColor(C.muted)
       .text('TOTAL FARE', MARGIN + 12, y + 9);
     doc.fontSize(18).font('Helvetica-Bold').fillColor(C.navy)
-      .text(toMoney(order.total_price, order.currency || 'UAH'), MARGIN + 12, y + 20);
+      .text(toMoney(order.total_price, order.currency || 'SAR'), MARGIN + 12, y + 20);
 
     const status = 'TICKET ISSUED';
     const bw = 90, bx = MARGIN + CONTENT_W - bw - 10;

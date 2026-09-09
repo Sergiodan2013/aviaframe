@@ -442,11 +442,19 @@ router.post('/api/orders', async (req, res) => {
         const pax0 = Array.isArray(drctCreatePassengers) && drctCreatePassengers.length > 0
           ? drctCreatePassengers[0]
           : null;
+        // drctCreatePassengers use nested individual.* — flatten to the format customerProfile expects
+        const flatPax = pax0 ? {
+          first_name: pax0.individual?.first_name || null,
+          last_name: pax0.individual?.last_name || null,
+          date_of_birth: pax0.individual?.date_of_birth || null,
+          gender: pax0.individual?.gender || null,
+          document: pax0.document || {},
+        } : null;
         saveCustomerProfile({
           agencyId: portalAgencyId,
           contactEmail,
           contactPhone,
-          passenger: pax0,
+          passenger: flatPax,
         }).catch(e => console.error('[customerProfile] portal save failed:', e.message));
       });
     }
@@ -489,6 +497,62 @@ router.get('/api/profile/me', async (req, res) => {
       email: auth.user.email || null
     }
   });
+});
+
+router.get('/api/customer/orders', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({
+      error: {
+        code: 'UNAUTHORIZED',
+        message: auth.error
+      }
+    });
+  }
+
+  const requesterEmail = String(auth.user?.email || auth.profile?.email || '').trim().toLowerCase();
+  if (!requesterEmail) {
+    return res.status(422).json({
+      error: {
+        code: 'CUSTOMER_EMAIL_REQUIRED',
+        message: 'Authenticated customer email is required to load booking history'
+      }
+    });
+  }
+
+  const rawLimit = Number(req.query.limit || 200);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 500) : 200;
+  const { status } = req.query;
+
+  try {
+    let query = supabase
+      .from('orders')
+      .select(ORDERS_LIST_COLUMNS)
+      .eq('contact_email', requesterEmail)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) {
+      return res.status(500).json({
+        error: {
+          code: 'CUSTOMER_ORDERS_LIST_FAILED',
+          message: error.message
+        }
+      });
+    }
+
+    return res.json({ orders: data || [] });
+  } catch (err) {
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
+      }
+    });
+  }
 });
 
 // Stage 0 non-breaking endpoint for orders list compatibility.

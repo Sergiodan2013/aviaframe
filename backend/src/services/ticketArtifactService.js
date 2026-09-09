@@ -31,7 +31,7 @@ function getOrderCurrency(order = {}) {
     order?.currency
       || order?.metadata?.payment_pricing?.currency
       || order?.raw_offer_data?.pricing?.currency,
-    'UAH'
+    'SAR'
   ).toUpperCase();
 }
 

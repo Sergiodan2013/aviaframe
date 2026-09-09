@@ -15,7 +15,9 @@ const {
   parseWidgetToken,
   generateOrderNumber
 } = require('../utils/helpers');
+const { resolveAuthContextFromToken } = require('../middleware/auth');
 const { saveCustomerProfile } = require('../services/customerProfile');
+const { isAgencyDemoPaymentMode, resolveAgencyPaymentMode } = require('../services/agencyPaymentMode');
 
 function isMissingColumnError(error, columnName) {
   const message = String(error?.message || '').toLowerCase();
@@ -585,8 +587,14 @@ router.post('/api/widget/orders', widgetOrderRateLimiter, async (req, res) => {
     priced_offer: pricedOfferInput = null,
     offer_price_data: offerPriceDataInput = null,
     user_id: userIdFromBody = null,
+    customer_access_token: customerAccessTokenFromBody = null,
     payment_method: paymentMethodFromBody = null
   } = req.body || {};
+  const customerAccessToken = String(
+    req.headers['x-customer-access-token']
+    || customerAccessTokenFromBody
+    || ''
+  ).trim();
 
   const contactEmail = String(contacts.email || '').trim().toLowerCase();
   const contactPhone = String(contacts.phone || '').trim();
@@ -650,6 +658,39 @@ router.post('/api/widget/orders', widgetOrderRateLimiter, async (req, res) => {
       });
     }
 
+    let authenticatedCustomer = null;
+    if (customerAccessToken) {
+      const customerAuth = await resolveAuthContextFromToken(customerAccessToken);
+      if (customerAuth?.error || !customerAuth?.profile?.id) {
+        return res.status(401).json({
+          error: {
+            code: 'CUSTOMER_AUTH_INVALID',
+            message: 'Customer session is invalid or expired. Please sign in again.'
+          }
+        });
+      }
+      authenticatedCustomer = customerAuth;
+    }
+
+    if (userIdFromBody && !authenticatedCustomer) {
+      return res.status(401).json({
+        error: {
+          code: 'CUSTOMER_AUTH_REQUIRED',
+          message: 'A valid customer session is required to link this booking to an account.'
+        }
+      });
+    }
+
+    const resolvedCustomerUserId = authenticatedCustomer?.profile?.id || null;
+    if (userIdFromBody && resolvedCustomerUserId && userIdFromBody !== resolvedCustomerUserId) {
+      return res.status(403).json({
+        error: {
+          code: 'CUSTOMER_AUTH_MISMATCH',
+          message: 'Customer session does not match requested user.'
+        }
+      });
+    }
+
     // Validate payment_method against agency's allowed methods
     const allowedMethods = Array.isArray(agency?.settings?.payment_methods) && agency.settings.payment_methods.length
       ? agency.settings.payment_methods
@@ -666,7 +707,8 @@ router.post('/api/widget/orders', widgetOrderRateLimiter, async (req, res) => {
     const effectiveOriginHost = payload.origin_host || clientOriginHost || normalizeHost(metadata?.origin_host || '');
     const offerPriceFlowEnabled = shouldUseOfferPriceForHost(effectiveOriginHost);
     const requestedDryRunIssue = Boolean(metadata?.dry_run_issue);
-    const dryRunIssue = requestedDryRunIssue && isClientDryRunAllowedForHost(effectiveOriginHost);
+    const agencyDemoMode = isAgencyDemoPaymentMode(agency);
+    const dryRunIssue = agencyDemoMode || (requestedDryRunIssue && isClientDryRunAllowedForHost(effectiveOriginHost));
     if (requestedDryRunIssue && !dryRunIssue) {
       logger.warn({
         origin_host: effectiveOriginHost,
@@ -745,19 +787,24 @@ router.post('/api/widget/orders', widgetOrderRateLimiter, async (req, res) => {
       ...metadata,
       source: 'widget',
       origin_host: effectiveOriginHost,
+      // This value is resolved from the agency record on the server. Never
+      // trust a browser-provided payment mode for a booking-critical action.
+      payment_mode: resolveAgencyPaymentMode(agency),
       offer_price_confirmed: Boolean(priceConfirmationMeta),
       offer_price_data: priceConfirmationMeta
     };
     if (dryRunIssue) {
       nextRawOfferMetadata.dry_run_issue = true;
+      nextRawOfferMetadata.dry_run_authorized = true;
     } else {
       delete nextRawOfferMetadata.dry_run_issue;
       delete nextRawOfferMetadata.dry_run_reason;
+      delete nextRawOfferMetadata.dry_run_authorized;
     }
 
     const orderInsert = {
       order_number: generateOrderNumber(),
-      user_id: userIdFromBody || null,
+      user_id: resolvedCustomerUserId,
       agency_id: payload.agency_id,
       origin,
       destination,

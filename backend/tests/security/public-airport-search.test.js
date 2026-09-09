@@ -103,6 +103,108 @@ describe('public airport autocomplete and search', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  test('customer-profile lookup requires a widget token', async () => {
+    jest.doMock('../../src/config', () => ({
+      config: {
+        nodeEnv: 'test',
+        airportAutocompleteUrl: 'https://autocomplete.travelpayouts.com/places2',
+        airportAutocompleteTimeoutMs: 1000,
+        publicSearchDrctEnabled: false,
+        publicAutocompleteRateLimitMax: 20,
+        publicSearchRateLimitMax: 20,
+        publicRateLimitWindowMs: 60_000,
+      }
+    }));
+    jest.doMock('../../src/lib/logger', () => ({
+      warn: jest.fn(),
+      error: jest.fn(),
+      info: jest.fn(),
+    }));
+    jest.doMock('../../src/lib/supabase', () => ({
+      from: jest.fn()
+    }));
+    jest.doMock('../../src/services/drctService', () => ({
+      searchOffers: jest.fn()
+    }));
+
+    const router = require('../../src/routes/public');
+    const app = jsonApp(router);
+
+    const res = await request(app)
+      .get('/customer-profile')
+      .query({ email: 'traveler@example.com' });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error.code).toBe('WIDGET_TOKEN_REQUIRED');
+  });
+
+  test('customer-profile lookup returns limited profile fields for a valid widget token', async () => {
+    jest.doMock('../../src/config', () => ({
+      config: {
+        nodeEnv: 'test',
+        airportAutocompleteUrl: 'https://autocomplete.travelpayouts.com/places2',
+        airportAutocompleteTimeoutMs: 1000,
+        publicSearchDrctEnabled: false,
+        publicAutocompleteRateLimitMax: 20,
+        publicSearchRateLimitMax: 20,
+        publicRateLimitWindowMs: 60_000,
+      }
+    }));
+    jest.doMock('../../src/lib/logger', () => ({
+      warn: jest.fn(),
+      error: jest.fn(),
+      info: jest.fn(),
+    }));
+    jest.doMock('../../src/lib/supabase', () => ({
+      from: jest.fn()
+    }));
+    jest.doMock('../../src/services/drctService', () => ({
+      searchOffers: jest.fn()
+    }));
+    jest.doMock('../../src/services/customerProfile', () => ({
+      lookupCustomerProfile: jest.fn().mockResolvedValue({
+        first_name: 'Jane',
+        last_name: 'Doe',
+        phone: '+966500000000',
+        gender: 'F',
+        date_of_birth: '1990-01-01',
+        passport_number: 'AB123456',
+      })
+    }));
+    jest.doMock('../../src/utils/helpers', () => ({
+      parseWidgetToken: jest.fn(() => ({
+        payload: {
+          typ: 'widget_session',
+          agency_id: 'agency-1',
+          origin_host: 'agency.example.com',
+        }
+      })),
+      getRequestOriginHost: jest.fn(() => 'agency.example.com'),
+      normalizeHost: jest.fn((value) => String(value || '').trim().toLowerCase()),
+    }));
+
+    const router = require('../../src/routes/public');
+    const app = jsonApp(router);
+
+    const res = await request(app)
+      .get('/customer-profile')
+      .set('Authorization', 'Bearer test-widget-token')
+      .query({ email: 'traveler@example.com' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({
+      found: true,
+      profile: {
+        first_name: 'Jane',
+        last_name: 'Doe',
+        phone: '+966500000000',
+        gender: 'F',
+        date_of_birth: '1990-01-01',
+      }
+    });
+    expect(res.body.profile.passport_number).toBeUndefined();
+  });
+
   test('autocomplete falls back to local dataset when upstream fails', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
 
@@ -178,7 +280,7 @@ describe('public airport autocomplete and search', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.base_currency).toBe('SAR');
-    expect(res.body.supported_currencies).toEqual(['EUR', 'SAR', 'USD']);
+    expect(res.body.supported_currencies).toEqual(['EUR', 'SAR', 'UAH', 'USD']);
     expect(res.body.source).toBe('ecb_reference_rates');
     expect(res.body.rates.USD.sar_per_unit).toBeCloseTo(3.75, 6);
   });

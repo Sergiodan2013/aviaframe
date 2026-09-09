@@ -1,6 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const supabase = require('../../services/supabaseClient');
+const supabase = require('../../lib/supabase');
 const authMiddleware = require('../../middleware/auth');
 
 const router = express.Router();

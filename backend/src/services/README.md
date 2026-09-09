@@ -64,7 +64,10 @@ if (result.success) {
 }
 ```
 
-### 2. Создание заказа
+### 2. Создание заказа ⚠️ DEPRECATED
+
+> **DEPRECATED** — `n8nClient.drctCreateOrder()` обращается к legacy mutating proxy `/webhook/drct/order/create`.
+> Замена: `POST /api/orders` (требует auth)
 
 ```javascript
 const result = await n8nClient.drctCreateOrder({
@@ -137,13 +140,18 @@ N8N_RETRY_DELAY_MS=1000                         # Delay between retries
 
 Создайте следующие webhooks в n8n:
 
-| Эндпоинт | Workflow Path | Request Type |
-|----------|---------------|--------------|
-| Поиск | `/webhook/drct/search` | offers_search |
-| Цена | `/webhook/drct/price` | price |
-| Заказ | `/webhook/drct/order/create` | order_create |
-| Выпуск билета | `/webhook/drct/order/issue` | issue |
-| Отмена | `/webhook/drct/order/cancel` | cancel |
+| Эндпоинт | Workflow Path | Request Type | Статус |
+|----------|---------------|--------------|--------|
+| Поиск | `/webhook/drct/search` | offers_search | ✅ Актуально |
+| Цена | `/webhook/drct/price` | price | ✅ Актуально |
+| Заказ | `/webhook/drct/order/create` | order_create | ⚠️ Deprecated |
+| Выпуск билета | `/webhook/drct/order/issue` | issue | ⚠️ Deprecated |
+| Отмена | `/webhook/drct/order/cancel` | cancel | ⚠️ Deprecated |
+
+> ⚠️ **DEPRECATED — `/webhook/drct/order/create`, `/webhook/drct/order/issue`, `/webhook/drct/order/cancel`**
+> Это legacy mutating proxy пути (n8n-обёртки). Используйте вместо них:
+> - `POST /api/orders` (auth required) · `POST /api/orders/:orderId/issue` · `POST /api/orders/:orderId/cancel` (staff/admin required)
+> - `POST /api/widget/session` → `POST /api/widget/orders` (widget/customer flow)
 
 ---
 

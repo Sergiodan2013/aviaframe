@@ -5,6 +5,7 @@ const router = express.Router();
 const { config } = require('../config');
 const supabase = require('../lib/supabase');
 const { getBreakerStates } = require('../services/drctService');
+const { requireInternalToken } = require('../middleware/auth');
 
 router.get('/healthz', (req, res) => {
   res.json({
@@ -36,6 +37,8 @@ router.get('/api/hello', (req, res) => {
 });
 
 router.get('/healthz/deep', async (req, res) => {
+  if (!requireInternalToken(req, res)) return;
+
   const checks = {};
   let ok = true;
 

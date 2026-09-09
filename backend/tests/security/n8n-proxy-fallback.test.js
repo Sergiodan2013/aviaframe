@@ -45,7 +45,7 @@ describe('legacy DRCT order proxy — decommissioned', () => {
     }));
     jest.doMock('../../src/utils/offerFilters', () => ({ filterBookableOffers: jest.fn((o) => ({ kept: o, dropped: 0 })) }));
 
-    for (const route of ['health', 'widget', 'orders', 'admin', 'internalQa', 'agency-reports', 'agency', 'notifications', 'webhooks', 'support', 'public', 'documents', 'payments', 'tamara']) {
+    for (const route of ['health', 'widget', 'orders', 'admin', 'internalQa', 'agency-reports', 'agency', 'agencyLeads', 'notifications', 'webhooks', 'support', 'public', 'documents', 'payments', 'tamara']) {
       jest.doMock(`../../src/routes/${route}`, () => emptyRouter());
     }
   }

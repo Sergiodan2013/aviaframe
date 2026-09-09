@@ -147,7 +147,7 @@ function buildLegacyTicketHtml({ order, passengers = [], issuance = {}, demoMode
     const n = m?.number || issuance.ticket_number || null;
     return n && !isUuidLike(n) ? String(n) : null;
   };
-  const total = `${Number(order.total_price || 0).toFixed(2)} ${safe(order.currency, 'UAH')}`;
+  const total = `${Number(order.total_price || 0).toFixed(2)} ${safe(order.currency, 'SAR')}`;
 
   const passengersHtml = passengers.length > 0
     ? passengers.map((p, idx) => {
@@ -636,7 +636,7 @@ function buildTicketHtml({ order, passengers = [], issuance = {}, demoMode = fal
 
 // ─── Resend API ──────────────────────────────────────────────────────────────
 
-async function sendViaResend({ from, to, subject, html, text, attachments = [] }) {
+async function sendViaResend({ from, to, subject, html, text, attachments = [], replyTo = null }) {
   const payload = {
     from,
     to: Array.isArray(to) ? to : [to],
@@ -648,6 +648,7 @@ async function sendViaResend({ from, to, subject, html, text, attachments = [] }
       content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : a.content
     }))
   };
+  if (replyTo) payload.reply_to = replyTo;
 
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
@@ -680,7 +681,8 @@ async function sendViaResend({ from, to, subject, html, text, attachments = [] }
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 async function sendTicketEmail({ to, order, attachment, passengers = [], issuance = {}, demoMode = false, agency = null }) {
-  const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || 'noreply@aviaframe.com';
+  const from = process.env.TICKET_EMAIL_FROM || process.env.EMAIL_FROM || process.env.SMTP_FROM || 'noreply@aviaframe.com';
+  const replyTo = process.env.EMAIL_REPLY_TO || null;
   const orderNum = safe(order.order_number || order.id);
   const segments = buildEmailSegments(order);
   const firstSegment = segments[0] || {};
@@ -728,7 +730,7 @@ async function sendTicketEmail({ to, order, attachment, passengers = [], issuanc
   const attachments = [{ filename: attachment.fileName, content: attachment.buffer }];
 
   if (isResendConfigured()) {
-    await sendViaResend({ from, to, subject, html, text: textLines, attachments });
+    await sendViaResend({ from, to, subject, html, text: textLines, attachments, replyTo });
     return { sent: true, error: null };
   }
 
@@ -740,7 +742,7 @@ async function sendTicketEmail({ to, order, attachment, passengers = [], issuanc
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
     });
     await transporter.sendMail({
-      from, to, subject, html, text: textLines,
+      from, to, replyTo: replyTo || undefined, subject, html, text: textLines,
       attachments: [{ filename: attachment.fileName, content: attachment.buffer, contentType: 'application/pdf' }]
     });
     return { sent: true, error: null };
@@ -757,7 +759,7 @@ async function sendSupportEmail({ to, from, subject, text, attachment = null }) 
   }
 
   if (isResendConfigured()) {
-    await sendViaResend({ from: sender, to, subject, html: null, text, attachments });
+    await sendViaResend({ from: sender, to, subject, html: null, text, attachments, replyTo: from || process.env.EMAIL_REPLY_TO || null });
     return { sent: true, error: null };
   }
 
@@ -788,6 +790,7 @@ async function sendAgencyOnboardingEmail({
   publicWidgetKey = ''
 }) {
   const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || 'noreply@aviaframe.com';
+  const replyTo = process.env.EMAIL_REPLY_TO || null;
   const agencyName = safe(agency?.name, 'your agency');
   const agencyDomain = safe(agency?.domain);
   const managerEmail = safe(agency?.contact_email, to);
@@ -801,12 +804,12 @@ async function sendAgencyOnboardingEmail({
         <div style="padding:28px 32px;background:linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%);color:#ffffff">
           <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.92">Welcome to AviaFrame</div>
           <h1 style="margin:12px 0 8px;font-size:28px;line-height:1.2">${escapeHtml(agencyName)}</h1>
-          <p style="margin:0;font-size:15px;line-height:1.6;opacity:.95">Your agency workspace is ready. Complete the setup, publish your branded site, and start selling with AviaFrame.</p>
+          <p style="margin:0;font-size:15px;line-height:1.6;opacity:.95">Your agency workspace is ready. Set up commissions, add widget domains, and start accepting bookings with AviaFrame.</p>
         </div>
         <div style="padding:28px 32px">
           <p style="margin:0 0 18px;font-size:15px;line-height:1.7">Hello,</p>
           <p style="margin:0 0 18px;font-size:15px;line-height:1.7">Welcome to <strong>AviaFrame</strong>. Your agency workspace for <strong>${escapeHtml(agencyName)}</strong> is now ready and linked to <strong>${escapeHtml(managerEmail)}</strong>.</p>
-          <p style="margin:0 0 18px;font-size:15px;line-height:1.7">You can now complete your branding, configure payment and commercial settings, publish your agency site, and run a full booking test before going live.</p>
+          <p style="margin:0 0 18px;font-size:15px;line-height:1.7">You can now set up your commission rate, configure payment settings, add your website to the widget domains list, and run an end-to-end booking test. Contact the AviaFrame team to customise your branded agency site.</p>
 
           <div style="display:flex;flex-wrap:wrap;gap:12px;margin:0 0 24px">
             <a href="${escapeHtml(setupUrl)}" style="display:inline-block;padding:13px 20px;border-radius:12px;background:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700">Open admin portal</a>
@@ -828,16 +831,17 @@ async function sendAgencyOnboardingEmail({
             <ol style="padding-left:20px;margin:0;color:#334155;line-height:1.8">
               <li>Sign in to the admin portal with this email address.</li>
               <li>Open the setup guide and follow the steps in order.</li>
-              <li>Open <strong>Agency admin</strong> and complete branding, contact, payment, and domain settings.</li>
-              <li>Review the onboarding checklist and make sure all required items are complete.</li>
-              <li>Use <strong>Publish site</strong> to deploy or refresh your agency website.</li>
-              <li>Copy the public widget key or embed snippet if you want to place the search widget on another domain.</li>
+              <li>Open <strong>Agency admin</strong> and set your commission rate and payment settings.</li>
+              <li>Go to <strong>Widget domains</strong> and add your website domain(s), then save.</li>
+              <li>Copy the embed snippet from <strong>Widget setup</strong> and add it to your website.</li>
+              <li>Run an end-to-end booking test to confirm everything works.</li>
+              <li>Contact the AviaFrame team to complete your branded agency site design.</li>
             </ol>
           </div>
 
           <div style="border-left:4px solid #2563eb;background:#eff6ff;padding:14px 16px;border-radius:10px;margin:0 0 24px">
             <div style="font-size:14px;font-weight:700;margin-bottom:6px">Recommended launch path</div>
-            <div style="font-size:14px;line-height:1.7;color:#334155">Start with branding and contacts, then configure payment methods, add allowed widget domains if needed, publish the site, and finish with a quick end-to-end booking test.</div>
+            <div style="font-size:14px;line-height:1.7;color:#334155">Sign in → set commission rate → configure payment → add domain(s) to Widget domains → copy embed code → run a booking test → contact AviaFrame for site branding.</div>
           </div>
 
           <p style="margin:0;font-size:14px;line-height:1.7;color:#475569">If you need help at any stage, reply to this email and the AviaFrame team will help you get live quickly.</p>
@@ -851,7 +855,7 @@ async function sendAgencyOnboardingEmail({
     '',
     `Welcome to AviaFrame.`,
     `Your agency workspace for ${agencyName} is now ready and linked to ${managerEmail}.`,
-    'You can now complete your branding, configure payments, publish your site, and test the full booking flow.',
+    'You can now set up commissions, configure payments, add widget domains, and test the full booking flow. Contact AviaFrame for site branding.',
     `Manager email: ${managerEmail}`,
     setupUrl ? `Admin portal: ${setupUrl}` : null,
     guideUrl ? `Setup guide: ${guideUrl}` : null,
@@ -862,16 +866,17 @@ async function sendAgencyOnboardingEmail({
     'Next steps:',
     '1. Sign in to the admin portal with this email address.',
     '2. Open the setup guide and follow the steps in order.',
-    '3. Open Agency admin and complete branding, contact, payment, and domain settings.',
-    '4. Review the onboarding checklist and complete all required items.',
-    '5. Use Publish site to deploy or refresh the agency website.',
-    '6. Copy the public widget key or embed snippet for external domains if needed.',
+    '3. Open Agency admin and set your commission rate and payment settings.',
+    '4. Add your website domain(s) to Widget domains and save.',
+    '5. Copy the embed snippet from Widget setup and add it to your website.',
+    '6. Run an end-to-end booking test to confirm everything works.',
+    '7. Contact the AviaFrame team to complete your branded agency site design.',
     '',
-    'Recommended order: branding and contacts, payment methods, allowed widget domains, publish site, end-to-end booking check.'
+    'Recommended order: set commission → configure payment → add widget domains → copy embed code → booking test → contact AviaFrame for site branding.'
   ].filter(Boolean).join('\n');
 
   if (isResendConfigured()) {
-    await sendViaResend({ from, to, subject, html, text });
+    await sendViaResend({ from, to, subject, html, text, replyTo });
     return { sent: true, error: null };
   }
 
@@ -882,11 +887,46 @@ async function sendAgencyOnboardingEmail({
       secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
     });
-    await transporter.sendMail({ from, to, subject, html, text });
+    await transporter.sendMail({ from, to, replyTo: replyTo || undefined, subject, html, text });
     return { sent: true, error: null };
   }
 
   return { sent: false, error: 'EMAIL_NOT_CONFIGURED' };
 }
 
-module.exports = { isConfigured, sendTicketEmail, sendSupportEmail, sendAgencyOnboardingEmail };
+async function sendAgencyLeadEmail({ to, lead }) {
+  const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || 'noreply@aviaframe.com';
+  const replyTo = lead.contact_email || process.env.EMAIL_REPLY_TO || null;
+  const subject = `New agency application - ${safe(lead.agency_name, 'Unknown agency')}`;
+  const rows = [
+    ['Agency', lead.agency_name],
+    ['Manager', lead.supervisor_name],
+    ['Email', lead.contact_email],
+    ['Phone', lead.contact_phone],
+    ['Country', lead.country],
+    ['Subdomain', lead.subdomain],
+    ['Services', (lead.services || []).join(', ')],
+    ['Monthly bookings', lead.form_data?.['Monthly Bookings']],
+    ['Preferred setup', lead.form_data?.['Preferred Setup']]
+  ].filter(([, value]) => value);
+  const html = `<div style="font-family:Arial,sans-serif;color:#0f172a"><h2>New agency application</h2><table style="border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:7px 12px 7px 0;color:#64748b"><strong>${escapeHtml(label)}</strong></td><td style="padding:7px 0">${escapeHtml(Array.isArray(value) ? value.join(', ') : value)}</td></tr>`).join('')}</table><p style="margin-top:20px">The complete application is stored in the AviaFrame admin database.</p></div>`;
+  const text = ['New agency application', '', ...rows.map(([label, value]) => `${label}: ${Array.isArray(value) ? value.join(', ') : value}`), '', 'The complete application is stored in the AviaFrame admin database.'].join('\n');
+
+  if (isResendConfigured()) {
+    await sendViaResend({ from, to, subject, html, text, replyTo });
+    return { sent: true, error: null };
+  }
+  if (isSmtpConfigured()) {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    await transporter.sendMail({ from, to, replyTo: replyTo || undefined, subject, html, text });
+    return { sent: true, error: null };
+  }
+  return { sent: false, error: 'EMAIL_NOT_CONFIGURED' };
+}
+
+module.exports = { isConfigured, sendTicketEmail, sendSupportEmail, sendAgencyOnboardingEmail, sendAgencyLeadEmail };

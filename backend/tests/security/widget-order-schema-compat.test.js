@@ -17,6 +17,7 @@ describe('widget order schema compatibility', () => {
       is_active: true,
       settings: {
         payment_methods: ['online'],
+        payment_mode: 'live',
         widget_allowed_domains: ['aviaframe.com']
       }
     };
@@ -149,6 +150,7 @@ describe('widget order schema compatibility', () => {
       is_active: true,
       settings: {
         payment_methods: ['online'],
+        payment_mode: 'live',
         widget_allowed_domains: ['sandbox.aviaframe.com']
       }
     };
@@ -354,6 +356,7 @@ describe('widget order schema compatibility', () => {
       is_active: true,
       settings: {
         payment_methods: ['online'],
+        payment_mode: 'live',
         widget_allowed_domains: ['agency.example.com']
       }
     };
@@ -517,5 +520,134 @@ describe('widget order schema compatibility', () => {
     }), expect.any(Object));
     expect(insertPayloads[0].raw_offer_data.metadata.dry_run_issue).toBeUndefined();
     expect(insertPayloads[0].raw_offer_data.metadata.dry_run_reason).toBeUndefined();
+  });
+
+  test('links widget order to authenticated customer session only when customer token is valid', async () => {
+    const agency = {
+      id: 'agency-1',
+      name: 'Agency Live',
+      domain: null,
+      contact_email: 'demo@example.com',
+      contact_phone: '+966500000000',
+      is_active: true,
+      settings: {
+        payment_methods: ['online'],
+        payment_mode: 'live',
+        widget_allowed_domains: ['aviaframe.com']
+      }
+    };
+
+    const createdOrder = {
+      id: 'order-4',
+      order_number: 'AV-1004',
+      agency_id: 'agency-1',
+      status: 'pending',
+      user_id: 'user-profile-1'
+    };
+
+    const agencySingle = jest.fn().mockResolvedValue({ data: agency, error: null });
+    const agencyEq = jest.fn(() => ({ single: agencySingle }));
+    const agencySelect = jest.fn(() => ({ eq: agencyEq }));
+
+    const createdOrderSingle = jest.fn().mockResolvedValue({
+      data: createdOrder,
+      error: null
+    });
+
+    const insertPayloads = [];
+    const ordersInsert = jest.fn((payload) => {
+      insertPayloads.push(payload);
+      return {
+        select: jest.fn(() => ({
+          single: createdOrderSingle
+        }))
+      };
+    });
+    const passengersInsert = jest.fn().mockResolvedValue({ error: null });
+
+    const from = jest.fn((table) => {
+      if (table === 'agencies') return { select: agencySelect };
+      if (table === 'orders') return { insert: ordersInsert };
+      if (table === 'passengers') return { insert: passengersInsert };
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    jest.doMock('../../src/lib/supabase', () => ({ from }));
+    jest.doMock('../../src/middleware/auth', () => ({
+      resolveAuthContextFromToken: jest.fn().mockResolvedValue({
+        user: { id: 'user-auth-1', email: 'traveler@example.com' },
+        profile: { id: 'user-profile-1', role: 'user', agency_id: null }
+      })
+    }));
+    jest.doMock('../../src/utils/helpers', () => ({
+      normalizeHost: (value) => String(value || '').trim().toLowerCase(),
+      getRequestOriginHost: () => 'aviaframe.com',
+      isWidgetOriginAllowed: () => true,
+      issueWidgetToken: () => 'widget-token',
+      parseWidgetToken: () => ({
+        payload: {
+          agency_id: 'agency-1',
+          origin_host: 'aviaframe.com'
+        }
+      }),
+      generateOrderNumber: () => 'AV-1004'
+    }));
+    jest.doMock('../../src/config', () => ({
+      config: { nodeEnv: 'test' },
+      VALID_PAYMENT_METHODS: ['online', 'cash', 'invoice', 'tamara'],
+      ORDERS_LIST_COLUMNS: 'id,order_number,agency_id,status,user_id'
+    }));
+    jest.doMock('../../src/services/emailService', () => ({
+      sendOrderConfirmation: jest.fn()
+    }));
+
+    const router = require('../../src/routes/widget');
+    const app = express();
+    app.use(express.json());
+    app.use(router);
+
+    const res = await request(app)
+      .post('/api/widget/orders')
+      .set('Authorization', 'Bearer widget-token')
+      .set('X-Customer-Access-Token', 'customer-token-1')
+      .send({
+        user_id: 'user-profile-1',
+        payment_method: 'online',
+        contacts: { email: 'traveler@example.com', phone: '+966500000001' },
+        offer: {
+          origin: 'RUH',
+          destination: 'JED',
+          departure_time: '2026-07-10T10:00:00.000Z',
+          arrival_time: '2026-07-10T12:00:00.000Z',
+          airline_code: 'SV',
+          airline_name: 'Saudia',
+          flight_number: 'SV101',
+          currency: 'SAR'
+        },
+        pricing: {
+          base_price: 120,
+          taxes: 30,
+          baggage_price: 0,
+          total_price: 150,
+          currency: 'SAR'
+        },
+        passengers: [{
+          type: 'ADT',
+          first_name: 'Omar',
+          last_name: 'Saleh',
+          date_of_birth: '1990-01-01',
+          gender: 'male',
+          document: {
+            type: 'passport',
+            number: 'P1234567',
+            expiry_date: '2030-01-01',
+            issuing_country: 'SA'
+          }
+        }],
+        metadata: { origin_host: 'aviaframe.com' }
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(insertPayloads[0].user_id).toBe('user-profile-1');
   });
 });

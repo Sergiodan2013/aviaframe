@@ -149,7 +149,12 @@ function parseWidgetToken(token) {
   }
   const [payloadPart, signaturePart] = token.split('.');
   const expected = signWidgetPayload(payloadPart);
-  if (signaturePart !== expected) {
+  const signatureBuffer = Buffer.from(String(signaturePart || ''), 'utf8');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  if (
+    signatureBuffer.length !== expectedBuffer.length
+    || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
+  ) {
     return { error: 'INVALID_WIDGET_SIGNATURE' };
   }
   try {

@@ -8,6 +8,18 @@ try {
 const app = require('./app');
 const { config } = require('./config');
 
+if (config.nodeEnv === 'production' && config.widgetTokenSecretIsWeak) {
+  throw new Error('WIDGET_TOKEN_SECRET must be explicitly configured in production.');
+}
+
+if (config.widgetTokenSecretIsWeak && config.nodeEnv !== 'test') {
+  console.error('[security] Weak widget token secret detected. Set explicit WIDGET_TOKEN_SECRET before the next production release.');
+}
+
+if (config.nodeEnv === 'production' && config.allowPublicDrctMutatingProxy !== false) {
+  console.error('[security] Public DRCT mutating proxy is still enabled. Plan cutover to internal-token-only mode for /webhook/drct/order/* routes.');
+}
+
 const server = app.listen(config.port, config.host, () => {
   console.log('');
   console.log('========================================');

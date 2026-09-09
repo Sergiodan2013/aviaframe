@@ -32,6 +32,7 @@ const {
   markAgencyDeployStarted,
   markAgencyDeployFinished
 } = require('../services/agencyOnboardingService');
+const { resolveAgencyPaymentMode } = require('../services/agencyPaymentMode');
 
 const AGENCY_SELECT = 'id,name,domain,api_key,contact_email,contact_phone,country,address,is_active,commission_rate,settings,created_at,updated_at';
 
@@ -56,6 +57,10 @@ function publicRouteErrorMessage(err, statusCode) {
   if (!err) return 'Internal server error';
   if (statusCode < 500) return err.message || 'Request failed';
   return config.nodeEnv === 'development' ? err.message : 'Internal server error';
+}
+
+function normalizeAgencyPaymentMode(value) {
+  return String(value || '').trim().toLowerCase() === 'live' ? 'live' : 'demo';
 }
 
 function buildGeneratedAgencySite({ agency, cleanSubdomain }) {
@@ -282,7 +287,8 @@ async function runAgencySiteDeploy({ agency, auth, enforceReady = false }) {
         subdomain: cleanSubdomain,
         apiKey: startedAgency.api_key,
         landingHtml,
-        landingCss
+        landingCss,
+        paymentMode: resolveAgencyPaymentMode(startedAgency)
       })
     });
 
@@ -556,6 +562,7 @@ router.post('/agencies', async (req, res) => {
     language = 'en',
     widget_allowed_domains: widgetAllowedDomains = [],
     payment_methods: paymentMethodsRaw = ['online'],
+    payment_mode: paymentMode = 'demo',
     send_setup_email: sendSetupEmail = false
   } = req.body || {};
 
@@ -592,6 +599,7 @@ router.post('/agencies', async (req, res) => {
     language,
     bank_details: bankDetails || {},
     payment_methods: finalPaymentMethods,
+    payment_mode: normalizeAgencyPaymentMode(paymentMode),
     widget_allowed_domains: Array.isArray(widgetAllowedDomains)
       ? widgetAllowedDomains
           .map((d) => normalizeHost(d))
@@ -722,6 +730,7 @@ router.patch('/agencies/:agencyId', async (req, res) => {
     bank_details: bankDetails,
     widget_allowed_domains: widgetAllowedDomains,
     payment_methods: paymentMethods,
+    payment_mode: paymentMode,
     name_ar: nameAr,
     contact_phone2: contactPhone2,
     whatsapp_phone: whatsappPhone,
@@ -800,12 +809,26 @@ router.patch('/agencies/:agencyId', async (req, res) => {
         : ['online'];
       settings.payment_methods = filtered.length ? filtered : ['online'];
     }
+    if (paymentMode !== undefined) {
+      settings.payment_mode = normalizeAgencyPaymentMode(paymentMode);
+    }
     if (carrierCommissions !== undefined) {
+      // Store as object { "SV": { type: 'fixed'|'percent', value: 50 } } — only positive
+      // values, remove zeroes. Accepts legacy plain-number entries (always meant "fixed").
       const cleaned = {};
       if (carrierCommissions && typeof carrierCommissions === 'object') {
-        for (const [code, amount] of Object.entries(carrierCommissions)) {
-          const val = Number(amount);
-          if (val > 0) cleaned[code.toUpperCase()] = val;
+        for (const [code, entry] of Object.entries(carrierCommissions)) {
+          const upperCode = String(code || '').toUpperCase();
+          if (!upperCode) continue;
+          let type = 'fixed';
+          let val;
+          if (entry && typeof entry === 'object') {
+            type = entry.type === 'percent' ? 'percent' : 'fixed';
+            val = Number(entry.value);
+          } else {
+            val = Number(entry);
+          }
+          if (val > 0) cleaned[upperCode] = { type, value: val };
         }
       }
       settings.carrier_commissions = cleaned;
@@ -1628,6 +1651,7 @@ router.post('/agencies/provision', async (req, res) => {
     commission_fixed_amount: commissionFixedAmount = 0,
     commission_rate: commissionRate = 0,
     payment_methods: paymentMethods = ['online'],
+    payment_mode: paymentMode = 'demo',
     logo_url: logoUrl = '',
     about_en: aboutEn = '',
     about_ar: aboutAr = '',
@@ -1687,6 +1711,7 @@ router.post('/agencies/provision', async (req, res) => {
       currency: 'SAR'
     },
     payment_methods: Array.isArray(paymentMethods) && paymentMethods.length ? paymentMethods : ['online'],
+    payment_mode: normalizeAgencyPaymentMode(paymentMode),
     widget_allowed_domains: [`${cleanSubdomain}.aviaframe.com`],
     site: {
       name_ar: nameAr,
@@ -1959,13 +1984,27 @@ router.post('/agencies/:id/redeploy-site', async (req, res) => {
 });
 
 // GET /api/admin/reports/sales?date_from=&date_to=&agency_id=&status=&format=csv|json|xlsx|txt
+// Staff-only (agent/admin/super_admin). Agents are hard-scoped to their own agency_id server-side.
 router.get('/reports/sales', async (req, res) => {
   const auth = await resolveAuthContext(req);
   if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
-  if (!ensureAdmin(auth, res)) return;
+  if (!ensureStaff(auth, res)) return;
 
-  const { date_from, date_to, agency_id, status, format = 'json' } = req.query;
+  const { date_from, date_to, status, format = 'json' } = req.query;
+  let { agency_id } = req.query;
   const fmt = String(format).toLowerCase();
+
+  // Agents (non-admin staff) may only ever see their own agency's sales. The
+  // agency_id filter is never trusted from the client for them — it is forced
+  // from their authenticated profile, same rule as everywhere else in this
+  // codebase (backend is the sole source of truth for tenant scoping).
+  // Admin/super_admin keep full cross-agency access, with an optional filter.
+  if (!isAdminRole(auth.profile.role)) {
+    if (!auth.profile.agency_id) {
+      return res.status(403).json({ error: { code: 'AGENCY_NOT_ASSIGNED', message: 'Profile has no agency_id' } });
+    }
+    agency_id = auth.profile.agency_id;
+  }
 
   try {
     let query = supabase
@@ -2155,5 +2194,7 @@ router.delete('/agencies/:agencyId/api-keys/:keyId', async (req, res) => {
   if (error) return res.status(500).json({ error: { code: 'DB_ERROR', message: 'Failed to revoke API key' } });
   return res.json({ data: { revoked: true } });
 });
+
+router.use('/partner-api', require('./admin/partner-api').createPartnerApiAdminRouter({ supabase }));
 
 module.exports = router;

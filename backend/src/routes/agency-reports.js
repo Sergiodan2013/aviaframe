@@ -60,6 +60,28 @@ function formatOrder(order) {
   };
 }
 
+function appendRevenue(revenueByCurrency, currency, amount) {
+  const normalizedCurrency = String(currency || 'USD').trim().toUpperCase();
+  const normalizedAmount = Math.round((Number(amount) || 0) * 100) / 100;
+  revenueByCurrency[normalizedCurrency] = Math.round(((revenueByCurrency[normalizedCurrency] || 0) + normalizedAmount) * 100) / 100;
+}
+
+function finalizeCurrencySummary(revenueByCurrency = {}) {
+  const entries = Object.entries(revenueByCurrency).filter(([, amount]) => Number(amount) > 0);
+  if (entries.length === 1) {
+    return {
+      currency: entries[0][0],
+      total_revenue: entries[0][1],
+      revenue_by_currency: { [entries[0][0]]: entries[0][1] }
+    };
+  }
+  return {
+    currency: entries.length > 1 ? 'MIXED' : null,
+    total_revenue: entries.length === 0 ? 0 : null,
+    revenue_by_currency: Object.fromEntries(entries)
+  };
+}
+
 // GET /api/agency/reports/bookings
 router.get('/bookings', async (req, res) => {
   const agencyId = req.reportingAgencyId;
@@ -126,7 +148,32 @@ router.get('/bookings/:orderId', async (req, res) => {
     return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
   }
 
-  return res.json({ data: formatOrder(order) });
+  return res.json({
+    data: {
+      ...formatOrder(order),
+      contact_phone: order.contact_phone || null,
+      booked_at: order.booked_at || null,
+      passengers: Array.isArray(order.passengers)
+        ? order.passengers.map((passenger) => ({
+            id: passenger.id,
+            passenger_type: passenger.passenger_type || null,
+            first_name: passenger.first_name || null,
+            last_name: passenger.last_name || null,
+            date_of_birth: passenger.date_of_birth || null,
+            baggage_allowance: passenger.baggage_allowance || null
+          }))
+        : [],
+      ticket_issuances: Array.isArray(order.ticket_issuances)
+        ? order.ticket_issuances.map((issuance) => ({
+            ticket_number: issuance.ticket_number || null,
+            pnr: issuance.pnr || null,
+            issued_at: issuance.issued_at || null,
+            status: issuance.status || null,
+            email_status: issuance.email_status || null
+          }))
+        : []
+    }
+  });
 });
 
 // GET /api/agency/reports/revenue
@@ -159,18 +206,23 @@ router.get('/revenue', async (req, res) => {
     const key = byDay ? d.toISOString().slice(0, 10) : d.toISOString().slice(0, 7);
 
     if (!grouped[key]) {
-      grouped[key] = { period: key, bookings_count: 0, revenue: 0, cancelled_count: 0, currency: o.currency || 'USD' };
+      grouped[key] = { period: key, bookings_count: 0, cancelled_count: 0, revenue_by_currency: {} };
     }
     grouped[key].bookings_count += 1;
     if (o.status === 'cancelled' || o.status === 'refunded') {
       grouped[key].cancelled_count += 1;
     } else {
-      grouped[key].revenue = Math.round((grouped[key].revenue + (Number(o.total_price) || 0)) * 100) / 100;
+      appendRevenue(grouped[key].revenue_by_currency, o.currency, o.total_price);
     }
   }
 
   return res.json({
-    data: Object.values(grouped).sort((a, b) => a.period.localeCompare(b.period)),
+    data: Object.values(grouped)
+      .sort((a, b) => a.period.localeCompare(b.period))
+      .map((entry) => ({
+        ...entry,
+        ...finalizeCurrencySummary(entry.revenue_by_currency)
+      })),
     group_by: byDay ? 'day' : 'month'
   });
 });
@@ -198,15 +250,20 @@ router.get('/summary', async (req, res) => {
 
   const orders = data || [];
   const routeMap = {};
-  let total_revenue = 0;
+  const totalRevenueByCurrency = {};
   let total_bookings = 0;
   let ticketed_count = 0;
   let cancelled_count = 0;
 
   for (const o of orders) {
     total_bookings += 1;
-    if (o.status === 'ticketed') { ticketed_count += 1; total_revenue += Number(o.total_price) || 0; }
-    if (o.status === 'confirmed') { total_revenue += Number(o.total_price) || 0; }
+    if (o.status === 'ticketed') {
+      ticketed_count += 1;
+      appendRevenue(totalRevenueByCurrency, o.currency, o.total_price);
+    }
+    if (o.status === 'confirmed') {
+      appendRevenue(totalRevenueByCurrency, o.currency, o.total_price);
+    }
     if (o.status === 'cancelled' || o.status === 'refunded') cancelled_count += 1;
     if (o.origin && o.destination) {
       const k = `${o.origin}-${o.destination}`;
@@ -222,14 +279,17 @@ router.get('/summary', async (req, res) => {
       return { origin, destination, count };
     });
 
+  const currencySummary = finalizeCurrencySummary(totalRevenueByCurrency);
+
   return res.json({
     data: {
       period: { from: range.from, to: range.to },
       total_bookings,
       ticketed_count,
       cancelled_count,
-      total_revenue: Math.round(total_revenue * 100) / 100,
-      currency: orders[0]?.currency || 'USD',
+      total_revenue: currencySummary.total_revenue,
+      currency: currencySummary.currency,
+      revenue_by_currency: currencySummary.revenue_by_currency,
       top_routes
     }
   });

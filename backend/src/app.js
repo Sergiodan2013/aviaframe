@@ -6,6 +6,7 @@ try {
   // In managed runtimes like Railway, env vars are injected directly.
 }
 const express = require('express');
+const helmet = require('helmet');
 const { config } = require('./config');
 const logger = require('./lib/logger');
 const pinoHttp = require('pino-http');
@@ -16,7 +17,12 @@ const drctDirectClient = require('./services/drctDirectClient');
 const { filterBookableOffers } = require('./utils/offerFilters');
 
 const app = express();
-const SANDBOX_WIDGET_HOSTS = new Set(['sandbox.aviaframe.com', 'aviaframe.com', 'www.aviaframe.com']);
+const SANDBOX_WIDGET_HOSTS = new Set(
+  String(process.env.DRCT_SANDBOX_HOSTS || 'sandbox.aviaframe.com,aviaframe.com,www.aviaframe.com')
+    .split(',')
+    .map((host) => normalizeHost(host))
+    .filter(Boolean)
+);
 const ENABLE_LIVE_BOOKABLE_FILTER = process.env.ENABLE_LIVE_BOOKABLE_FILTER === 'true';
 const SEARCH_PROXY_MAX_PAIRS = Number(process.env.SEARCH_PROXY_MAX_PAIRS || 25);
 const SEARCH_PROXY_CONCURRENCY = Number(process.env.SEARCH_PROXY_CONCURRENCY || 5);
@@ -132,6 +138,13 @@ app.use('/api/webhooks/moyasar', express.raw({ type: '*/*' }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(helmet({
+  // This process is an API, not an HTML document origin. Keep the remaining
+  // response hardening headers without imposing document/embed policies on
+  // cross-origin API consumers.
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
 
 // Structured request logging via pino-http
 app.use(pinoHttp({
@@ -169,7 +182,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key, X-Correlation-Id, X-Internal-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key, X-Correlation-Id, X-Customer-Access-Token, X-Internal-Token');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
@@ -184,8 +197,10 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/admin/internal-qa', require('./routes/internalQa'));
 app.use('/api/agency/reports', require('./routes/agency-reports'));
 app.use('/api/agency', require('./routes/agency'));
+app.use('/partner/v1', require('./modules/partner-api'));
 app.use('/api', require('./routes/notifications'));
 app.use('/api', require('./routes/webhooks'));
+app.use('/api', require('./routes/agencyLeads'));
 app.use('/api/support', require('./routes/support'));
 app.use('/public', require('./routes/public'));
 app.use('/api', require('./routes/documents'));
@@ -396,7 +411,19 @@ function applyMarkup(offer, commission) {
     (offer?.slices?.[0]?.segments?.[0]?.marketing_carrier?.iata_code) || null;
 
   if (carrierCode && carrierCommissions[carrierCode] !== undefined) {
-    markup += Number(carrierCommissions[carrierCode]) || 0;
+    const carrierEntry = carrierCommissions[carrierCode];
+    if (carrierEntry && typeof carrierEntry === 'object') {
+      const carrierType = carrierEntry.type === 'percent' ? 'percent' : 'fixed';
+      const carrierVal = Number(carrierEntry.value) || 0;
+      if (carrierType === 'percent' && carrierVal > 0) {
+        markup += Math.round(total * carrierVal / 100 * 100) / 100;
+      } else {
+        markup += carrierVal;
+      }
+    } else {
+      // Legacy stored value: a plain number always meant a fixed SAR add-on.
+      markup += Number(carrierEntry) || 0;
+    }
   }
 
   markup = Math.round(markup * 100) / 100;

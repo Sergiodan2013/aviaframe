@@ -157,6 +157,9 @@ describe('internal surfaces', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['access-control-allow-origin']).toBe('https://aviaframe.com');
+    expect(res.headers['access-control-allow-headers']).toContain('X-Customer-Access-Token');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
   });
 
   test('rejects arbitrary netlify preview origin', async () => {

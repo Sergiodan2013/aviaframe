@@ -58,13 +58,12 @@ async function canAccessOrder(auth, order) {
   return order.user_id === auth.profile.id;
 }
 
-async function resolveAuthContext(req) {
+async function resolveAuthContextFromToken(token) {
   try {
-    const authHeader = req.headers.authorization || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-    if (!token) return { error: 'MISSING_TOKEN' };
+    const normalizedToken = String(token || '').trim();
+    if (!normalizedToken) return { error: 'MISSING_TOKEN' };
 
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    const { data: userData, error: userError } = await supabase.auth.getUser(normalizedToken);
     if (userError || !userData?.user?.id) {
       return { error: 'INVALID_TOKEN' };
     }
@@ -85,7 +84,7 @@ async function resolveAuthContext(req) {
       let role = 'user';
       let agencyId = null;
 
-      if (userEmail) {
+      if (config.enableContactEmailAutoLink && userEmail) {
         const { data: agenciesByEmail } = await supabase
           .from('agencies')
           .select('id')
@@ -113,7 +112,12 @@ async function resolveAuthContext(req) {
         return { error: 'PROFILE_NOT_FOUND' };
       }
       profile = created;
-    } else if (userEmail && (!profile.agency_id || normalizeRole(profile.role) === 'user') && !['admin', 'super_admin'].includes(normalizeRole(profile.role))) {
+    } else if (
+      config.enableContactEmailAutoLink
+      && userEmail
+      && (!profile.agency_id || normalizeRole(profile.role) === 'user')
+      && !['admin', 'super_admin'].includes(normalizeRole(profile.role))
+    ) {
       const { data: agenciesByEmail } = await supabase
         .from('agencies')
         .select('id')
@@ -155,6 +159,12 @@ async function resolveAuthContext(req) {
   }
 }
 
+async function resolveAuthContext(req) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+  return resolveAuthContextFromToken(token);
+}
+
 module.exports = {
   forbidden,
   requireInternalToken,
@@ -162,5 +172,6 @@ module.exports = {
   ensureSuperAdmin,
   ensureStaff,
   canAccessOrder,
-  resolveAuthContext
+  resolveAuthContext,
+  resolveAuthContextFromToken
 };

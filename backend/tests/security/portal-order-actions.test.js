@@ -378,6 +378,21 @@ describe('portal protected order actions', () => {
 
     const from = jest.fn((table) => {
       if (table === 'orders') return { select, update };
+      if (table === 'idempotency_keys') {
+        return {
+          select: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              eq: jest.fn(() => ({ single: jest.fn().mockResolvedValue({ data: null }) }))
+            }))
+          })),
+          insert: jest.fn().mockResolvedValue({}),
+          update: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              eq: jest.fn(() => ({ catch: jest.fn() }))
+            }))
+          })),
+        };
+      }
       throw new Error(`Unexpected table ${table}`);
     });
 

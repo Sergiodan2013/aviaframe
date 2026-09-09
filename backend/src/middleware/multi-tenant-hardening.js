@@ -1,4 +1,4 @@
-const supabase = require('../services/supabaseClient');
+const supabase = require('../lib/supabase');
 
 async function multiTenantHardeningMiddleware(req, res, next) {
   try {

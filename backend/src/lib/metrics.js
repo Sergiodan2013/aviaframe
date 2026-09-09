@@ -26,10 +26,24 @@ const drctErrors = new client.Counter({
   labelNames: ['operation', 'status_code'],
 });
 
+// Legacy DRCT mutating proxy request counter
+const drctLegacyProxyRequests = new client.Counter({
+  name: 'aviaframe_drct_legacy_proxy_requests_total',
+  help: 'Total legacy DRCT mutating proxy requests seen by the compatibility guard',
+  labelNames: ['target_path', 'mode', 'consumer'],
+});
+
 // Queue size gauge
 const drctQueueSize = new client.Gauge({
   name: 'aviaframe_drct_queue_size',
   help: 'Current DRCT request queue size',
 });
 
-module.exports = { client, httpDuration, drctDuration, drctErrors, drctQueueSize };
+module.exports = {
+  client,
+  httpDuration,
+  drctDuration,
+  drctErrors,
+  drctLegacyProxyRequests,
+  drctQueueSize
+};
