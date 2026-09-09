@@ -411,6 +411,8 @@ export default function ApiPartnersPanel() {
     }
   };
 
+  const testAuditRows = Object.values(testAudits);
+
   return (
     <div className="space-y-5">
       <Surface className="overflow-hidden">
@@ -506,7 +508,7 @@ export default function ApiPartnersPanel() {
                       <div key={client.id} className="rounded-xl border border-[var(--af-border)] p-4">
                         <div className="flex items-center justify-between"><div><div className="font-semibold">{client.name}</div><div className="text-xs uppercase text-[var(--af-text-muted)]">{client.environment}</div></div><StatusBadge tone={client.status === 'ACTIVE' ? 'success' : 'warning'}>{client.status}</StatusBadge></div>
                         <div className="mt-3 flex flex-wrap gap-1">{client.entitlements?.allowed_channels?.map((channel) => <StatusBadge key={channel} tone="info">{channel}</StatusBadge>)}</div>
-                        <div className="mt-4 space-y-2">{client.credentials.map((credential) => <div key={credential.id} className="flex items-center justify-between rounded-lg bg-[var(--af-bg)] p-2 text-xs"><div><div className="font-mono">{credential.key_prefix}••••</div><div className="text-[var(--af-text-muted)]">{credential.name} · {credential.revoked_at ? 'revoked' : 'active'}</div></div>{!credential.revoked_at && <button type="button" aria-label="Revoke API key" className="rounded p-2 text-[var(--af-danger)] hover:bg-white" onClick={() => handleRevokeKey(client.id, credential.id)}><Trash2 size={15} /></button>}</div>)}</div>
+                        <div className="mt-4 space-y-2">{client.credentials.filter((credential) => !credential.revoked_at).map((credential) => <div key={credential.id} className="flex items-center justify-between rounded-lg bg-[var(--af-bg)] p-2 text-xs"><div><div className="font-mono">{credential.key_prefix}••••</div><div className="text-[var(--af-text-muted)]">{credential.name} · active</div></div><button type="button" aria-label="Revoke API key" className="rounded p-2 text-[var(--af-danger)] hover:bg-white" onClick={() => handleRevokeKey(client.id, credential.id)}><Trash2 size={15} /></button></div>)}{client.credentials.some((credential) => credential.revoked_at) && <p className="text-[var(--af-text-muted)] text-xs">{client.credentials.filter((credential) => credential.revoked_at).length} revoked key(s) hidden</p>}</div>
                         <Button variant="secondary" className="mt-3 w-full" onClick={() => handleNewKey(client.id)} disabled={saving}><Plus size={15} /> Generate key</Button>
                       </div>
                     ))}
@@ -537,41 +539,66 @@ export default function ApiPartnersPanel() {
                     <div className="rounded-lg bg-[var(--af-bg)] p-2 text-[var(--af-primary)]"><Search size={20} /></div>
                     <div>
                       <h4 className="font-bold text-[var(--af-text)]">Sandbox API tester</h4>
-                      <p className="mt-1 text-sm text-[var(--af-text-muted)]">Runs the same Search and Reprice requests an external client sends. Returned prices already include this counterparty&apos;s published markup.</p>
+                      <p className="mt-1 text-sm text-[var(--af-text-muted)]">Runs the complete external-client flow: Search → Reprice → Create sandbox order. Returned prices already include this counterparty&apos;s published markup.</p>
                     </div>
                   </div>
-                  <Alert tone="warning" className="mt-4">Use only a disposable <code>af_test_</code> sandbox key. It stays in memory for this page and is not saved. Never use a production key in a browser.</Alert>
-                  <form onSubmit={handleTestSearch} className="mt-4">
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-                      <Field className="md:col-span-2 xl:col-span-2" label="Sandbox API key" htmlFor="partner-test-key" hint="Generate a new key above if the original was not saved."><input id="partner-test-key" className="af-input font-mono" type="password" autoComplete="new-password" spellCheck="false" placeholder="af_test_…" value={testApiKey} onChange={(e) => setTestApiKey(e.target.value)} /></Field>
+                  <Alert tone="warning" className="mt-4">Use only a disposable <code>af_test_</code> key. It stays in memory for this page. Order creation calls DRCT sandbox and never creates a production booking.</Alert>
+
+                  <form onSubmit={handleTestSearch} className="mt-4 space-y-3">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <Field className="md:col-span-2" label="Sandbox API key" htmlFor="partner-test-key" hint="Generate a new key above if the original was not saved."><input id="partner-test-key" className="af-input font-mono" type="password" autoComplete="new-password" spellCheck="false" placeholder="af_test_…" value={testApiKey} onChange={(e) => setTestApiKey(e.target.value)} /></Field>
+                      <Field label="Trip type" htmlFor="partner-test-trip"><select id="partner-test-trip" className="af-input" value={testSearch.trip_type} onChange={(e) => setTestSearch((current) => ({ ...current, trip_type: e.target.value }))}><option value="one_way">One-way</option><option value="round_trip">Round trip</option></select></Field>
+                      <Field label="Cabin" htmlFor="partner-test-cabin"><select id="partner-test-cabin" className="af-input" value={testSearch.cabin_class} onChange={(e) => setTestSearch((current) => ({ ...current, cabin_class: e.target.value }))}><option value="economy">Economy</option><option value="premium_economy">Premium economy</option><option value="business">Business</option><option value="first">First</option></select></Field>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       <Field label="From" htmlFor="partner-test-origin"><input id="partner-test-origin" className="af-input uppercase" required maxLength="3" value={testSearch.origin} onChange={(e) => setTestSearch((current) => ({ ...current, origin: e.target.value.toUpperCase() }))} /></Field>
                       <Field label="To" htmlFor="partner-test-destination"><input id="partner-test-destination" className="af-input uppercase" required maxLength="3" value={testSearch.destination} onChange={(e) => setTestSearch((current) => ({ ...current, destination: e.target.value.toUpperCase() }))} /></Field>
                       <Field label="Departure" htmlFor="partner-test-date"><input id="partner-test-date" className="af-input" required type="date" value={testSearch.departure_date} onChange={(e) => setTestSearch((current) => ({ ...current, departure_date: e.target.value }))} /></Field>
-                      <Field label="Adults" htmlFor="partner-test-adults"><input id="partner-test-adults" className="af-input" type="number" min="1" max="9" value={testSearch.adults} onChange={(e) => setTestSearch((current) => ({ ...current, adults: Number(e.target.value) }))} /></Field>
+                      {testSearch.trip_type === 'round_trip' && <Field label="Return" htmlFor="partner-test-return-date"><input id="partner-test-return-date" className="af-input" required type="date" min={testSearch.departure_date} value={testSearch.return_date} onChange={(e) => setTestSearch((current) => ({ ...current, return_date: e.target.value }))} /></Field>}
                     </div>
-                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-                      <Field className="sm:w-56" label="Cabin" htmlFor="partner-test-cabin"><select id="partner-test-cabin" className="af-input" value={testSearch.cabin_class} onChange={(e) => setTestSearch((current) => ({ ...current, cabin_class: e.target.value }))}><option value="economy">Economy</option><option value="premium_economy">Premium economy</option><option value="business">Business</option><option value="first">First</option></select></Field>
-                      <Button type="submit" className="sm:mb-px" disabled={testLoading}>{testLoading ? 'Searching…' : 'Run client search'}</Button>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <Field label="Adults (ADT)" htmlFor="partner-test-adults"><input id="partner-test-adults" className="af-input" type="number" min="1" max="9" value={testSearch.adults} onChange={(e) => setTestSearch((current) => ({ ...current, adults: Number(e.target.value) }))} /></Field>
+                      <Field label="Children (CHD)" htmlFor="partner-test-children"><input id="partner-test-children" className="af-input" type="number" min="0" max="8" value={testSearch.children} onChange={(e) => setTestSearch((current) => ({ ...current, children: Number(e.target.value) }))} /></Field>
+                      <Field label="Infants (INF)" htmlFor="partner-test-infants"><input id="partner-test-infants" className="af-input" type="number" min="0" max="8" value={testSearch.infants} onChange={(e) => setTestSearch((current) => ({ ...current, infants: Number(e.target.value) }))} /></Field>
+                      <Button type="submit" className="self-end" disabled={testLoading}>{testLoading ? 'Searching…' : 'Run client search'}</Button>
                     </div>
                   </form>
 
                   {testError && <Alert tone="danger" className="mt-4">{testError}</Alert>}
                   {testResult && (
                     <div className="mt-5">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h5 className="font-semibold text-[var(--af-text)]">Client response</h5><div className="flex flex-wrap gap-2"><StatusBadge tone={testResult.offers?.length ? 'success' : 'warning'}>{testResult.offers?.length || 0} offers</StatusBadge>{Number.isInteger(testResult.meta?.provider_offer_count) && <StatusBadge tone="neutral">{testResult.meta.provider_offer_count} before policy</StatusBadge>}</div></div>
-                      {!testResult.offers?.length && Number(testResult.meta?.provider_offer_count || 0) > 0 && <p className="rounded-lg bg-[var(--af-bg)] p-3 text-sm text-[var(--af-text-muted)]">DRCT returned {testResult.meta.provider_offer_count} offers, but this client&apos;s channel, carrier, or pricing policy excluded all of them. Check Allowed channels, carrier access, and DENY rules.</p>}
-                      {!testResult.offers?.length && Number(testResult.meta?.provider_offer_count || 0) === 0 && <p className="rounded-lg bg-[var(--af-bg)] p-3 text-sm text-[var(--af-text-muted)]">DRCT sandbox returned no matching offers for this route and date. Try another future date or route.</p>}
-                      <div className="grid gap-3 xl:grid-cols-2">
-                        {testResult.offers?.slice(0, 6).map((offer) => (
-                          <div key={offer.offer_id} className="rounded-xl border border-[var(--af-border)] p-4">
-                            <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-[var(--af-text)]">{offer.airline_name || offer.validating_carrier || 'Carrier'} · {offer.origin} → {offer.destination}</div><div className="mt-1 text-xs text-[var(--af-text-muted)]">{offer.validating_carrier || '—'} · {offer.distribution_channel || 'UNKNOWN'} · {offer.departure_time || 'time unavailable'}</div></div><div className="text-right"><div className="font-bold text-[var(--af-primary)]">{offer.price?.total} {offer.price?.currency}</div><div className="text-xs text-[var(--af-text-muted)]">client sell price</div></div></div>
-                            <Button variant="secondary" className="mt-3 w-full" disabled={Boolean(testPricingOfferId)} onClick={() => handleTestPrice(offer.offer_id)}>{testPricingOfferId === offer.offer_id ? 'Confirming…' : 'Confirm current price'}</Button>
-                          </div>
-                        ))}
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div><h5 className="font-semibold text-[var(--af-text)]">Client response</h5><p className="text-xs text-[var(--af-text-muted)]">{testSearch.trip_type === 'round_trip' ? `Round trip · ${testSearch.departure_date} → ${testSearch.return_date}` : `One-way · ${testSearch.departure_date}`} · {testSearch.adults} ADT · {testSearch.children} CHD · {testSearch.infants} INF</p></div>
+                        <div className="flex flex-wrap gap-2"><StatusBadge tone={testResult.offers?.length ? 'success' : 'warning'}>{testResult.offers?.length || 0} offers</StatusBadge>{Number.isInteger(testResult.meta?.provider_offer_count) && <StatusBadge tone="neutral">{testResult.meta.provider_offer_count} before policy</StatusBadge>}</div>
                       </div>
+                      <div className="mb-4 flex flex-wrap gap-2 border-b border-[var(--af-border)] pb-3" role="tablist" aria-label="Sandbox response views">
+                        {[['offers', 'Offers'], ['audit', `Price audit${testAuditRows.length ? ` (${testAuditRows.length})` : ''}`], ['json', 'Raw JSON']].map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={testView === value} className={`rounded-lg px-3 py-2 text-sm font-semibold ${testView === value ? 'bg-[var(--af-primary)] text-white' : 'bg-[var(--af-bg)] text-[var(--af-text)]'}`} onClick={() => setTestView(value)}>{label}</button>)}
+                      </div>
+
+                      {testView === 'offers' && <>
+                        {!testResult.offers?.length && Number(testResult.meta?.provider_offer_count || 0) > 0 && <p className="rounded-lg bg-[var(--af-bg)] p-3 text-sm text-[var(--af-text-muted)]">DRCT returned {testResult.meta.provider_offer_count} offers, but this client&apos;s policy excluded all of them.</p>}
+                        {!testResult.offers?.length && Number(testResult.meta?.provider_offer_count || 0) === 0 && <p className="rounded-lg bg-[var(--af-bg)] p-3 text-sm text-[var(--af-text-muted)]">DRCT sandbox returned no matching offers for this route and date.</p>}
+                        <div className="grid gap-3 xl:grid-cols-2">
+                          {testResult.offers?.slice(0, 10).map((offer) => (
+                            <div key={offer.offer_id} className="rounded-xl border border-[var(--af-border)] p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="font-semibold text-[var(--af-text)]">{offer.airline_name || offer.validating_carrier || 'Carrier'} · {offer.origin} → {offer.destination}</div><div className="mt-1 text-xs text-[var(--af-text-muted)]">{offer.validating_carrier || '—'} · {offer.distribution_channel || 'UNKNOWN'} · Outbound {offer.departure_time || 'time unavailable'}</div>{testSearch.trip_type === 'round_trip' && <div className="mt-1 text-xs font-medium text-[var(--af-text-muted)]">Return {offer.return_departure_time || `${testSearch.return_date} · see segments in Raw JSON`}</div>}</div><div className="text-left sm:text-right"><div className="font-bold text-[var(--af-primary)]">{offer.price?.total} {offer.price?.currency}</div><div className="text-xs text-[var(--af-text-muted)]">client sell price</div></div></div>
+                              <div className="mt-3 grid gap-2 sm:grid-cols-2"><Button variant="secondary" disabled={Boolean(testPricingOfferId)} onClick={() => handleTestPrice(offer.offer_id)}>{testPricingOfferId === offer.offer_id ? 'Confirming…' : 'Confirm current price'}</Button><Button variant="secondary" disabled={testAuditLoadingId === offer.price_quote_id} onClick={() => handleTestAudit(offer.price_quote_id)}>{testAuditLoadingId === offer.price_quote_id ? 'Loading…' : 'View markup'}</Button></div>
+                            </div>
+                          ))}
+                        </div>
+                      </>}
+
+                      {testView === 'audit' && <div className="space-y-3">
+                        {!testAuditRows.length && <p className="rounded-lg bg-[var(--af-bg)] p-4 text-sm text-[var(--af-text-muted)]">Click <strong>View markup</strong> on an offer, or confirm its current price, to load the internal super-admin audit.</p>}
+                        {testAuditRows.map((audit) => <div key={audit.external_quote_id} className="rounded-xl border border-[var(--af-border)] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">{audit.carrier_code} · {audit.distribution_channel}</div><code className="text-xs text-[var(--af-text-muted)]">{audit.external_quote_id}</code></div><div className="mt-3 grid gap-2 sm:grid-cols-4"><div className="rounded-lg bg-[var(--af-bg)] p-3"><div className="text-xs text-[var(--af-text-muted)]">DRCT supplier price</div><div className="font-bold">{audit.supplier_total} {audit.currency}</div></div><div className="rounded-lg bg-[var(--af-bg)] p-3"><div className="text-xs text-[var(--af-text-muted)]">Percentage markup</div><div className="font-bold">{audit.pricing_rule_trace?.percentage_markup || '0'} {audit.currency}</div></div><div className="rounded-lg bg-[var(--af-bg)] p-3"><div className="text-xs text-[var(--af-text-muted)]">Fixed markup</div><div className="font-bold">{audit.pricing_rule_trace?.fixed_markup || '0'} {audit.currency}</div></div><div className="rounded-lg bg-[var(--af-bg)] p-3"><div className="text-xs text-[var(--af-text-muted)]">Client sell price</div><div className="font-bold text-[var(--af-primary)]">{audit.sell_total} {audit.currency}</div></div></div><div className="mt-2 text-xs text-[var(--af-text-muted)]">Applied markup: {audit.markup_total} {audit.currency} · {Number(audit.pricing_rule_trace?.percent_bps || 0) / 100}% · {audit.pricing_rule_trace?.passenger_count || 0} passenger(s)</div></div>)}
+                      </div>}
+
+                      {testView === 'json' && <pre className="max-h-[560px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-relaxed text-slate-100">{JSON.stringify(testTraces, null, 2)}</pre>}
                     </div>
                   )}
-                  {testPricedOffer && <Alert tone="success" className="mt-4"><strong>Reprice succeeded:</strong> {testPricedOffer.price?.total} {testPricedOffer.price?.currency}. Quote <code>{testPricedOffer.price_quote_id}</code> is valid until {testPricedOffer.valid_until}.</Alert>}
+
+                  {testPricedOffer && <div className="mt-4 space-y-4"><Alert tone="success"><strong>Reprice succeeded:</strong> {testPricedOffer.price?.total} {testPricedOffer.price?.currency}. Quote <code>{testPricedOffer.price_quote_id}</code> is valid until {testPricedOffer.valid_until}.</Alert><div className="rounded-xl border border-[var(--af-border)] p-4"><h5 className="font-semibold text-[var(--af-text)]">Create DRCT sandbox order</h5><p className="mt-1 text-sm text-[var(--af-text-muted)]">Uses generated sandbox passenger names and documents matching the selected ADT/CHD/INF mix. No payment or production ticket is created.</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Test contact email" htmlFor="partner-test-order-email"><input id="partner-test-order-email" className="af-input" type="email" value={testOrderForm.email} onChange={(e) => setTestOrderForm((current) => ({ ...current, email: e.target.value }))} /></Field><Field label="Test contact phone" htmlFor="partner-test-order-phone"><input id="partner-test-order-phone" className="af-input" value={testOrderForm.phone} onChange={(e) => setTestOrderForm((current) => ({ ...current, phone: e.target.value }))} /></Field></div><label className="mt-3 flex items-start gap-2 text-sm text-[var(--af-text)]"><input className="mt-1" type="checkbox" checked={testOrderForm.confirmed} onChange={(e) => setTestOrderForm((current) => ({ ...current, confirmed: e.target.checked }))} /><span>I understand this submits an order to DRCT sandbox using generated test passenger data.</span></label><Button className="mt-3" disabled={!testOrderForm.confirmed || testOrderLoading} onClick={handleTestOrder}>{testOrderLoading ? 'Creating sandbox order…' : 'Create sandbox order'}</Button></div></div>}
+                  {testOrderResult && <Alert tone="success" className="mt-4"><strong>Sandbox order created:</strong> {testOrderResult.order_id} · status {testOrderResult.status}{testOrderResult.booking_reference ? ` · booking reference ${testOrderResult.booking_reference}` : ''}. Full response is in Raw JSON.</Alert>}
                 </Surface>
               </div>
             )}

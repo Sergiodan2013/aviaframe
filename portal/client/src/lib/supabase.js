@@ -211,7 +211,7 @@ export const signInWithGoogle = async () => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.origin
+      redirectTo: `${window.location.origin}${window.location.pathname}`
     }
   });
   return { data, error };
@@ -221,7 +221,7 @@ export const signInWithEmail = async (email) => {
   const { data, error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: window.location.origin
+      emailRedirectTo: `${window.location.origin}${window.location.pathname}`
     }
   });
   return { data, error };
@@ -830,6 +830,53 @@ export const createAdminAgency = async (payload) => {
   return { data: inserted.data || null, error: null };
 };
 
+// ====================================================
+// PARTNER API SUPER-ADMIN HELPERS
+// ====================================================
+
+export const getApiCounterparties = async () => {
+  const result = await backendApiRequest('/admin/partner-api/counterparties');
+  return result.error
+    ? { data: null, error: result.error }
+    : { data: result.data?.counterparties || [], error: null };
+};
+
+export const getApiCounterparty = async (counterpartyId) => {
+  const result = await backendApiRequest(`/admin/partner-api/counterparties/${counterpartyId}`);
+  return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
+};
+
+export const createApiCounterparty = async (payload) => {
+  const result = await backendApiRequest('/admin/partner-api/counterparties', { method: 'POST', body: payload });
+  return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
+};
+
+export const updateApiCounterparty = async (counterpartyId, payload) => {
+  const result = await backendApiRequest(`/admin/partner-api/counterparties/${counterpartyId}`, { method: 'PATCH', body: payload });
+  return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
+};
+
+export const createPartnerApiCredential = async (clientId, payload = {}) => {
+  const result = await backendApiRequest(`/admin/partner-api/clients/${clientId}/credentials`, { method: 'POST', body: payload });
+  return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
+};
+
+export const revokePartnerApiCredential = async (clientId, credentialId) => {
+  const result = await backendApiRequest(`/admin/partner-api/clients/${clientId}/credentials/${credentialId}`, { method: 'DELETE' });
+  return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
+};
+
+export const publishPartnerPricingVersion = async (counterpartyId, payload) => {
+  const result = await backendApiRequest(`/admin/partner-api/counterparties/${counterpartyId}/pricing-versions`, { method: 'POST', body: payload });
+  return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
+};
+
+export const getPartnerQuoteAudit = async (counterpartyId, quoteId) => {
+  const query = new URLSearchParams({ counterparty_id: counterpartyId });
+  const result = await backendApiRequest(`/admin/partner-api/quotes/${encodeURIComponent(quoteId)}/audit?${query}`);
+  return result.error ? { data: null, error: result.error } : { data: result.data?.quote || null, error: null };
+};
+
 export const provisionAdminAgency = async (payload) => {
   const { data, error } = await backendApiRequest('/admin/agencies/provision', {
     method: 'POST',
@@ -964,9 +1011,18 @@ export const updateAdminAgency = async (agencyId, payload) => {
   if (Object.prototype.hasOwnProperty.call(payload || {}, 'carrier_commissions')) {
     const cleaned = {};
     if (payload?.carrier_commissions && typeof payload.carrier_commissions === 'object') {
-      Object.entries(payload.carrier_commissions).forEach(([code, amount]) => {
-        const normalizedAmount = Number(amount);
-        if (normalizedAmount > 0) cleaned[String(code || '').toUpperCase()] = normalizedAmount;
+      Object.entries(payload.carrier_commissions).forEach(([code, entry]) => {
+        const upperCode = String(code || '').toUpperCase();
+        if (!upperCode) return;
+        let type = 'fixed';
+        let val;
+        if (entry && typeof entry === 'object') {
+          type = entry.type === 'percent' ? 'percent' : 'fixed';
+          val = Number(entry.value);
+        } else {
+          val = Number(entry);
+        }
+        if (val > 0) cleaned[upperCode] = { type, value: val };
       });
     }
     nextSettings.carrier_commissions = cleaned;
