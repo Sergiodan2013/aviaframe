@@ -38,38 +38,41 @@
   <div class="wrap">
     <div class="card">
       <h1>Widget Preview</h1>
-      <p>Это предпросмотр реального поискового виджета для сайта агентства.</p>
-      <p class="hint">Проверьте поиск и выдачу рейсов на этой странице.</p>
+      <p>This preview uses the same public embed flow that the agency places on its website.</p>
+      <p class="hint">The widget is loaded with the public agency key and the same secure loader script used on the agency domain.</p>
     </div>
-    <div
-      id="aviaframe-widget"
-      data-aviaframe-widget
-      data-api-url=""
-      data-brand-name="Aviaframe"
-      data-title="Flight Search"
-    ></div>
+    <div id="aviaframe-widget"></div>
   </div>
 
   <script>
     const qs = new URLSearchParams(window.location.search);
-    const apiUrl = qs.get('api_url') || '';
+    const agencyKey = qs.get('agency_key') || '';
     const agencyName = qs.get('agency_name') || 'Aviaframe';
+    const agencyDomain = qs.get('agency_domain') || '';
+    const backendBase = qs.get('backend_base') || '/api/backend';
+    const previewMode = qs.get('preview_mode') || '1';
 
-    if (!apiUrl) {
+    if (!agencyKey) {
       const node = document.getElementById('aviaframe-widget');
       node.innerHTML = `
         <div class="card" style="border-color:#fecaca;background:#fff5f5;color:#991b1b;">
-          <strong>Не задан API URL виджета</strong><br/>
-          Откройте предпросмотр из админки агентства, где URL формируется автоматически.
+          <strong>Missing public widget key</strong><br/>
+          Open this preview from the agency admin area, where the key is inserted automatically.
         </div>
       `;
     } else {
-      const node = document.getElementById('aviaframe-widget');
-      node.setAttribute('data-api-url', apiUrl);
-      node.setAttribute('data-brand-name', agencyName);
-
       const script = document.createElement('script');
-      script.src = '/partner-widget/aviaframe-widget.js';
+      script.src = '/embed.js';
+      script.setAttribute('data-agency-key', agencyKey);
+      script.setAttribute('data-target-id', 'aviaframe-widget');
+      script.setAttribute('data-backend-base', backendBase);
+      script.setAttribute('data-locale', 'en');
+      script.setAttribute('data-theme', 'light');
+      script.setAttribute('data-agency-name', agencyName);
+      script.setAttribute('data-preview-mode', previewMode);
+      if (agencyDomain) {
+        script.setAttribute('data-origin-host', agencyDomain);
+      }
       document.body.appendChild(script);
     }
   </script>

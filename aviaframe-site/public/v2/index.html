@@ -753,6 +753,12 @@ async function submitBooking() {
   const paxBlocks = body.querySelectorAll('[data-pax]');
   const passengers = [];
   let valid = true;
+  const inferPassengerTitle = (gender, type = 'ADT') => {
+    const normalizedType = String(type || 'ADT').toUpperCase().trim();
+    const normalizedGender = String(gender || '').toUpperCase().trim();
+    if (normalizedType === 'CHD' || normalizedType === 'INF') return normalizedGender === 'F' ? 'Miss' : 'Mstr';
+    return normalizedGender === 'F' ? 'Ms' : 'Mr';
+  };
   paxBlocks.forEach((block) => {
     const g = v => block.querySelector(`[name="${v}"]`)?.value?.trim() || '';
     if (!g('firstName') || !g('lastName') || !g('dateOfBirth') || !g('passportNumber') || !g('passportExpiry') || !g('nationality')) valid = false;
@@ -761,6 +767,7 @@ async function submitBooking() {
       first_name: g('firstName'),
       last_name: g('lastName'),
       gender: g('gender') || 'M',
+      title: inferPassengerTitle(g('gender') || 'M', 'ADT'),
       date_of_birth: g('dateOfBirth'),
       document: {
         number: g('passportNumber'),

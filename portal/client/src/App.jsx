@@ -12,7 +12,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import { getAirportByCode } from './data/airports.js';
 import { Plane, AlertCircle, TestTube2, User, LogOut, CheckCircle, BookOpen, Shield } from 'lucide-react';
 import { mockFlightData } from './mock/flightData';
-import { drctApi, formatDRCTError, calculateBaggagePrice } from './lib/drctApi';
+import { formatDRCTError, calculateBaggagePrice } from './lib/drctApi';
 import { supabase, getProfile, createPortalOrder } from './lib/supabase';
 import {
   buildCachedOrderRecord,
@@ -101,6 +101,20 @@ function resolveBookingRoute(offer = {}) {
   };
 }
 
+function getPortalPageFromPath(pathname = '') {
+  if (pathname === '/admin/agency') return 'adminAgency';
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
+  if (pathname === '/bookings') return 'bookings';
+  return 'search';
+}
+
+function getPortalPathForPage(page) {
+  if (page === 'adminAgency') return '/admin/agency';
+  if (page === 'admin') return '/admin';
+  if (page === 'bookings') return '/bookings';
+  return '/';
+}
+
 function App() {
   const isDevEnvironment = import.meta.env.DEV;
   const [isLoading, setIsLoading] = useState(false);
@@ -112,10 +126,11 @@ function App() {
   const [quickFilter, setQuickFilter] = useState('all');
   const [resultsSort, setResultsSort] = useState('price');
   const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Page navigation state
-  const [currentPage, setCurrentPage] = useState('search'); // 'search', 'bookings', 'admin', 'adminAgency'
+  const [currentPage, setCurrentPage] = useState(() => getPortalPageFromPath(window.location.pathname)); // 'search', 'bookings', 'admin', 'adminAgency'
   const [bookingsRefreshKey, setBookingsRefreshKey] = useState(0);
 
   // Booking flow state
@@ -128,6 +143,7 @@ function App() {
   const [suggestedDates, setSuggestedDates] = useState([]);
   const profileRefreshInFlightRef = useRef({});
   const bookingRoute = useMemo(() => resolveBookingRoute(booking?.offer), [booking?.offer]);
+  const isConnectApiPath = window.location.pathname === '/admin/connect-api';
 
   const normalizeRole = (role) => {
     const normalized = String(role || 'user').trim().toLowerCase().replace(/-/g, '_');
@@ -272,6 +288,29 @@ function App() {
       setError('Payment was not completed. Please try again.');
     }
   }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPage(getPortalPageFromPath(window.location.pathname));
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!authReady || (currentPage !== 'admin' && currentPage !== 'adminAgency')) return;
+    setIsAuthModalOpen(!user);
+  }, [authReady, currentPage, user]);
+
+  const navigateToPortalPage = (page, path = getPortalPathForPage(page)) => {
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   useEffect(() => {
     const tamaraReturn = getTamaraReturnState(typeof window !== 'undefined' ? window.location : null);
@@ -434,6 +473,8 @@ function App() {
         }
         localStorage.removeItem('user');
         if (mounted) setUser(null);
+      } finally {
+        if (mounted) setAuthReady(true);
       }
     };
     bootstrap();
@@ -780,12 +821,6 @@ function App() {
     proceedToPassengerStep(offer);
   };
 
-  // Handle successful authentication
-  const handleAuthSuccess = (userData) => {
-    setUser(userData);
-    resumePendingOfferAfterAuth();
-  };
-
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -972,7 +1007,7 @@ function App() {
   // Handle new search
   const handleNewSearch = () => {
     setCurrentStep('search');
-    setCurrentPage('search');
+    navigateToPortalPage('search');
     setSelectedOffer(null);
     setPassengerData(null);
     setBooking(null);
@@ -988,8 +1023,7 @@ function App() {
       setIsAuthModalOpen(true);
       return;
     }
-    setCurrentPage('bookings');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigateToPortalPage('bookings');
   };
 
   // Navigate to Staff Dashboard
@@ -1003,8 +1037,7 @@ function App() {
       setError('You do not have access to the admin panel');
       return;
     }
-    setCurrentPage('admin');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigateToPortalPage('admin');
   };
 
   const handleGoToAgencyAdmin = () => {
@@ -1016,14 +1049,12 @@ function App() {
       setError('You do not have access to agency admin mode');
       return;
     }
-    setCurrentPage('adminAgency');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigateToPortalPage('adminAgency');
   };
 
   // Navigate back to home/search
   const handleBackToHome = () => {
-    setCurrentPage('search');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigateToPortalPage('search');
   };
 
   // Handle retry search with suggested date
@@ -1363,7 +1394,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="sticky top-0 z-40 bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1474,9 +1505,31 @@ function App() {
 
         {/* Page: Admin Dashboard */}
         {currentPage === 'admin' && (
-          <AdminErrorBoundary>
-            <AdminDashboard user={user} onBackToHome={handleBackToHome} />
-          </AdminErrorBoundary>
+          user ? (
+            <AdminErrorBoundary>
+              <AdminDashboard
+                user={user}
+                onBackToHome={handleBackToHome}
+                initialSection={isConnectApiPath ? 'partner_api' : 'agencies'}
+              />
+            </AdminErrorBoundary>
+          ) : (
+            <div className="mx-auto max-w-xl rounded-2xl border border-indigo-100 bg-white p-8 text-center shadow-sm">
+              <Shield className="mx-auto mb-4 text-indigo-600" size={40} />
+              <h2 className="text-2xl font-bold text-gray-900">Aviaframe Admin</h2>
+              <p className="mt-2 text-gray-600">
+                Sign in with a staff account to manage API counterparties and pricing.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="mt-6 inline-flex items-center gap-2 rounded-md bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700"
+              >
+                <User size={18} />
+                Sign in to Admin
+              </button>
+            </div>
+          )
         )}
 
         {/* Page: Agency Admin View (under same super-admin creds) */}
@@ -1832,7 +1885,6 @@ function App() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={handleAuthSuccess}
       />
     </div>
   );

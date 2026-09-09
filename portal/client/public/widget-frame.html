@@ -147,12 +147,15 @@
     const qs = new URLSearchParams(window.location.search);
     const agencyKey = qs.get('agency_key') || '';
     const backendBase = (qs.get('backend_base') || '/api/backend').replace(/\/$/, '');
+    const previewOriginHost = (qs.get('origin_host') || '').trim().toLowerCase();
+    const previewMode = qs.get('preview_mode') === '1';
     const parentHost = (() => {
       try {
         if (document.referrer) return new URL(document.referrer).hostname;
       } catch {}
       return '';
     })();
+    const effectiveOriginHost = previewOriginHost || parentHost || window.location.hostname;
 
     let widgetToken = null;
 
@@ -175,7 +178,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agency_key: agencyKey,
-            origin_host: parentHost || window.location.hostname
+            origin_host: effectiveOriginHost,
+            preview_mode: previewMode
           })
         });
         const raw = await resp.text();
@@ -197,7 +201,7 @@
         sessionMeta.textContent = JSON.stringify({
           agency: payload.agency,
           expires_in: payload.expires_in,
-          origin_host: parentHost || window.location.hostname
+          origin_host: effectiveOriginHost
         }, null, 2);
       } catch (e) {
         setStatus(sessionStatus, e.message, 'err');
@@ -213,7 +217,8 @@
       bookBtn.disabled = true;
       try {
         const body = {
-          origin_host: parentHost || window.location.hostname,
+          origin_host: effectiveOriginHost,
+          preview_mode: previewMode,
           contacts: {
             email: document.getElementById('email').value.trim(),
             phone: document.getElementById('phone').value.trim()

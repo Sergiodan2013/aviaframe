@@ -79,6 +79,7 @@ class DRCTApiClient {
 
       return { data: response.data, error: null };
     } catch (error) {
+      let requestError = error;
       // Common local-dev case: workflow is active under /webhook, not /webhook-test.
       const canFallbackToProdWebhook =
         error?.response?.status === 404 &&
@@ -115,7 +116,7 @@ class DRCTApiClient {
 
           return { data: fallbackResponse.data, error: null };
         } catch (fallbackError) {
-          error = fallbackError;
+          requestError = fallbackError;
         }
       }
 
@@ -126,18 +127,18 @@ class DRCTApiClient {
         endpoint,
         method,
         data,
-        error.response?.data || null,
-        error.response?.status || 0,
+        requestError.response?.data || null,
+        requestError.response?.status || 0,
         duration,
-        error
+        requestError
       );
 
       return {
         data: null,
         error: {
-          message: error.response?.data?.error?.message || error.message,
-          code: error.response?.data?.error?.code || 'UNKNOWN_ERROR',
-          details: error.response?.data?.error?.details || null
+          message: requestError.response?.data?.error?.message || requestError.message,
+          code: requestError.response?.data?.error?.code || 'UNKNOWN_ERROR',
+          details: requestError.response?.data?.error?.details || null
         }
       };
     }
