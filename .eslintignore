@@ -1,0 +1,7 @@
+**/dist/**
+aviaframe-site/aviaframe-widget.js
+backend/agency-site-assets/aviaframe-widget.js
+backend/src/agency-site-assets/aviaframe-widget.js
+portal/client/public/partner-widget/**
+widget/aviaframe-widget.js
+widget/demo/aviaframe-widget.js
