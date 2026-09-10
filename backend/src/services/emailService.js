@@ -929,4 +929,145 @@ async function sendAgencyLeadEmail({ to, lead }) {
   return { sent: false, error: 'EMAIL_NOT_CONFIGURED' };
 }
 
-module.exports = { isConfigured, sendTicketEmail, sendSupportEmail, sendAgencyOnboardingEmail, sendAgencyLeadEmail };
+async function sendPartnerApiWelcomeEmail({
+  to,
+  contactName = '',
+  counterpartyName = '',
+  environment,
+  apiKey,
+  rateLimits = {},
+  isNewKey = false,
+  docsUrl = process.env.PARTNER_API_DOCS_URL || 'https://aviaframe.com/docs/connect-api.html',
+  supportEmail = process.env.PARTNER_API_SUPPORT_EMAIL || process.env.EMAIL_REPLY_TO || 'partners@aviaframe.com'
+}) {
+  const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || 'noreply@aviaframe.com';
+  const replyTo = supportEmail || process.env.EMAIL_REPLY_TO || null;
+  const isProd = environment === 'production';
+  const baseUrl = isProd ? 'https://api.aviaframe.com/partner/v1' : 'https://sandbox-api.aviaframe.com/partner/v1';
+  const envLabel = isProd ? 'Production' : 'Sandbox';
+  const greetName = safe(contactName, 'there');
+  const org = safe(counterpartyName, 'your organization');
+  const subject = isNewKey
+    ? `Your new AviaFrame Connect API ${envLabel.toLowerCase()} key`
+    : `Your AviaFrame Connect API ${envLabel.toLowerCase()} access is ready`;
+
+  const searchLimit = safe(rateLimits.search_per_minute, '—');
+  const priceLimit = safe(rateLimits.price_per_minute, '—');
+  const mutationsLimit = safe(rateLimits.mutations_per_minute, '—');
+
+  const prodWarningHtml = isProd
+    ? `<div style="border-left:4px solid #dc2626;background:#fef2f2;padding:14px 16px;border-radius:10px;margin:0 0 24px">
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:#991b1b">Production environment — real bookings, real money</div>
+        <div style="font-size:14px;line-height:1.7;color:#334155">This key searches and books against live supplier inventory. Orders created with it are real and billable.</div>
+      </div>`
+    : '';
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f8fbff;padding:24px;color:#0f172a">
+      <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #dbe7ff;border-radius:18px;overflow:hidden">
+        <div style="padding:28px 32px;background:linear-gradient(135deg,${isProd ? '#991b1b 0%,#dc2626 100%' : '#1d4ed8 0%,#2563eb 100%'});color:#ffffff">
+          <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.92">AviaFrame Connect API — ${escapeHtml(envLabel)}</div>
+          <h1 style="margin:12px 0 8px;font-size:28px;line-height:1.2">${isNewKey ? 'Your new API key' : 'Your access is ready'}</h1>
+          <p style="margin:0;font-size:15px;line-height:1.6;opacity:.95">${isNewKey ? `A new ${escapeHtml(envLabel.toLowerCase())} API key was generated for ${escapeHtml(org)}.` : `Everything you need to make your first ${escapeHtml(envLabel.toLowerCase())} call today.`}</p>
+        </div>
+        <div style="padding:28px 32px">
+          <p style="margin:0 0 18px;font-size:15px;line-height:1.7">Hi ${escapeHtml(greetName)},</p>
+          ${prodWarningHtml}
+          <div style="border:1px solid #dbe7ff;border-radius:14px;padding:18px 20px;background:#f8fbff;margin:0 0 24px">
+            <div style="font-size:13px;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:700">Your credentials</div>
+            <div style="margin-bottom:8px"><strong>Environment:</strong> ${escapeHtml(envLabel)}</div>
+            <div style="margin-bottom:8px"><strong>API key:</strong> <code style="font-family:ui-monospace,Menlo,Consolas,monospace;background:#e2e8f0;padding:2px 6px;border-radius:6px;word-break:break-all">${escapeHtml(apiKey)}</code></div>
+            <div><strong>Base URL:</strong> <code style="font-family:ui-monospace,Menlo,Consolas,monospace;background:#e2e8f0;padding:2px 6px;border-radius:6px">${escapeHtml(baseUrl)}</code></div>
+          </div>
+          <div style="border-left:4px solid #f59e0b;background:#fffbeb;padding:14px 16px;border-radius:10px;margin:0 0 24px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:#92400e">This key is shown only once</div>
+            <div style="font-size:14px;line-height:1.7;color:#334155">Store it in a secrets manager now. If it's lost, request a new one — the raw value can't be retrieved again.</div>
+          </div>
+
+          <div style="margin:0 0 24px">
+            <div style="font-size:18px;font-weight:700;margin-bottom:12px">Quickstart — your first search</div>
+            <pre style="background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow-x:auto;font-size:13px;line-height:1.6;font-family:ui-monospace,Menlo,Consolas,monospace">curl -X POST ${escapeHtml(baseUrl)}/offers/search \\
+  -H "Authorization: Bearer ${escapeHtml(apiKey)}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "slices": [{"origin": "RUH", "destination": "DXB", "departure_date": "2026-10-10"}],
+    "passengers": [{"type": "ADT"}],
+    "cabin_class": "economy"
+  }'</pre>
+          </div>
+
+          <div style="border:1px solid #dbe7ff;border-radius:14px;padding:18px 20px;background:#f8fbff;margin:0 0 24px">
+            <div style="font-size:13px;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:700">Your rate limits (${escapeHtml(envLabel.toLowerCase())})</div>
+            <div style="margin-bottom:8px"><strong>Search:</strong> ${escapeHtml(searchLimit)} requests/min</div>
+            <div style="margin-bottom:8px"><strong>Price:</strong> ${escapeHtml(priceLimit)} requests/min</div>
+            <div><strong>Orders:</strong> ${escapeHtml(mutationsLimit)} requests/min</div>
+          </div>
+
+          <div style="margin:0 0 24px">
+            <div style="font-size:18px;font-weight:700;margin-bottom:12px">Next steps</div>
+            <ol style="padding-left:20px;margin:0;color:#334155;line-height:1.8">
+              <li>Run the search call above and confirm you get offers back.</li>
+              <li>Walk through a full search &rarr; price &rarr; create order flow.</li>
+              ${isProd
+                ? '<li>Confirm order status handling and idempotency on your side before ramping up real traffic.</li>'
+                : "<li>When you're ready for live inventory and real bookings, contact your account manager to move to production.</li>"}
+            </ol>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:12px;margin:0 0 24px">
+            <a href="${escapeHtml(docsUrl)}" style="display:inline-block;padding:13px 20px;border-radius:12px;background:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700">Open API docs</a>
+          </div>
+
+          <p style="margin:0;font-size:14px;line-height:1.7;color:#475569">Questions? Reply directly to this email${supportEmail ? ` or reach us at ${escapeHtml(supportEmail)}` : ''}.</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const text = [
+    subject,
+    '',
+    `Hi ${greetName},`,
+    isNewKey
+      ? `A new ${envLabel.toLowerCase()} API key was generated for ${org}.`
+      : `Your ${envLabel.toLowerCase()} AviaFrame Connect API access is ready.`,
+    isProd ? 'PRODUCTION — this key searches and books against live supplier inventory. Orders created with it are real and billable.' : null,
+    '',
+    'YOUR CREDENTIALS',
+    `Environment: ${envLabel}`,
+    `API key: ${apiKey}`,
+    `Base URL: ${baseUrl}`,
+    '',
+    "This key is shown only once. Store it in a secrets manager now — it can't be retrieved again if lost.",
+    '',
+    'QUICKSTART',
+    `curl -X POST ${baseUrl}/offers/search -H "Authorization: Bearer ${apiKey}" -H "Content-Type: application/json" -d '{"slices":[{"origin":"RUH","destination":"DXB","departure_date":"2026-10-10"}],"passengers":[{"type":"ADT"}],"cabin_class":"economy"}'`,
+    '',
+    `YOUR LIMITS (${envLabel.toLowerCase()})`,
+    `Search: ${searchLimit} requests/min`,
+    `Price: ${priceLimit} requests/min`,
+    `Orders: ${mutationsLimit} requests/min`,
+    '',
+    `Docs: ${docsUrl}`,
+    '',
+    `Questions? Reply to this email${supportEmail ? ` or contact ${supportEmail}` : ''}.`
+  ].filter(Boolean).join('\n');
+
+  if (isResendConfigured()) {
+    await sendViaResend({ from, to, subject, html, text, replyTo });
+    return { sent: true, error: null };
+  }
+  if (isSmtpConfigured()) {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    await transporter.sendMail({ from, to, replyTo: replyTo || undefined, subject, html, text });
+    return { sent: true, error: null };
+  }
+  return { sent: false, error: 'EMAIL_NOT_CONFIGURED' };
+}
+
+module.exports = { isConfigured, sendTicketEmail, sendSupportEmail, sendAgencyOnboardingEmail, sendAgencyLeadEmail, sendPartnerApiWelcomeEmail };

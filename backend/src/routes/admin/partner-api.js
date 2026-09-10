@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const express = require('express');
+const emailService = require('../../services/emailService');
 
 const COUNTERPARTY_STATUSES = new Set(['DRAFT', 'SANDBOX', 'ACTIVE', 'SUSPENDED', 'TERMINATED']);
 const CHANNELS = new Set(['ANY', 'GDS', 'NDC', 'LCC', 'UNKNOWN']);
@@ -62,6 +63,24 @@ function validatePricingRules(rules = []) {
 function generateApiKey(environment) {
   const mode = environment === 'production' ? 'live' : 'test';
   return `af_${mode}_${crypto.randomBytes(32).toString('base64url')}`;
+}
+
+function resolvePartnerContact(counterparty = {}) {
+  const technical = counterparty.technical_contact || {};
+  const commercial = counterparty.commercial_contact || {};
+  const email = String(technical.email || commercial.email || '').trim();
+  const name = String(technical.name || commercial.name || '').trim();
+  return { email, name };
+}
+
+async function sendPartnerWelcomeEmailSafely(params) {
+  try {
+    if (!params.to) return { sent: false, error: 'NO_CONTACT_EMAIL' };
+    return await emailService.sendPartnerApiWelcomeEmail(params);
+  } catch (err) {
+    console.error('[partner-api-admin] failed to send partner welcome email', err);
+    return { sent: false, error: err.message || 'SEND_FAILED' };
+  }
 }
 
 function createPartnerApiAdminRouter({
@@ -205,7 +224,24 @@ function createPartnerApiAdminRouter({
       p_scopes: ['offers:read', 'orders:create', 'orders:read'],
     });
     if (error) return errorResponse(res, 500, 'PROVISION_FAILED', 'Failed to provision API counterparty');
-    return res.status(201).json({ provisioning: data, api_key: rawKey, api_key_display_once: true });
+
+    const contact = resolvePartnerContact(payload);
+    let rateLimits = {};
+    if (data?.client_id) {
+      const { data: newClient } = await supabase.from('api_clients').select('rate_limits').eq('id', data.client_id).maybeSingle();
+      rateLimits = newClient?.rate_limits || {};
+    }
+    const emailResult = await sendPartnerWelcomeEmailSafely({
+      to: contact.email,
+      contactName: contact.name,
+      counterpartyName: payload.trading_name || payload.legal_name,
+      environment: 'sandbox',
+      apiKey: rawKey,
+      rateLimits,
+      isNewKey: false,
+    });
+
+    return res.status(201).json({ provisioning: data, api_key: rawKey, api_key_display_once: true, welcome_email: emailResult });
   });
 
   router.post('/counterparties/:counterpartyId/clients', async (req, res) => {
@@ -218,7 +254,7 @@ function createPartnerApiAdminRouter({
     }
     const { data: counterparty, error: counterpartyError } = await supabase
       .from('api_counterparties')
-      .select('id,settlement_currency')
+      .select('id,settlement_currency,legal_name,trading_name,technical_contact,commercial_contact')
       .eq('id', counterpartyId)
       .maybeSingle();
     if (counterpartyError) return errorResponse(res, 500, 'DB_ERROR', 'Failed to load API counterparty');
@@ -251,7 +287,24 @@ function createPartnerApiAdminRouter({
       }
       return errorResponse(res, 500, 'PROVISION_FAILED', 'Failed to provision API client');
     }
-    return res.status(201).json({ provisioning: data, api_key: rawKey, api_key_display_once: true });
+
+    const contact = resolvePartnerContact(counterparty);
+    let rateLimits = {};
+    if (data?.client_id) {
+      const { data: newClient } = await supabase.from('api_clients').select('rate_limits').eq('id', data.client_id).maybeSingle();
+      rateLimits = newClient?.rate_limits || {};
+    }
+    const emailResult = await sendPartnerWelcomeEmailSafely({
+      to: contact.email,
+      contactName: contact.name,
+      counterpartyName: counterparty.trading_name || counterparty.legal_name,
+      environment,
+      apiKey: rawKey,
+      rateLimits,
+      isNewKey: false,
+    });
+
+    return res.status(201).json({ provisioning: data, api_key: rawKey, api_key_display_once: true, welcome_email: emailResult });
   });
 
   router.patch('/counterparties/:counterpartyId', async (req, res) => {
@@ -279,7 +332,7 @@ function createPartnerApiAdminRouter({
   router.post('/clients/:clientId/credentials', async (req, res) => {
     const { data: client, error: clientError } = await supabase
       .from('api_clients')
-      .select('id,environment')
+      .select('id,environment,counterparty_id,rate_limits')
       .eq('id', req.params.clientId)
       .maybeSingle();
     if (clientError) return errorResponse(res, 500, 'DB_ERROR', 'Failed to load API client');
@@ -303,7 +356,24 @@ function createPartnerApiAdminRouter({
       .select('id,api_client_id,name,key_prefix,scopes,expires_at,created_at')
       .single();
     if (error) return errorResponse(res, 500, 'DB_ERROR', 'Failed to create API credential');
-    return res.status(201).json({ credential: data, api_key: rawKey, api_key_display_once: true });
+
+    const { data: counterparty } = await supabase
+      .from('api_counterparties')
+      .select('legal_name,trading_name,technical_contact,commercial_contact')
+      .eq('id', client.counterparty_id)
+      .maybeSingle();
+    const contact = resolvePartnerContact(counterparty || {});
+    const emailResult = await sendPartnerWelcomeEmailSafely({
+      to: contact.email,
+      contactName: contact.name,
+      counterpartyName: counterparty?.trading_name || counterparty?.legal_name,
+      environment: client.environment,
+      apiKey: rawKey,
+      rateLimits: client.rate_limits || {},
+      isNewKey: true,
+    });
+
+    return res.status(201).json({ credential: data, api_key: rawKey, api_key_display_once: true, welcome_email: emailResult });
   });
 
   router.delete('/clients/:clientId/credentials/:credentialId', async (req, res) => {
