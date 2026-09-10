@@ -383,8 +383,9 @@ export default function ApiPartnersPanel() {
     setTestPricedOffer(null);
     setTestOrderResult(null);
     setTestAudits({});
-    if (!testApiKey.trim().startsWith('af_test_')) {
-      setTestError('Paste the sandbox key beginning with af_test_.');
+    const trimmedTestKey = testApiKey.trim();
+    if (!trimmedTestKey.startsWith('af_test_') && !trimmedTestKey.startsWith('af_live_')) {
+      setTestError('Paste an API key beginning with af_test_ (sandbox) or af_live_ (production).');
       return;
     }
     setTestLoading(true);
@@ -441,6 +442,10 @@ export default function ApiPartnersPanel() {
   const handleTestOrder = async () => {
     setTestError('');
     setTestOrderResult(null);
+    if (testApiKey.trim().startsWith('af_live_')) {
+      setTestError('Order creation is disabled here for af_live_ (production) keys: it would create a REAL DRCT booking and charge real money. Use a sandbox (af_test_) key to test the order flow, or call POST /orders directly with extra care if you specifically need to test a live purchase.');
+      return;
+    }
     if (!testOrderForm.confirmed) {
       setTestError('Confirm that you understand this creates a DRCT sandbox order.');
       return;
@@ -631,15 +636,15 @@ export default function ApiPartnersPanel() {
                   <div className="flex items-start gap-3">
                     <div className="rounded-lg bg-[var(--af-bg)] p-2 text-[var(--af-primary)]"><Search size={20} /></div>
                     <div>
-                      <h4 className="font-bold text-[var(--af-text)]">Sandbox API tester</h4>
+                      <h4 className="font-bold text-[var(--af-text)]">API tester (sandbox + production search)</h4>
                       <p className="mt-1 text-sm text-[var(--af-text-muted)]">Runs the complete external-client flow: Search → Reprice → Create sandbox order. Returned prices already include this counterparty&apos;s published markup.</p>
                     </div>
                   </div>
-                  <Alert tone="warning" className="mt-4">Use only a disposable <code>af_test_</code> key. It stays in memory for this page. Order creation calls DRCT sandbox and never creates a production booking.</Alert>
+                  <Alert tone="warning" className="mt-4">Search/price accept both <code>af_test_</code> (sandbox) and <code>af_live_</code> (production, real DRCT inventory and pricing) keys — the key stays in memory for this page only. Order creation only works with an <code>af_test_</code> key here; a production key cannot create an order through this tester, since that would be a real DRCT purchase with real money.</Alert>
 
                   <form onSubmit={handleTestSearch} className="mt-4 space-y-3">
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                      <Field className="md:col-span-2" label="Sandbox API key" htmlFor="partner-test-key" hint="Generate a new key above if the original was not saved."><input id="partner-test-key" className="af-input font-mono" type="password" autoComplete="new-password" spellCheck="false" placeholder="af_test_…" value={testApiKey} onChange={(e) => setTestApiKey(e.target.value)} /></Field>
+                      <Field className="md:col-span-2" label="API key (sandbox or production)" htmlFor="partner-test-key" hint="Generate a new key above if the original was not saved."><input id="partner-test-key" className="af-input font-mono" type="password" autoComplete="new-password" spellCheck="false" placeholder="af_test_… or af_live_…" value={testApiKey} onChange={(e) => setTestApiKey(e.target.value)} /></Field>
                       <Field label="Trip type" htmlFor="partner-test-trip"><select id="partner-test-trip" className="af-input" value={testSearch.trip_type} onChange={(e) => setTestSearch((current) => ({ ...current, trip_type: e.target.value }))}><option value="one_way">One-way</option><option value="round_trip">Round trip</option></select></Field>
                       <Field label="Cabin" htmlFor="partner-test-cabin"><select id="partner-test-cabin" className="af-input" value={testSearch.cabin_class} onChange={(e) => setTestSearch((current) => ({ ...current, cabin_class: e.target.value }))}><option value="economy">Economy</option><option value="premium_economy">Premium economy</option><option value="business">Business</option><option value="first">First</option></select></Field>
                     </div>
