@@ -8,7 +8,33 @@ const supabase = require('../lib/supabase');
 const { config } = require('../config');
 const { resolveAuthContext, forbidden, ensureStaff, ensureAdmin } = require('../middleware/auth');
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+// Self-service image uploads (logo, hero background): 5MB cap, image
+// mimetypes only. Rejecting anything else here (rather than trusting the
+// client) closes the gap where a mislabeled non-image file could slip
+// through.
+const ALLOWED_IMAGE_MIMETYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_IMAGE_MIMETYPES.has(file.mimetype)) {
+      return cb(new Error('Only PNG, JPG, WebP or SVG images are allowed'));
+    }
+    cb(null, true);
+  }
+});
+
+// Runs multer directly (bypassing the app-wide error handler, which hides
+// error.message outside development) so a rejected file gets a specific,
+// safe-to-show reason back to the agent instead of a generic 500.
+function uploadSingleImage(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: { code: 'INVALID_FILE', message: err.message } });
+    }
+    next();
+  });
+}
 const {
   generateAgencySiteFiles,
   buildAgencyDeployFiles,
@@ -640,8 +666,42 @@ router.post('/me/redeploy-site', async (req, res) => {
   return forbidden(res, 'Self-service publishing is disabled. Contact a super admin to publish agency site updates.');
 });
 
+// POST /me/upload/media — agency self-service image upload for non-logo
+// images (currently: hero background). Same restrictions/pattern as
+// /me/upload/logo (image mimetypes only, 5MB cap via the shared `upload`
+// multer instance), just a different storage folder so hero images don't
+// collide with logos.
+router.post('/me/upload/media', uploadSingleImage, async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+
+  const role = String(auth.profile?.role || '').trim().toLowerCase();
+  const isAllowed = ['admin', 'super_admin', 'agent'].includes(role) || Boolean(auth.profile?.agency_id);
+  if (!isAllowed) return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Agency account required' } });
+
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: { code: 'NO_FILE', message: 'No file uploaded' } });
+
+  const ext = file.mimetype.split('/')[1]?.replace('jpeg', 'jpg').replace('svg+xml', 'svg') || 'jpg';
+  const agencyId = auth.profile?.agency_id || 'shared';
+  const filename = `media/${agencyId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+
+  try {
+    const { error } = await supabase.storage
+      .from('agency-assets')
+      .upload(filename, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (error) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: error.message } });
+
+    const { data: urlData } = supabase.storage.from('agency-assets').getPublicUrl(filename);
+    return res.json({ url: urlData.publicUrl });
+  } catch (err) {
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
 // POST /me/upload/logo — agency manager logo upload (accessible to staff + agency managers)
-router.post('/me/upload/logo', upload.single('file'), async (req, res) => {
+router.post('/me/upload/logo', uploadSingleImage, async (req, res) => {
   const auth = await resolveAuthContext(req);
   if (auth.error) return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
 

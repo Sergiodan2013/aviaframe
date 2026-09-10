@@ -942,6 +942,28 @@ export const uploadAgencyMedia = async (file, agencyId) => {
 
 export const uploadToDestinationLibrary = async (file) => uploadAgencyMedia(file, null);
 
+// Agent-accessible image upload (currently: hero background) — hits
+// /agency/me/upload/media, which (unlike /admin/upload/media) is not
+// admin-only. Same 5MB / PNG-JPG-WebP-SVG restrictions enforced server-side.
+export const uploadMyAgencyMedia = async (file) => {
+  try {
+    const headers = await getBackendAuthHeaders();
+    const formData = new FormData();
+    formData.append('file', file);
+    const base = String(backendApiBaseUrl || '/api/backend').replace(/\/+$/, '');
+    const resp = await fetch(`${base}/agency/me/upload/media`, {
+      method: 'POST',
+      headers: { Authorization: headers.Authorization },
+      body: formData
+    });
+    const json = await resp.json();
+    if (!resp.ok) return { url: null, error: json?.error || { message: 'Upload failed' } };
+    return { url: json.url || null, error: null };
+  } catch (err) {
+    return { url: null, error: { message: err?.message || 'Upload failed' } };
+  }
+};
+
 export const listDestinationLibrary = async () => {
   try {
     const headers = await getBackendAuthHeaders();

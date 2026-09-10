@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Surface, Alert } from '@aviaframe/ui';
-import { updateMyAgencyContent } from '../lib/supabase';
+import { updateMyAgencyContent, uploadAgencyLogo, uploadMyAgencyMedia } from '../lib/supabase';
 
 // Every field here maps 1:1 to a field the backend already serves through
 // GET /public/agencies/:subdomain/content and applies at runtime via
@@ -74,6 +74,77 @@ function Field({ label, hint, children }) {
 }
 
 const inputCls = 'w-full border rounded px-2 py-1.5 text-sm';
+
+// Matches the 5MB / PNG-JPG-WebP-SVG restriction the backend enforces
+// server-side (agency.js `upload`/ALLOWED_IMAGE_MIMETYPES) — rejected
+// immediately here too so a bad file never leaves the browser.
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+// Real "pick a file from your computer" upload — most agencies don't have
+// their logo/hero photo hosted anywhere with a public URL already. Falls
+// back to a manual URL field for the (rarer) case where they do.
+function ImageUploadField({ label, hint, value, onChange, uploadFn }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const inputId = `img-upload-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadError(null);
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setUploadError('Only PNG, JPG, WebP or SVG images are allowed.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setUploadError('Image is too large — max 5MB.');
+      return;
+    }
+    setUploading(true);
+    const { url, error } = await uploadFn(file);
+    setUploading(false);
+    if (error) {
+      setUploadError(error.message || 'Upload failed');
+      return;
+    }
+    if (url) onChange(url);
+  };
+
+  return (
+    <Field label={label} hint={hint}>
+      <div className="flex items-center gap-3">
+        {value ? (
+          <img src={value} alt="" className="h-12 w-12 rounded object-cover border bg-white" />
+        ) : (
+          <div className="h-12 w-12 rounded border border-dashed flex items-center justify-center text-[10px] text-gray-400">
+            none
+          </div>
+        )}
+        <div className="flex-1">
+          <label htmlFor={inputId} className={`inline-block rounded px-3 py-1.5 text-sm font-medium cursor-pointer ${uploading ? 'bg-gray-200 text-gray-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            {uploading ? 'Uploading...' : value ? 'Replace image' : 'Choose image'}
+          </label>
+          <input id={inputId} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleFile} disabled={uploading} />
+          {value && (
+            <button type="button" onClick={() => onChange('')} className="ml-2 text-xs text-gray-400 hover:text-red-500">
+              Remove
+            </button>
+          )}
+          <button type="button" onClick={() => setShowUrlInput((v) => !v)} className="ml-2 text-xs text-blue-500 hover:underline">
+            {showUrlInput ? 'Hide URL field' : 'Paste URL instead'}
+          </button>
+          {uploadError && <p className="text-xs text-red-500 mt-1">{uploadError}</p>}
+        </div>
+      </div>
+      {showUrlInput && (
+        <input className={`${inputCls} mt-2`} value={value} onChange={(e) => onChange(e.target.value)} placeholder="https://..." />
+      )}
+    </Field>
+  );
+}
 
 export default function AgencyContentSettings({ agency }) {
   const [form, setForm] = useState(() => buildFormFromAgency(agency));
@@ -174,7 +245,7 @@ export default function AgencyContentSettings({ agency }) {
         <section>
           <h3 className="text-sm font-semibold text-gray-800 mb-2">Branding</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            <Field label="Logo URL"><input className={inputCls} value={form.logo_url} onChange={set('logo_url')} placeholder="https://..." /></Field>
+            <ImageUploadField label="Logo" value={form.logo_url} onChange={(url) => setForm((p) => ({ ...p, logo_url: url }))} uploadFn={uploadAgencyLogo} />
             <Field label="Brand color">
               <div className="flex items-center gap-2">
                 <input type="color" className="w-10 h-8 rounded cursor-pointer border" value={form.brand_color} onChange={set('brand_color')} />
@@ -209,7 +280,7 @@ export default function AgencyContentSettings({ agency }) {
           <h3 className="text-sm font-semibold text-gray-800 mb-2">Hero & about</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field label="Hero tagline"><input className={inputCls} value={form.hero_tagline} onChange={set('hero_tagline')} /></Field>
-            <Field label="Hero background image URL"><input className={inputCls} value={form.hero_image_url} onChange={set('hero_image_url')} /></Field>
+            <ImageUploadField label="Hero background image" value={form.hero_image_url} onChange={(url) => setForm((p) => ({ ...p, hero_image_url: url }))} uploadFn={uploadMyAgencyMedia} />
             <Field label="Hero subtitle" hint="Shown under the tagline.">
               <textarea className={inputCls} rows={2} value={form.hero_description} onChange={set('hero_description')} />
             </Field>
