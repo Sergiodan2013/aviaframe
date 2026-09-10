@@ -105,6 +105,7 @@ export default function ApiPartnersPanel() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [rules, setRules] = useState([DEFAULT_RULE]);
+  const [pricingEnv, setPricingEnv] = useState('sandbox');
   const [changeNote, setChangeNote] = useState('Commercial pricing update');
   const [oneTimeKey, setOneTimeKey] = useState('');
   const [showAddClient, setShowAddClient] = useState(false);
@@ -172,13 +173,6 @@ export default function ApiPartnersPanel() {
       return;
     }
     setDetail(data);
-    const activePlan = data?.pricing_plans?.find((plan) => plan.environment === 'sandbox') || data?.pricing_plans?.[0];
-    setRules((activePlan?.rules?.length ? activePlan.rules : [DEFAULT_RULE]).map((rule) => ({
-      ...DEFAULT_RULE,
-      ...rule,
-      fixed_amount: String(rule.fixed_amount ?? 0),
-      fixed_currency: rule.fixed_currency || data.counterparty.settlement_currency,
-    })));
   };
 
   useEffect(() => {
@@ -205,16 +199,24 @@ export default function ApiPartnersPanel() {
         return;
       }
       setDetail(data);
-      const activePlan = data?.pricing_plans?.find((plan) => plan.environment === 'sandbox') || data?.pricing_plans?.[0];
-      setRules((activePlan?.rules?.length ? activePlan.rules : [DEFAULT_RULE]).map((rule) => ({
-        ...DEFAULT_RULE,
-        ...rule,
-        fixed_amount: String(rule.fixed_amount ?? 0),
-        fixed_currency: rule.fixed_currency || data.counterparty.settlement_currency,
-      })));
     });
     return () => { active = false; };
   }, [selectedId]);
+
+  useEffect(() => {
+    setPricingEnv('sandbox');
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!detail) return;
+    const activePlan = detail?.pricing_plans?.find((plan) => plan.environment === pricingEnv) || null;
+    setRules((activePlan?.rules?.length ? activePlan.rules : [DEFAULT_RULE]).map((rule) => ({
+      ...DEFAULT_RULE,
+      ...rule,
+      fixed_amount: String(rule.fixed_amount ?? 0),
+      fixed_currency: rule.fixed_currency || detail.counterparty.settlement_currency,
+    })));
+  }, [detail, pricingEnv]);
 
   const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const updateContact = (group, field, value) => setForm((current) => ({
@@ -314,14 +316,14 @@ export default function ApiPartnersPanel() {
       priority: index,
     }));
     const { error } = await publishPartnerPricingVersion(selectedId, {
-      environment: 'sandbox',
+      environment: pricingEnv,
       change_note: changeNote,
       rules: payloadRules,
     });
     setSaving(false);
     if (error) return setNotice({ tone: 'danger', text: messageOf(error) });
     await loadDetail(selectedId);
-    setNotice({ tone: 'success', text: 'A new immutable sandbox pricing version is now active.' });
+    setNotice({ tone: 'success', text: `A new immutable ${pricingEnv} pricing version is now active.` });
   };
 
   const handleNewKey = async (clientId) => {
@@ -614,7 +616,12 @@ export default function ApiPartnersPanel() {
                 </section>
 
                 <section>
-                  <div className="mb-1 flex items-center gap-2"><SlidersHorizontal size={18} className="text-[var(--af-primary)]" /><h4 className="font-bold text-[var(--af-text)]">Sandbox pricing matrix</h4></div>
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2"><SlidersHorizontal size={18} className="text-[var(--af-primary)]" /><h4 className="font-bold text-[var(--af-text)]">{pricingEnv === 'production' ? 'Production' : 'Sandbox'} pricing matrix</h4></div>
+                    <div className="flex gap-1 rounded-lg border border-[var(--af-border)] p-1">{['sandbox', 'production'].map((env) => <button key={env} type="button" className={`rounded px-3 py-1 text-xs font-semibold uppercase ${pricingEnv === env ? 'bg-[var(--af-primary)] text-white' : 'text-[var(--af-text-muted)]'}`} onClick={() => setPricingEnv(env)}>{env}</button>)}</div>
+                  </div>
+                  {pricingEnv === 'production' && <Alert tone="warning" className="my-2">Editing PRODUCTION pricing — publishing here changes the markup applied to real, live bookings immediately.</Alert>}
+                  {detail && !detail?.pricing_plans?.some((plan) => plan.environment === pricingEnv) && <Alert tone="danger" className="my-2">No {pricingEnv} pricing plan exists yet for this counterparty. Create a {pricingEnv} API client above first (it provisions the pricing plan automatically), then come back here.</Alert>}
                   <p className="text-sm text-[var(--af-text-muted)]">Rules inherit from ANY/ANY to channel, carrier, then channel + carrier. Publishing creates a new immutable version.</p>
                   <p className="mb-3 mt-2 rounded-lg border border-[var(--af-border)] bg-[var(--af-bg)] px-3 py-2 text-sm text-[var(--af-text-muted)]">
                     <strong className="text-[var(--af-text)]">Sale access:</strong> Sell (ALLOW) includes matching offers in new search and pricing responses. Block (DENY) excludes them from new searches and repricing; markup values are ignored. An already confirmed, unexpired quote keeps its existing lifecycle.
@@ -629,7 +636,7 @@ export default function ApiPartnersPanel() {
                       })}</tbody>
                     </table>
                   </div>
-                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><Button variant="secondary" onClick={() => setRules((current) => [...current, { ...DEFAULT_RULE, fixed_currency: detail.counterparty.settlement_currency, channel: 'ANY', carrier_code: '', priority: current.length }])}><Plus size={15} /> Add carrier override</Button><div className="flex flex-1 flex-col gap-2 sm:max-w-xl sm:flex-row"><Field className="flex-1" label="Publication note"><input className="af-input" value={changeNote} onChange={(e) => setChangeNote(e.target.value)} /></Field><Button className="sm:self-end" onClick={handlePublish} disabled={saving}>{saving ? 'Publishing…' : 'Publish new version'}</Button></div></div>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><Button variant="secondary" onClick={() => setRules((current) => [...current, { ...DEFAULT_RULE, fixed_currency: detail.counterparty.settlement_currency, channel: 'ANY', carrier_code: '', priority: current.length }])}><Plus size={15} /> Add carrier override</Button><div className="flex flex-1 flex-col gap-2 sm:max-w-xl sm:flex-row"><Field className="flex-1" label="Publication note"><input className="af-input" value={changeNote} onChange={(e) => setChangeNote(e.target.value)} /></Field><Button className="sm:self-end" onClick={handlePublish} disabled={saving || !detail?.pricing_plans?.some((plan) => plan.environment === pricingEnv)}>{saving ? 'Publishing…' : `Publish ${pricingEnv} version`}</Button></div></div>
                 </section>
 
                 <Surface as="section" className="p-4">
