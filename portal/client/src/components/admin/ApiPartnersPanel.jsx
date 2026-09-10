@@ -3,6 +3,7 @@ import { Building2, Check, Copy, KeyRound, Plus, RefreshCw, Search, ShieldCheck,
 import { Alert, Button, Field, StatusBadge, Surface } from '@aviaframe/ui';
 import {
   createApiCounterparty,
+  createPartnerApiClient,
   createPartnerApiCredential,
   getApiCounterparties,
   getApiCounterparty,
@@ -106,6 +107,13 @@ export default function ApiPartnersPanel() {
   const [rules, setRules] = useState([DEFAULT_RULE]);
   const [changeNote, setChangeNote] = useState('Commercial pricing update');
   const [oneTimeKey, setOneTimeKey] = useState('');
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({
+    environment: 'production',
+    default_percent: 5,
+    default_fixed_amount: 0,
+    allowed_channels: ['GDS', 'NDC', 'LCC'],
+  });
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState(null);
   const [testApiKey, setTestApiKey] = useState('');
@@ -246,6 +254,34 @@ export default function ApiPartnersPanel() {
     if (error) return setNotice({ tone: 'danger', text: messageOf(error) });
     await Promise.all([loadList(), loadDetail(selectedId)]);
     setNotice({ tone: 'success', text: `Counterparty status changed to ${status}.` });
+  };
+
+  const toggleNewClientChannel = (channel) => setNewClientForm((current) => ({
+    ...current,
+    allowed_channels: current.allowed_channels.includes(channel)
+      ? current.allowed_channels.filter((item) => item !== channel)
+      : [...current.allowed_channels, channel],
+  }));
+
+  const handleCreateClient = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    const { data, error } = await createPartnerApiClient(selectedId, {
+      environment: newClientForm.environment,
+      default_percent: newClientForm.default_percent,
+      default_fixed_amount: newClientForm.default_fixed_amount,
+      allowed_channels: newClientForm.allowed_channels,
+      settlement_currency: detail?.counterparty?.settlement_currency,
+    });
+    setSaving(false);
+    if (error) {
+      setNotice({ tone: 'danger', text: messageOf(error) });
+      return;
+    }
+    setOneTimeKey(data.api_key || '');
+    setShowAddClient(false);
+    await loadDetail(selectedId);
+    setNotice({ tone: 'success', text: `${newClientForm.environment === 'production' ? 'Production' : 'Sandbox'} client, pricing, and API key created.` });
   };
 
   const updateRule = (index, field, value) => setRules((current) => current.map((rule, ruleIndex) => (
@@ -532,6 +568,44 @@ export default function ApiPartnersPanel() {
                       </div>
                     ))}
                   </div>
+
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-[var(--af-text-muted)]">Each environment (sandbox / production) is a separate client with its own credentials and pricing plan.</p>
+                    <Button variant="secondary" onClick={() => setShowAddClient((value) => !value)}><Plus size={15} /> Add API client</Button>
+                  </div>
+
+                  {showAddClient && (
+                    <form onSubmit={handleCreateClient} className="mt-3 rounded-xl border border-[var(--af-border)] p-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Environment" htmlFor="new-client-env">
+                          <select id="new-client-env" className="af-input" value={newClientForm.environment} onChange={(e) => setNewClientForm((current) => ({ ...current, environment: e.target.value }))}>
+                            <option value="sandbox">Sandbox</option>
+                            <option value="production">Production — real DRCT, real money</option>
+                          </select>
+                        </Field>
+                        <Field label="Default markup, %" htmlFor="new-client-percent"><input id="new-client-percent" type="number" min="0" step="0.01" className="af-input" value={newClientForm.default_percent} onChange={(e) => setNewClientForm((current) => ({ ...current, default_percent: e.target.value }))} /></Field>
+                      </div>
+                      <fieldset className="mt-3">
+                        <legend className="mb-2 text-sm font-semibold text-[var(--af-text)]">Enabled content</legend>
+                        <div className="flex flex-wrap gap-3">
+                          {['GDS', 'NDC', 'LCC'].map((channel) => (
+                            <label key={channel} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--af-border)] px-3 py-2 text-sm">
+                              <input type="checkbox" checked={newClientForm.allowed_channels.includes(channel)} onChange={() => toggleNewClientChannel(channel)} /> {channel}
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                      {newClientForm.environment === 'production' && (
+                        <p className="mt-3 rounded-lg border border-[var(--af-danger)] bg-[var(--af-danger)]/10 px-3 py-2 text-sm text-[var(--af-danger)]">
+                          Production issues real tickets against the live DRCT contract with real money. Only create this once the counterparty has a signed contract, and only hand the key to them then.
+                        </p>
+                      )}
+                      <div className="mt-4 flex justify-end gap-2">
+                        <Button variant="secondary" onClick={() => setShowAddClient(false)}>Cancel</Button>
+                        <Button type="submit" disabled={saving}>{saving ? 'Provisioning…' : `Create ${newClientForm.environment} client`}</Button>
+                      </div>
+                    </form>
+                  )}
                 </section>
 
                 <section>

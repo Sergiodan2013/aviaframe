@@ -208,6 +208,47 @@ function createPartnerApiAdminRouter({
     return res.status(201).json({ provisioning: data, api_key: rawKey, api_key_display_once: true });
   });
 
+  router.post('/counterparties/:counterpartyId/clients', async (req, res) => {
+    const { counterpartyId } = req.params;
+    const environment = String(req.body?.environment || '').trim().toLowerCase();
+    if (!['sandbox', 'production'].includes(environment)) {
+      return errorResponse(res, 400, 'VALIDATION_ERROR', 'Client environment is invalid', [
+        { field: 'environment', issue: 'Use sandbox or production' },
+      ]);
+    }
+    const { data: counterparty, error: counterpartyError } = await supabase
+      .from('api_counterparties')
+      .select('id,settlement_currency')
+      .eq('id', counterpartyId)
+      .maybeSingle();
+    if (counterpartyError) return errorResponse(res, 500, 'DB_ERROR', 'Failed to load API counterparty');
+    if (!counterparty) return errorResponse(res, 404, 'NOT_FOUND', 'API counterparty not found');
+
+    const rawKey = generateApiKey(environment);
+    const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+    const payload = {
+      name: req.body?.name || undefined,
+      allowed_channels: Array.isArray(req.body?.allowed_channels) && req.body.allowed_channels.length
+        ? req.body.allowed_channels
+        : ['GDS', 'NDC', 'LCC'],
+      default_percent_bps: Math.round(Number(req.body?.default_percent || 0) * 100),
+      default_fixed_amount: String(req.body?.default_fixed_amount || 0),
+      default_fixed_currency: String(req.body?.settlement_currency || counterparty.settlement_currency || 'SAR').toUpperCase(),
+      rate_limits: req.body?.rate_limits || undefined,
+    };
+    const { data, error } = await supabase.rpc('provision_partner_api_client', {
+      p_counterparty_id: counterpartyId,
+      p_environment: environment,
+      p_payload: payload,
+      p_created_by: req.adminAuth.profile.id,
+      p_key_hash: keyHash,
+      p_key_prefix: rawKey.slice(0, 20),
+      p_scopes: ['offers:read', 'orders:create', 'orders:read'],
+    });
+    if (error) return errorResponse(res, 500, 'PROVISION_FAILED', 'Failed to provision API client');
+    return res.status(201).json({ provisioning: data, api_key: rawKey, api_key_display_once: true });
+  });
+
   router.patch('/counterparties/:counterpartyId', async (req, res) => {
     const allowed = {};
     for (const field of ['legal_name', 'trading_name', 'tax_number', 'contract_number', 'contract_starts_on', 'contract_ends_on', 'credit_limit', 'billing_terms_days', 'commercial_contact', 'technical_contact', 'finance_contact']) {

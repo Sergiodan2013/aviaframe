@@ -871,6 +871,11 @@ export const publishPartnerPricingVersion = async (counterpartyId, payload) => {
   return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
 };
 
+export const createPartnerApiClient = async (counterpartyId, payload) => {
+  const result = await backendApiRequest(`/admin/partner-api/counterparties/${counterpartyId}/clients`, { method: 'POST', body: payload });
+  return result.error ? { data: null, error: result.error } : { data: result.data, error: null };
+};
+
 export const getPartnerQuoteAudit = async (counterpartyId, quoteId) => {
   const query = new URLSearchParams({ counterparty_id: counterpartyId });
   const result = await backendApiRequest(`/admin/partner-api/quotes/${encodeURIComponent(quoteId)}/audit?${query}`);
