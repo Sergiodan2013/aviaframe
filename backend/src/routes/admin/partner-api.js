@@ -245,7 +245,12 @@ function createPartnerApiAdminRouter({
       p_key_prefix: rawKey.slice(0, 20),
       p_scopes: ['offers:read', 'orders:create', 'orders:read'],
     });
-    if (error) return errorResponse(res, 500, 'PROVISION_FAILED', 'Failed to provision API client');
+    if (error) {
+      if (String(error.message || '').includes('ACTIVE_PRICING_PLAN_ALREADY_EXISTS')) {
+        return errorResponse(res, 409, 'ACTIVE_PRICING_PLAN_ALREADY_EXISTS', `This counterparty already has an active ${environment} client. Generate a new key on the existing client instead of adding another one for the same environment.`);
+      }
+      return errorResponse(res, 500, 'PROVISION_FAILED', 'Failed to provision API client');
+    }
     return res.status(201).json({ provisioning: data, api_key: rawKey, api_key_display_once: true });
   });
 
