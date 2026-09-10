@@ -143,8 +143,11 @@ function isEntitled(entitlements, operation, channel, carrierCode) {
   if (!operations.includes(operation)) return false;
 
   const channels = Array.isArray(entitlements.allowed_channels) ? entitlements.allowed_channels : [];
-  if (channel === 'UNKNOWN' && !entitlements.allow_unknown_channel) return false;
-  if (channels.length && !channels.includes(channel)) return false;
+  if (channel === 'UNKNOWN') {
+    if (!entitlements.allow_unknown_channel) return false;
+  } else if (channels.length && !channels.includes(channel)) {
+    return false;
+  }
 
   const allowedCarriers = Array.isArray(entitlements.allowed_carriers) ? entitlements.allowed_carriers : [];
   const deniedCarriers = Array.isArray(entitlements.denied_carriers) ? entitlements.denied_carriers : [];
