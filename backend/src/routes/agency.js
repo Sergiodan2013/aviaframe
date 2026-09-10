@@ -422,7 +422,7 @@ router.patch('/me', async (req, res) => {
 // PATCH /me/content
 // Agency self-service content editor — scoped ONLY to fields that are (a)
 // purely presentational/informational (colors, logo, text, images, links,
-// promo banner, analytics ids, notification inbox) and (b) already served
+// analytics ids, notification inbox) and (b) already served
 // through the runtime content-hydrate endpoint (GET /public/agencies/:subdomain
 // /content — see routes/public.js), so a save here takes effect on the next
 // page load with NO Netlify redeploy and NO money movement. Pricing,
@@ -532,16 +532,6 @@ router.patch('/me/content', async (req, res) => {
     else metaPixelId = v;
   }
 
-  let promoBanner;
-  if (body.promo_banner !== undefined) {
-    const pb = body.promo_banner && typeof body.promo_banner === 'object' ? body.promo_banner : {};
-    const text = String(pb.text || '').trim().slice(0, 200);
-    const textAr = String(pb.text_ar || '').trim().slice(0, 200);
-    let link = String(pb.link || '').trim();
-    if (link && !URL_RE.test(link)) { errors.push('promo_banner.link must be a valid http(s) URL'); link = ''; }
-    promoBanner = { enabled: Boolean(pb.enabled) && Boolean(text || textAr), text, text_ar: textAr, link };
-  }
-
   let services;
   if (body.services !== undefined) {
     const requested = Array.isArray(body.services) ? body.services : [];
@@ -591,7 +581,6 @@ router.patch('/me/content', async (req, res) => {
     assign('ga_measurement_id', gaMeasurementId);
     assign('meta_pixel_id', metaPixelId);
     assign('notification_email', notificationEmail);
-    if (promoBanner !== undefined) site.promo_banner = promoBanner;
     if (services !== undefined) site.services = services;
 
     settings.site = site;

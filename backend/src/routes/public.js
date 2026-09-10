@@ -602,12 +602,6 @@ router.get('/agencies/:subdomain/content', publicAgencyContentRateLimiter, async
       default_display_currency: ['SAR', 'USD', 'EUR'].includes(String(site.default_display_currency || '').toUpperCase())
         ? String(site.default_display_currency).toUpperCase()
         : 'SAR',
-      promo_banner: {
-        enabled: Boolean(site.promo_banner?.enabled && (site.promo_banner?.text || site.promo_banner?.text_ar)),
-        text: site.promo_banner?.text || '',
-        text_ar: site.promo_banner?.text_ar || '',
-        link: site.promo_banner?.link || ''
-      },
       ga_measurement_id: site.ga_measurement_id || '',
       meta_pixel_id: site.meta_pixel_id || '',
       theme: {

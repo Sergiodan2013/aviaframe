@@ -241,20 +241,6 @@
     }
   }
 
-  function applyPromoBanner(data) {
-    const banner = document.getElementById('av-promo-banner');
-    if (!banner) return;
-    const promo = data.promo_banner || {};
-    setText(document.getElementById('av-promo-banner-text'), promo.text);
-    setText(document.getElementById('av-promo-banner-text-ar'), promo.text_ar);
-    const link = document.getElementById('av-promo-banner-link');
-    if (link) {
-      if (promo.link) link.setAttribute('href', promo.link);
-      else link.removeAttribute('href');
-    }
-    setVisible(banner, Boolean(promo.enabled));
-  }
-
   function applyLanguageDefault(data) {
     if (!data.default_language) return;
     try {
@@ -319,7 +305,6 @@
     try { applyAddressAndHours(data); } catch (e) { /* non-fatal */ }
     try { applySocial(data); } catch (e) { /* non-fatal */ }
     try { applyAbout(data); } catch (e) { /* non-fatal */ }
-    try { applyPromoBanner(data); } catch (e) { /* non-fatal */ }
     try { applyLanguageDefault(data); } catch (e) { /* non-fatal */ }
     try { applyDisplayCurrency(data); } catch (e) { /* non-fatal */ }
     try { applyAnalytics(data); } catch (e) { /* non-fatal */ }

@@ -53,10 +53,6 @@ function buildFormFromAgency(agency) {
     address: agency?.address || '',
     default_language: settings.language === 'ar' ? 'ar' : 'en',
     default_display_currency: ['SAR', 'USD', 'EUR'].includes(site.default_display_currency) ? site.default_display_currency : 'SAR',
-    promo_banner_enabled: Boolean(site.promo_banner?.enabled),
-    promo_banner_text: site.promo_banner?.text || '',
-    promo_banner_text_ar: site.promo_banner?.text_ar || '',
-    promo_banner_link: site.promo_banner?.link || '',
     ga_measurement_id: site.ga_measurement_id || '',
     meta_pixel_id: site.meta_pixel_id || '',
     notification_email: site.notification_email || ''
@@ -202,13 +198,7 @@ export default function AgencyContentSettings({ agency }) {
       default_display_currency: form.default_display_currency,
       ga_measurement_id: form.ga_measurement_id,
       meta_pixel_id: form.meta_pixel_id,
-      notification_email: form.notification_email,
-      promo_banner: {
-        enabled: form.promo_banner_enabled,
-        text: form.promo_banner_text,
-        text_ar: form.promo_banner_text_ar,
-        link: form.promo_banner_link
-      }
+      notification_email: form.notification_email
     };
     const { data, error: err } = await updateMyAgencyContent(payload);
     setSaving(false);
@@ -311,20 +301,6 @@ export default function AgencyContentSettings({ agency }) {
             <Field label="Twitter / X"><input className={inputCls} value={form.twitter} onChange={set('twitter')} /></Field>
             <Field label="Snapchat"><input className={inputCls} value={form.snapchat} onChange={set('snapchat')} /></Field>
             <Field label="Facebook"><input className={inputCls} value={form.facebook} onChange={set('facebook')} /></Field>
-          </div>
-        </section>
-
-        <section>
-          <h3 className="text-sm font-semibold text-gray-800 mb-2">Promo banner</h3>
-          <p className="text-xs text-gray-400 mb-2">Thin bar under the header. Editing text/link is free forever — the banner slot itself needed one one-time site update, already live.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.promo_banner_enabled} onChange={set('promo_banner_enabled')} />
-              Show banner
-            </label>
-            <Field label="Text (EN)"><input className={inputCls} value={form.promo_banner_text} onChange={set('promo_banner_text')} placeholder="Umrah season offers — book now" /></Field>
-            <Field label="Text (AR)"><input className={inputCls} value={form.promo_banner_text_ar} onChange={set('promo_banner_text_ar')} /></Field>
-            <Field label="Link"><input className={inputCls} value={form.promo_banner_link} onChange={set('promo_banner_link')} placeholder="https://..." /></Field>
           </div>
         </section>
 
