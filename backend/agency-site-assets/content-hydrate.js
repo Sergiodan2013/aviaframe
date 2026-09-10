@@ -241,6 +241,75 @@
     }
   }
 
+  function applyPromoBanner(data) {
+    const banner = document.getElementById('av-promo-banner');
+    if (!banner) return;
+    const promo = data.promo_banner || {};
+    setText(document.getElementById('av-promo-banner-text'), promo.text);
+    setText(document.getElementById('av-promo-banner-text-ar'), promo.text_ar);
+    const link = document.getElementById('av-promo-banner-link');
+    if (link) {
+      if (promo.link) link.setAttribute('href', promo.link);
+      else link.removeAttribute('href');
+    }
+    setVisible(banner, Boolean(promo.enabled));
+  }
+
+  function applyLanguageDefault(data) {
+    if (!data.default_language) return;
+    try {
+      if (localStorage.getItem('aviaframe_lang')) return;
+    } catch (e) { return; }
+    if (typeof window.avApplyLang === 'function') {
+      window.avApplyLang(data.default_language === 'ar' ? 'ar' : 'en');
+    }
+  }
+
+  function applyDisplayCurrency(data) {
+    if (!data.default_display_currency) return;
+    try {
+      if (localStorage.getItem('aviaframe-display-currency')) return;
+    } catch (e) { return; }
+    if (window.AviaframeDisplayCurrency && typeof window.AviaframeDisplayCurrency.setSelectedCurrency === 'function') {
+      window.AviaframeDisplayCurrency.setSelectedCurrency(data.default_display_currency);
+    }
+  }
+
+  var GA_ID_RE = /^(G-[A-Z0-9]{6,12}|UA-\d{4,10}-\d{1,4})$/;
+  var PIXEL_ID_RE = /^\d{10,20}$/;
+
+  function applyAnalytics(data) {
+    const gaId = String(data.ga_measurement_id || '').trim();
+    if (gaId && GA_ID_RE.test(gaId) && !window.__avGaLoaded) {
+      window.__avGaLoaded = true;
+      const s1 = document.createElement('script');
+      s1.async = true;
+      s1.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(gaId);
+      document.head.appendChild(s1);
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      window.gtag('config', gaId);
+    }
+
+    const pixelId = String(data.meta_pixel_id || '').trim();
+    if (pixelId && PIXEL_ID_RE.test(pixelId) && !window.__avPixelLoaded) {
+      window.__avPixelLoaded = true;
+      (function (f, b, e, v) {
+        if (f.fbq) return;
+        var n = f.fbq = function () {
+          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+        };
+        if (!f._fbq) f._fbq = n;
+        n.push = n; n.loaded = true; n.version = '2.0'; n.queue = [];
+        var t = b.createElement(e); t.async = true; t.src = v;
+        var s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
+      })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+      window.fbq('init', pixelId);
+      window.fbq('track', 'PageView');
+    }
+  }
+
   function applyAll(data) {
     try { applyTheme(data.theme); } catch (e) { /* non-fatal */ }
     try { applyLogo(data); } catch (e) { /* non-fatal */ }
@@ -250,6 +319,10 @@
     try { applyAddressAndHours(data); } catch (e) { /* non-fatal */ }
     try { applySocial(data); } catch (e) { /* non-fatal */ }
     try { applyAbout(data); } catch (e) { /* non-fatal */ }
+    try { applyPromoBanner(data); } catch (e) { /* non-fatal */ }
+    try { applyLanguageDefault(data); } catch (e) { /* non-fatal */ }
+    try { applyDisplayCurrency(data); } catch (e) { /* non-fatal */ }
+    try { applyAnalytics(data); } catch (e) { /* non-fatal */ }
   }
 
   function getSubdomain() {

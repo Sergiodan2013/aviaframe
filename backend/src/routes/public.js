@@ -598,6 +598,18 @@ router.get('/agencies/:subdomain/content', publicAgencyContentRateLimiter, async
       services: services.map((s) => ({ key: s.key, en: s.en, ar: s.ar })),
       supervisor_name: site.supervisor_name || '',
       supervisor_email: site.supervisor_email || '',
+      default_language: agency.settings?.language === 'ar' ? 'ar' : 'en',
+      default_display_currency: ['SAR', 'USD', 'EUR'].includes(String(site.default_display_currency || '').toUpperCase())
+        ? String(site.default_display_currency).toUpperCase()
+        : 'SAR',
+      promo_banner: {
+        enabled: Boolean(site.promo_banner?.enabled && (site.promo_banner?.text || site.promo_banner?.text_ar)),
+        text: site.promo_banner?.text || '',
+        text_ar: site.promo_banner?.text_ar || '',
+        link: site.promo_banner?.link || ''
+      },
+      ga_measurement_id: site.ga_measurement_id || '',
+      meta_pixel_id: site.meta_pixel_id || '',
       theme: {
         brand_color: brandColor,
         accent_color: accentColor,
@@ -621,3 +633,10 @@ router.get('/agencies/:subdomain/content', publicAgencyContentRateLimiter, async
 });
 
 module.exports = router;
+
+// Exposed so PATCH /api/agency/me/content (routes/agency.js) can purge a
+// subdomain's cached payload immediately after a self-service content save,
+// instead of making the agency wait out AGENCY_CONTENT_CACHE_TTL_MS.
+module.exports.invalidateAgencyContentCache = function invalidateAgencyContentCache(subdomain) {
+  agencyContentCache.delete(getAgencyContentCacheKey(subdomain));
+};

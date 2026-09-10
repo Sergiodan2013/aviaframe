@@ -1085,6 +1085,34 @@ router.post('/api/widget/orders', widgetOrderRateLimiter, async (req, res) => {
       }
     }
 
+    // Notify the agency's own operations inbox, if they've set one via the
+    // self-service content settings (settings.site.notification_email).
+    // Best-effort, non-blocking, never affects order creation.
+    const agencyNotificationEmail = agency?.settings?.site?.notification_email;
+    if (agencyNotificationEmail) {
+      setImmediate(async () => {
+        try {
+          const { sendSupportEmail } = require('../services/emailService');
+          const lines = [
+            `New booking received.`,
+            ``,
+            `Order number: ${createdOrder.order_number}`,
+            `Route: ${origin} → ${destination}`,
+            `Amount: ${totalPrice} ${currency}`,
+            `Payment method: ${paymentMethod}`,
+            `Customer: ${[createdOrder.contact_email, createdOrder.contact_phone].filter(Boolean).join(' / ')}`
+          ].join('\n');
+          await sendSupportEmail({
+            to: agencyNotificationEmail,
+            subject: `New booking ${createdOrder.order_number} — ${agency.name || 'AviaFrame'}`,
+            text: lines
+          });
+        } catch (e) {
+          console.error('[widget/orders] agency notification email failed:', e.message);
+        }
+      });
+    }
+
     // Save customer profile asynchronously — non-blocking, does not affect booking result
     setImmediate(() => {
       const pax0 = Array.isArray(passengers) && passengers.length > 0 ? passengers[0] : null;

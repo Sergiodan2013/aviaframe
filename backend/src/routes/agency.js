@@ -13,7 +13,8 @@ const {
   generateAgencySiteFiles,
   buildAgencyDeployFiles,
   deployToNetlify,
-  addGodaddyCname
+  addGodaddyCname,
+  ALL_SERVICES
 } = require('../services/agencyProvision');
 const {
   buildAgencyOnboardingState,
@@ -383,6 +384,233 @@ router.patch('/me', async (req, res) => {
     return res.json({ agency: withAgencyLifecycle(data) });
   } catch (err) {
     console.error('Agency self update error:', err);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: config.nodeEnv === 'development' ? err.message : 'Internal server error'
+      }
+    });
+  }
+});
+
+// PATCH /me/content
+// Agency self-service content editor — scoped ONLY to fields that are (a)
+// purely presentational/informational (colors, logo, text, images, links,
+// promo banner, analytics ids, notification inbox) and (b) already served
+// through the runtime content-hydrate endpoint (GET /public/agencies/:subdomain
+// /content — see routes/public.js), so a save here takes effect on the next
+// page load with NO Netlify redeploy and NO money movement. Pricing,
+// commission, payout bank details, and the platform identity fields
+// (contact_email/contact_phone/commission_rate) are deliberately excluded —
+// those stay on PATCH /me (admin-only) and the super admin panel.
+router.patch('/me/content', async (req, res) => {
+  const auth = await resolveAuthContext(req);
+  if (auth.error) {
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+  }
+  if (!ensureStaff(auth, res)) return;
+  if (!auth.profile.agency_id) {
+    return res.status(404).json({ error: { code: 'AGENCY_NOT_ASSIGNED', message: 'Profile has no agency_id' } });
+  }
+
+  const body = req.body || {};
+  const errors = [];
+  const HEX_COLOR_RE = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
+  const URL_RE = /^https?:\/\/\S+$/i;
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const PHONE_RE = /^[0-9+\-\s()]{4,30}$/;
+  const GA_ID_RE = /^(G-[A-Z0-9]{6,12}|UA-\d{4,10}-\d{1,4})$/;
+  const PIXEL_ID_RE = /^\d{10,20}$/;
+  const DISPLAY_CURRENCIES = ['SAR', 'USD', 'EUR'];
+
+  function str(field, maxLen) {
+    if (body[field] === undefined) return undefined;
+    const v = body[field] === null ? '' : String(body[field]).trim();
+    if (v.length > maxLen) { errors.push(`${field} exceeds ${maxLen} characters`); return undefined; }
+    return v;
+  }
+  function hexColor(field) {
+    if (body[field] === undefined) return undefined;
+    const v = body[field] === null ? '' : String(body[field]).trim();
+    if (v && !HEX_COLOR_RE.test(v)) { errors.push(`${field} must be a hex color like #1a3c8e`); return undefined; }
+    return v;
+  }
+  function urlField(field, maxLen) {
+    if (body[field] === undefined) return undefined;
+    const v = body[field] === null ? '' : String(body[field]).trim();
+    if (v && (v.length > maxLen || !URL_RE.test(v))) { errors.push(`${field} must be a valid http(s) URL`); return undefined; }
+    return v;
+  }
+  function emailField(field) {
+    if (body[field] === undefined) return undefined;
+    const v = body[field] === null ? '' : String(body[field]).trim().toLowerCase();
+    if (v && !EMAIL_RE.test(v)) { errors.push(`${field} must be a valid email address`); return undefined; }
+    return v;
+  }
+  function phoneField(field) {
+    if (body[field] === undefined) return undefined;
+    const v = body[field] === null ? '' : String(body[field]).trim();
+    if (v && !PHONE_RE.test(v)) { errors.push(`${field} must be a valid phone number`); return undefined; }
+    return v;
+  }
+
+  const nameAr = str('name_ar', 150);
+  const contactPhone2 = phoneField('contact_phone2');
+  const whatsappPhone = phoneField('whatsapp_phone');
+  const brandColor = hexColor('brand_color');
+  const accentColor = hexColor('accent_color');
+  const headerBg = hexColor('header_bg');
+  const footerBg = hexColor('footer_bg');
+  const logoUrl = urlField('logo_url', 2000);
+  const heroTagline = str('hero_tagline', 150);
+  const heroDescription = str('hero_description', 300);
+  const heroImageUrl = urlField('hero_image_url', 2000);
+  const aboutEn = str('about_en', 3000);
+  const aboutAr = str('about_ar', 3000);
+  const supervisorName = str('supervisor_name', 150);
+  const supervisorEmail = emailField('supervisor_email');
+  const instagram = str('instagram', 300);
+  const twitter = str('twitter', 300);
+  const snapchat = str('snapchat', 300);
+  const facebook = str('facebook', 300);
+  const workingHours = str('working_hours', 150);
+  const workingHoursAr = str('working_hours_ar', 150);
+  const address = str('address', 500);
+  const notificationEmail = emailField('notification_email');
+
+  let defaultLanguage;
+  if (body.default_language !== undefined) {
+    const v = String(body.default_language || '').toLowerCase();
+    if (!['en', 'ar'].includes(v)) errors.push('default_language must be en or ar');
+    else defaultLanguage = v;
+  }
+
+  let defaultDisplayCurrency;
+  if (body.default_display_currency !== undefined) {
+    const v = String(body.default_display_currency || '').toUpperCase();
+    if (!DISPLAY_CURRENCIES.includes(v)) errors.push(`default_display_currency must be one of ${DISPLAY_CURRENCIES.join(', ')}`);
+    else defaultDisplayCurrency = v;
+  }
+
+  let gaMeasurementId;
+  if (body.ga_measurement_id !== undefined) {
+    const v = String(body.ga_measurement_id || '').trim();
+    if (v && !GA_ID_RE.test(v)) errors.push('ga_measurement_id looks invalid (expected G-XXXXXXX or UA-XXXXXXX-X)');
+    else gaMeasurementId = v;
+  }
+
+  let metaPixelId;
+  if (body.meta_pixel_id !== undefined) {
+    const v = String(body.meta_pixel_id || '').trim();
+    if (v && !PIXEL_ID_RE.test(v)) errors.push('meta_pixel_id looks invalid (expected a numeric Pixel ID)');
+    else metaPixelId = v;
+  }
+
+  let promoBanner;
+  if (body.promo_banner !== undefined) {
+    const pb = body.promo_banner && typeof body.promo_banner === 'object' ? body.promo_banner : {};
+    const text = String(pb.text || '').trim().slice(0, 200);
+    const textAr = String(pb.text_ar || '').trim().slice(0, 200);
+    let link = String(pb.link || '').trim();
+    if (link && !URL_RE.test(link)) { errors.push('promo_banner.link must be a valid http(s) URL'); link = ''; }
+    promoBanner = { enabled: Boolean(pb.enabled) && Boolean(text || textAr), text, text_ar: textAr, link };
+  }
+
+  let services;
+  if (body.services !== undefined) {
+    const requested = Array.isArray(body.services) ? body.services : [];
+    const validKeys = new Set(ALL_SERVICES.map((s) => s.key));
+    services = requested.map((k) => String(k)).filter((k) => validKeys.has(k));
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ error: { code: 'INVALID_INPUT', message: errors.join('; ') } });
+  }
+
+  try {
+    const { agency: current, error: currentError } = await loadAgencyForStaff(auth);
+    if (currentError) {
+      return res.status(500).json({ error: { code: 'AGENCY_LOOKUP_FAILED', message: currentError.message } });
+    }
+    if (!current) {
+      return res.status(404).json({ error: { code: 'AGENCY_NOT_FOUND', message: 'Agency not found' } });
+    }
+
+    let settings = { ...(current.settings || {}) };
+    const site = { ...(settings.site || {}) };
+
+    const assign = (key, value) => { if (value !== undefined) site[key] = value; };
+    assign('name_ar', nameAr);
+    assign('contact_phone2', contactPhone2);
+    assign('whatsapp_phone', whatsappPhone);
+    assign('brand_color', brandColor);
+    assign('accent_color', accentColor);
+    assign('header_bg', headerBg);
+    assign('footer_bg', footerBg);
+    assign('logo_url', logoUrl);
+    assign('hero_tagline', heroTagline);
+    assign('hero_description', heroDescription);
+    assign('hero_image_url', heroImageUrl);
+    assign('about_en', aboutEn);
+    assign('about_ar', aboutAr);
+    assign('supervisor_name', supervisorName);
+    assign('supervisor_email', supervisorEmail);
+    assign('instagram', instagram);
+    assign('twitter', twitter);
+    assign('snapchat', snapchat);
+    assign('facebook', facebook);
+    assign('working_hours', workingHours);
+    assign('working_hours_ar', workingHoursAr);
+    assign('default_display_currency', defaultDisplayCurrency);
+    assign('ga_measurement_id', gaMeasurementId);
+    assign('meta_pixel_id', metaPixelId);
+    assign('notification_email', notificationEmail);
+    if (promoBanner !== undefined) site.promo_banner = promoBanner;
+    if (services !== undefined) site.services = services;
+
+    settings.site = site;
+    if (defaultLanguage !== undefined) settings.language = defaultLanguage;
+
+    const patch = { updated_at: new Date().toISOString() };
+    if (address !== undefined) patch.address = address || null;
+
+    settings = applyAgencyOnboardingState({
+      agency: { ...current, settings },
+      settings,
+      patch: {
+        last_saved_at: new Date().toISOString(),
+        last_saved_by: getActorLabel(auth)
+      }
+    });
+    patch.settings = settings;
+
+    const { data, error } = await supabase
+      .from('agencies')
+      .update(patch)
+      .eq('id', current.id)
+      .select(AGENCY_SELECT)
+      .single();
+
+    if (error) {
+      return res.status(500).json({ error: { code: 'AGENCY_UPDATE_FAILED', message: error.message } });
+    }
+
+    // Best-effort: purge the runtime content-hydrate cache so this save is
+    // visible on the live site within seconds instead of waiting out the
+    // cache TTL. Never let a cache-invalidation failure fail the save itself.
+    try {
+      const rawDomain = String(data.domain || '').trim().toLowerCase();
+      const subdomainMatch = rawDomain.match(/^([a-z0-9-]+)\.aviaframe\.com$/i) || rawDomain.match(/^([a-z0-9-]+)$/i);
+      if (subdomainMatch) {
+        require('./public').invalidateAgencyContentCache(subdomainMatch[1]);
+      }
+    } catch (cacheErr) {
+      console.warn('[agency /me/content] cache invalidation skipped:', cacheErr.message);
+    }
+
+    return res.json({ agency: withAgencyLifecycle(data) });
+  } catch (err) {
+    console.error('Agency self-service content update error:', err);
     return res.status(500).json({
       error: {
         code: 'INTERNAL_ERROR',

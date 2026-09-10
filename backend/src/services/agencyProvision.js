@@ -523,6 +523,14 @@ function generateAgencySiteFiles(opts) {
     </div>
   </header>
 
+  <!-- PROMO BANNER (agency-editable, zero-redeploy) -->
+  <div id="av-promo-banner" class="av-promo-banner" style="display:none">
+    <a id="av-promo-banner-link" class="av-promo-banner-link" href="#">
+      <span id="av-promo-banner-text" class="en-text"></span>
+      <span id="av-promo-banner-text-ar" class="ar-text" style="display:none"></span>
+    </a>
+  </div>
+
   <!-- HERO -->
   <section id="av-hero" class="av-hero"${heroImageUrl ? ` style="background:linear-gradient(rgba(0,0,0,.58),rgba(0,0,0,.42)),url('${heroImageUrl}') center/cover no-repeat"` : ''}>
     <div class="av-hero-badge">✈ ${subdomain}.aviaframe.com</div>
@@ -787,6 +795,11 @@ a{text-decoration:none;color:inherit}
 .av-lang-btn{border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;background:transparent;color:rgba(255,255,255,.7);font-weight:600;transition:all .2s}
 .av-lang-btn.active{background:rgba(255,255,255,.25);color:#fff;border-color:rgba(255,255,255,.6)}
 [dir=rtl] .av-lang-switcher{right:auto;left:16px}
+
+/* Promo banner */
+.av-promo-banner{background:var(--av-brand);color:#fff;text-align:center;padding:9px 16px;font-size:14px;font-weight:600}
+.av-promo-banner-link{color:#fff;display:inline-block}
+.av-promo-banner-link:hover{text-decoration:underline}
 
 /* Header */
 .av-header{position:sticky;top:0;z-index:100;background:var(--av-header-bg);backdrop-filter:blur(12px);border-bottom:1px solid rgba(var(--av-brand-rgb),.12);box-shadow:0 2px 8px rgba(0,0,0,.06)}
