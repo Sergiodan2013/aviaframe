@@ -2119,7 +2119,7 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
         )}
 
 {(userProfile?.role === 'agent' || isAgencyAdminPreview) && agencySelfMeta && (
-          <AgencyContentSettings agency={agencySelfMeta} />
+          <AgencyContentSettings agency={agencySelfMeta} targetAgencyId={isAgencyAdminPreview ? agencySelfMeta?.id : undefined} />
         )}
 
         {/* Agency admin's own Sales Report — scoped to their own agency only.

@@ -142,7 +142,7 @@ function ImageUploadField({ label, hint, value, onChange, uploadFn }) {
   );
 }
 
-export default function AgencyContentSettings({ agency }) {
+export default function AgencyContentSettings({ agency, targetAgencyId }) {
   const [form, setForm] = useState(() => buildFormFromAgency(agency));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -200,6 +200,11 @@ export default function AgencyContentSettings({ agency }) {
       meta_pixel_id: form.meta_pixel_id,
       notification_email: form.notification_email
     };
+    // Only set when a super admin is previewing another agency's dashboard —
+    // the backend only honors this from an admin-role caller (see
+    // PATCH /me/content in routes/agency.js); a real agent's save always
+    // stays scoped to their own JWT-derived agency_id regardless.
+    if (targetAgencyId) payload.agency_id = targetAgencyId;
     const { data, error: err } = await updateMyAgencyContent(payload);
     setSaving(false);
     if (err) {

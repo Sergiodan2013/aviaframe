@@ -435,9 +435,6 @@ router.patch('/me/content', async (req, res) => {
     return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
   }
   if (!ensureStaff(auth, res)) return;
-  if (!auth.profile.agency_id) {
-    return res.status(404).json({ error: { code: 'AGENCY_NOT_ASSIGNED', message: 'Profile has no agency_id' } });
-  }
 
   const body = req.body || {};
   const errors = [];
@@ -448,6 +445,19 @@ router.patch('/me/content', async (req, res) => {
   const GA_ID_RE = /^(G-[A-Z0-9]{6,12}|UA-\d{4,10}-\d{1,4})$/;
   const PIXEL_ID_RE = /^\d{10,20}$/;
   const DISPLAY_CURRENCIES = ['SAR', 'USD', 'EUR'];
+
+  // An admin/super_admin previewing an agency's own dashboard (the
+  // portal's "Agency admin" preview toggle) has no agency_id of their
+  // own — self-scoping to auth.profile.agency_id would 404, or worse,
+  // silently write to whatever agency their real profile happens to be
+  // tied to. Let ONLY an admin-role caller name the target explicitly;
+  // a plain agent always stays hard-scoped to their own agency_id.
+  const callerRole = String(auth.profile?.role || '').trim().toLowerCase();
+  const isAdminCaller = ['admin', 'super_admin'].includes(callerRole);
+  const requestedAgencyId = isAdminCaller ? String(body.agency_id || '').trim() : '';
+  if (!requestedAgencyId && !auth.profile.agency_id) {
+    return res.status(404).json({ error: { code: 'AGENCY_NOT_ASSIGNED', message: 'Profile has no agency_id' } });
+  }
 
   function str(field, maxLen) {
     if (body[field] === undefined) return undefined;
@@ -544,7 +554,16 @@ router.patch('/me/content', async (req, res) => {
   }
 
   try {
-    const { agency: current, error: currentError } = await loadAgencyForStaff(auth);
+    let current, currentError;
+    if (requestedAgencyId) {
+      const lookup = await supabase.from('agencies').select(AGENCY_SELECT).eq('id', requestedAgencyId).maybeSingle();
+      current = lookup.data;
+      currentError = lookup.error;
+    } else {
+      const lookup = await loadAgencyForStaff(auth);
+      current = lookup.agency;
+      currentError = lookup.error;
+    }
     if (currentError) {
       return res.status(500).json({ error: { code: 'AGENCY_LOOKUP_FAILED', message: currentError.message } });
     }
