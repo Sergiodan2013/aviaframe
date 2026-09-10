@@ -11,11 +11,20 @@ const { getDisplayFxSnapshot } = require('../services/displayFxService');
 const { createMemoryRateLimiter, hasValidInternalToken } = require('../middleware/requestGuards');
 const { lookupCustomerProfile } = require('../services/customerProfile');
 const { parseWidgetToken, getRequestOriginHost, normalizeHost } = require('../utils/helpers');
+const { hexToRgb, darkenHex, getContrastColor, ALL_SERVICES } = require('../services/agencyProvision');
 
 const PUBLIC_SEARCH_CACHE_TTL_MS = Number(process.env.PUBLIC_SEARCH_CACHE_TTL_MS || 90 * 1000);
 const PUBLIC_SEARCH_MAX_PAIRS = Number(process.env.PUBLIC_SEARCH_MAX_PAIRS || 25);
 const PUBLIC_SEARCH_CONCURRENCY = Number(process.env.PUBLIC_SEARCH_CONCURRENCY || 5);
 const searchCache = new Map();
+const AGENCY_CONTENT_CACHE_TTL_MS = Number(process.env.PUBLIC_AGENCY_CONTENT_CACHE_TTL_MS || 30 * 1000);
+const agencyContentCache = new Map();
+const publicAgencyContentRateLimiter = createMemoryRateLimiter({
+  bucket: 'public-agency-content',
+  max: config.publicAutocompleteRateLimitMax,
+  windowMs: config.publicRateLimitWindowMs,
+  skip: hasValidInternalToken,
+});
 const publicAutocompleteRateLimiter = createMemoryRateLimiter({
   bucket: 'public-autocomplete',
   max: config.publicAutocompleteRateLimitMax,
@@ -497,6 +506,117 @@ router.get('/customer-profile', profileLookupLimiter, async (req, res) => {
   } catch (err) {
     logger.error({ err: err.message }, 'customer-profile lookup failed');
     return res.json({ found: false });
+  }
+});
+
+// ── Agency public content (for content-hydrate.js — see agencyProvision.js) ────
+// Returns the same derived text/theme/services values the static site
+// generator bakes into HTML at deploy time, computed live from the agency's
+// current settings. This lets a deployed agency site pick up content edits
+// (colors/logo/phone/about/etc.) on next page load WITHOUT a Netlify
+// redeploy — only domain changes / template upgrades still need one.
+function normalizeSocialUrl(value, baseUrl) {
+  if (!value) return '';
+  const v = String(value).trim().replace(/^@/, '');
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.includes('/')) return `https://${v}`;
+  return `${baseUrl}/${v}`;
+}
+
+function getAgencyContentCacheKey(subdomain) {
+  return `agency-content:${subdomain}`;
+}
+
+router.get('/agencies/:subdomain/content', publicAgencyContentRateLimiter, async (req, res) => {
+  const subdomain = normalizeHost(req.params.subdomain || '').split('.')[0];
+  if (!subdomain) {
+    return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'subdomain is required' } });
+  }
+
+  const cacheKey = getAgencyContentCacheKey(subdomain);
+  const cached = agencyContentCache.get(cacheKey);
+  if (cached && (Date.now() - cached.createdAt) < AGENCY_CONTENT_CACHE_TTL_MS) {
+    return res.json(cached.payload);
+  }
+
+  try {
+    const domain = `${subdomain}.aviaframe.com`;
+    const { data: agency, error } = await supabase
+      .from('agencies')
+      .select('id,name,address,contact_email,contact_phone,is_active,settings')
+      .eq('domain', domain)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      return res.status(500).json({ error: { code: 'QUERY_FAILED', message: error.message } });
+    }
+    if (!agency || !agency.is_active) {
+      return res.status(404).json({ error: { code: 'AGENCY_NOT_FOUND', message: 'Agency not found' } });
+    }
+
+    const site = agency.settings?.site || {};
+    const brandColor = site.brand_color || '#1a3c8e';
+    const accentColor = site.accent_color || '#2468c4';
+    const headerBg = site.header_bg || '';
+    const footerBg = site.footer_bg || '';
+    const effectiveHeaderBg = headerBg || 'rgba(255,255,255,0.97)';
+    const effectiveFooterBg = footerBg || brandColor;
+    const headerLogoColor = (headerBg && getContrastColor(headerBg) === '#ffffff') ? '#ffffff' : brandColor;
+
+    const defaultServices = ['flights_domestic', 'flights_intl', 'hotels', 'visa', 'insurance', 'umrah', 'tours', 'corporate'];
+    const activeServiceKeys = Array.isArray(site.services) && site.services.length > 0 ? site.services : defaultServices;
+    const services = ALL_SERVICES.filter((s) => activeServiceKeys.includes(s.key));
+
+    const agencyName = agency.name || '';
+    const agencyNameAr = site.name_ar || '';
+
+    const payload = {
+      agency_name: agencyName,
+      agency_name_ar: agencyNameAr,
+      logo_url: site.logo_url || '',
+      logo_initial: (agencyName || 'A').charAt(0).toUpperCase(),
+      contact_phone: agency.contact_phone || '',
+      contact_phone2: site.contact_phone2 || '',
+      whatsapp_phone: site.whatsapp_phone || '',
+      contact_email: agency.contact_email || '',
+      address: agency.address || '',
+      working_hours: site.working_hours || '',
+      working_hours_ar: site.working_hours_ar || '',
+      social: {
+        instagram: normalizeSocialUrl(site.instagram, 'https://www.instagram.com'),
+        twitter: normalizeSocialUrl(site.twitter, 'https://x.com'),
+        snapchat: normalizeSocialUrl(site.snapchat, 'https://www.snapchat.com/add'),
+        facebook: normalizeSocialUrl(site.facebook, 'https://www.facebook.com')
+      },
+      hero_tagline: site.hero_tagline || 'Book Flights Worldwide at the Best Prices',
+      hero_description: site.hero_description || 'Compare hundreds of airlines. Secure booking. Real travel agents available 24/7.',
+      hero_image_url: site.hero_image_url || '',
+      about_en: site.about_en || `${agencyName} is your trusted travel partner. Our professional team offers flight bookings, hotel reservations, visa assistance, and full travel packages for individuals, families, and corporate clients — with personal service you can count on.`,
+      about_ar: site.about_ar || `${agencyNameAr || agencyName} هي شريككم الموثوق في السفر.`,
+      services: services.map((s) => ({ key: s.key, en: s.en, ar: s.ar })),
+      supervisor_name: site.supervisor_name || '',
+      supervisor_email: site.supervisor_email || '',
+      theme: {
+        brand_color: brandColor,
+        accent_color: accentColor,
+        brand_dark: darkenHex(brandColor, 45),
+        brand_rgb: hexToRgb(brandColor),
+        accent_rgb: hexToRgb(accentColor),
+        header_bg: effectiveHeaderBg,
+        header_text: getContrastColor(headerBg || '#ffffff'),
+        header_logo: headerLogoColor,
+        footer_bg: effectiveFooterBg
+      }
+    };
+
+    agencyContentCache.set(cacheKey, { createdAt: Date.now(), payload });
+    res.set('Cache-Control', 'public, max-age=15');
+    return res.json(payload);
+  } catch (err) {
+    logger.error({ err: err.message }, 'agency content-hydrate lookup failed');
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 

@@ -174,6 +174,7 @@ const REQUIRED_SITE_TEMPLATE_FILES = [
   'customer-account.js',
   'display-currency.js',
   'aviaframe-widget.js',
+  'content-hydrate.js',
   'assets/style.css',
   'images/favicon.svg'
 ];
@@ -503,30 +504,30 @@ function generateAgencySiteFiles(opts) {
   <header class="av-header">
     <div class="av-header-inner">
       <a href="/" class="av-logo">
-        <div class="av-logo-icon${logoUrl ? ' av-logo-icon--img' : ''}">${logoHtml}</div>
+        <div id="av-logo-icon" class="av-logo-icon${logoUrl ? ' av-logo-icon--img' : ''}">${logoHtml}</div>
         <div class="av-logo-text">
-          ${agencyNameAr ? `<div class="av-logo-ar en-hidden">${agencyNameAr}</div>` : ''}
-          <div class="av-logo-name">${agencyName}</div>
+          <div id="av-logo-ar" class="av-logo-ar en-hidden"${agencyNameAr ? '' : ' style="display:none"'}>${agencyNameAr}</div>
+          <div id="av-logo-name" class="av-logo-name">${agencyName}</div>
         </div>
       </a>
       <div class="av-header-nav">
         <div id="customer-auth-nav"></div>
       </div>
-      <div class="av-header-contacts">
-        ${contactPhone ? `<span class="av-phone-display">${contactPhone}</span>` : ''}
-        ${waPhone ? `<a class="av-wa-btn" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer">
+      <div id="av-header-contacts" class="av-header-contacts">
+        <span id="av-header-phone" class="av-phone-display"${contactPhone ? '' : ' style="display:none"'}>${contactPhone}</span>
+        <a id="av-header-wa" class="av-wa-btn" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer"${waPhone ? '' : ' style="display:none"'}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
           WhatsApp
-        </a>` : ''}
+        </a>
       </div>
     </div>
   </header>
 
   <!-- HERO -->
-  <section class="av-hero"${heroImageUrl ? ` style="background:linear-gradient(rgba(0,0,0,.58),rgba(0,0,0,.42)),url('${heroImageUrl}') center/cover no-repeat"` : ''}>
+  <section id="av-hero" class="av-hero"${heroImageUrl ? ` style="background:linear-gradient(rgba(0,0,0,.58),rgba(0,0,0,.42)),url('${heroImageUrl}') center/cover no-repeat"` : ''}>
     <div class="av-hero-badge">✈ ${subdomain}.aviaframe.com</div>
-    <h1 class="av-hero-h1">${effectiveTagline}</h1>
-    <p class="av-hero-sub">${effectiveHeroDesc}</p>
+    <h1 id="av-hero-h1" class="av-hero-h1">${effectiveTagline}</h1>
+    <p id="av-hero-sub" class="av-hero-sub">${effectiveHeroDesc}</p>
     <div class="av-trust-badges">
       ${trustItems}
     </div>
@@ -653,25 +654,25 @@ function generateAgencySiteFiles(opts) {
       <div class="av-contact-grid">
         <div class="av-contact-card">
           <h3><span class="en-text">Contact Information</span><span class="ar-text" style="display:none">معلومات التواصل</span></h3>
-          <div class="av-phones">
+          <div id="av-phones" class="av-phones">
             ${waPhone ? `<a class="av-phone-link av-phone-wa" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer">
               <span>💬</span> ${contactPhone}
             </a>` : contactPhone ? `<div class="av-phone-link"><span>📞</span> ${contactPhone}</div>` : ''}
             ${contactPhone2 ? `<div class="av-phone-link"><span>📞</span> ${contactPhone2}</div>` : ''}
             ${contactEmail ? `<a class="av-phone-link" href="mailto:${contactEmail}"><span>✉️</span> ${contactEmail}</a>` : ''}
           </div>
-          ${address ? `<div class="av-address"><span>📍</span> <span>${address}</span></div>` : ''}
-          ${workingHours ? `<div class="av-working"><span>🕐</span> <span class="en-text">${workingHours}</span>${workingHoursAr ? `<span class="ar-text" style="display:none">${workingHoursAr}</span>` : ''}</div>` : ''}
-          ${socialItems ? `<div class="av-social-bar">${socialItems}</div>` : ''}
+          <div id="av-address" class="av-address"${address ? '' : ' style="display:none"'}><span>📍</span> <span>${address}</span></div>
+          <div id="av-working" class="av-working"${workingHours ? '' : ' style="display:none"'}><span>🕐</span> <span class="en-text">${workingHours}</span>${workingHoursAr ? `<span class="ar-text" style="display:none">${workingHoursAr}</span>` : ''}</div>
+          <div id="av-social-bar" class="av-social-bar"${socialItems ? '' : ' style="display:none"'}>${socialItems}</div>
         </div>
         <div class="av-contact-card">
           <h3><span class="en-text">About Us</span><span class="ar-text" style="display:none">عنّا</span></h3>
           <p class="av-about-text">
-            <span class="en-text">${effectiveAboutEn}</span>
-            <span class="ar-text" style="display:none">${effectiveAboutAr}</span>
+            <span id="av-about-en" class="en-text">${effectiveAboutEn}</span>
+            <span id="av-about-ar" class="ar-text" style="display:none">${effectiveAboutAr}</span>
           </p>
-          ${serviceList.length > 0 ? `<ul class="av-services-list">${servicesListHtml}</ul>` : ''}
-          ${supervisorName ? `<div class="av-supervisor"><strong>${supervisorName}</strong>${supervisorEmail ? ` · <a href="mailto:${supervisorEmail}">${supervisorEmail}</a>` : ''}</div>` : ''}
+          <ul id="av-services-list" class="av-services-list"${serviceList.length > 0 ? '' : ' style="display:none"'}>${servicesListHtml}</ul>
+          <div id="av-supervisor" class="av-supervisor"${supervisorName ? '' : ' style="display:none"'}><strong>${supervisorName}</strong>${supervisorEmail ? ` · <a href="mailto:${supervisorEmail}">${supervisorEmail}</a>` : ''}</div>
         </div>
       </div>
       ${mapsHtml ? `<div style="margin-top:20px">${mapsHtml}</div>` : ''}
@@ -1046,6 +1047,19 @@ function normalizeLandingHtml(html, { apiKey, assetVersion }) {
       `  <script src="/display-currency.js?v=${assetVersion}"></script>\n  <script src="/aviaframe-widget.js?v=${assetVersion}"></script>\n</body>`
     );
   }
+  if (!/content-hydrate\.js\?v=/i.test(next)) {
+    if (/aviaframe-widget\.js\?v=[^"']*["']><\/script>/i.test(next)) {
+      next = next.replace(
+        /(<script src="\/aviaframe-widget\.js\?v=[^"]*"><\/script>)/,
+        `$1\n  <script src="/content-hydrate.js?v=${assetVersion}"></script>`
+      );
+    } else if (/<\/body>/i.test(next)) {
+      next = next.replace(
+        /<\/body>/i,
+        `  <script src="/content-hydrate.js?v=${assetVersion}"></script>\n</body>`
+      );
+    }
+  }
   return next;
 }
 
@@ -1064,6 +1078,7 @@ function buildAgencyDeployFiles({ subdomain, apiKey, landingHtml, landingCss, pa
     'booking.html': readTemplateAsset('booking.html', 'utf8'),
     'my-bookings.html': readTemplateAsset('my-bookings.html', 'utf8'),
     'config.js': buildAgencyRuntimeConfig({ apiKey, subdomain, paymentMode }),
+    'content-hydrate.js': readTemplateAsset('content-hydrate.js', 'utf8'),
     'customer-account.js': readTemplateAsset('customer-account.js', 'utf8'),
     'display-currency.js': readTemplateAsset('display-currency.js', 'utf8'),
     'aviaframe-widget.js': readTemplateAsset('aviaframe-widget.js', 'utf8'),
@@ -1312,5 +1327,12 @@ module.exports = {
   findNetlifySiteBySubdomain,
   deleteNetlifySite,
   addGodaddyCname,
-  deleteGodaddyCname
+  deleteGodaddyCname,
+  // Exported so the public content-hydrate endpoint (backend/src/routes/public.js)
+  // can compute the exact same derived theme/services values as the site
+  // generator, instead of re-implementing this logic client- or server-side.
+  hexToRgb,
+  darkenHex,
+  getContrastColor,
+  ALL_SERVICES
 };
