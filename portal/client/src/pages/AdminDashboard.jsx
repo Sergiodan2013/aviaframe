@@ -46,6 +46,7 @@ import {
 } from '../lib/destinationPresets';
 import { Alert, StatusBadge, Surface } from '@aviaframe/ui';
 import ApiPartnersPanel from '../components/admin/ApiPartnersPanel';
+import AgencyContentSettings from './AgencyContentSettings';
 import { CARRIERS } from '../data/carriers';
 
 // Build a lookup: city name → real https:// URL from PRESET_SEED
@@ -2115,6 +2116,10 @@ export default function AdminDashboard({ user, onBackToHome, viewMode = 'super_a
               </div>
             </div>
           </Surface>
+        )}
+
+{(userProfile?.role === 'agent' || isAgencyAdminPreview) && agencySelfMeta && (
+          <AgencyContentSettings agency={agencySelfMeta} />
         )}
 
         {/* Agency admin's own Sales Report — scoped to their own agency only.

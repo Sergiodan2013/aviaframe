@@ -1323,6 +1323,18 @@ export const updateMyAgency = async (payload) => {
   return { data: data?.agency || null, error };
 };
 
+// Agency self-service content save (colors/logo/contacts/hero/about/services/
+// social/promo banner/language/currency/analytics ids/notification email).
+// Scoped server-side to the caller's own agency_id and to fields that never
+// touch pricing or payouts — see PATCH /me/content in routes/agency.js.
+export const updateMyAgencyContent = async (payload) => {
+  const { data, error } = await backendApiRequest('/agency/me/content', {
+    method: 'PATCH',
+    body: payload
+  });
+  return { data: data?.agency || null, error };
+};
+
 export const generateAdminInvoicePdf = async (invoiceId) => {
   const { data, error } = await backendApiRequest(`/admin/invoices/${invoiceId}/generate-pdf`, {
     method: 'POST'
