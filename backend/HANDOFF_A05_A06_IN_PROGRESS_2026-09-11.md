@@ -213,9 +213,24 @@ served directly to production agency sites.
 8. Then move to Task 9 from the original plan: final full regression across
    ALL code-only fixes (backend + frontend/portal) and a final summary to
    Sergii of everything closed in this pass.
-9. No git commits have been made for ANY of this session's work yet (backend
-   or widget) — ask Sergii whether/when to commit, per standing instructions
-   to only commit when asked.
+9. UPDATE (still 2026-09-11): everything above IS now committed — branch
+   `wip/a05-a06-security-hardening`, commit `fde955c`, on top of `main` at
+   `c1e26de`. **Push to GitHub (`origin`, https://github.com/sergiodan2013/aviaframe.git)
+   FAILED**: "access denied by the git proxy: ... not in this session's
+   authorized repository set" (403). So the commit only exists inside this
+   session's cloud container right now — if that container becomes
+   unreachable (e.g. after an account switch), this commit could be lost.
+   First thing next session: check `git log --oneline -3` and
+   `git branch --show-current` in `/home/claude/aviaframe-repo` — if you see
+   commit `fde955c` still there, try `git push -u origin wip/a05-a06-security-hardening`
+   again (maybe the new session has proper repo authorization). If the
+   container/commit is gone, this markdown file (also mirrored to the
+   Aviaframe Claude Project as `claude/HANDOFF_A05_A06_IN_PROGRESS_2026-09-11.md`)
+   is the fallback record of exactly what was built — the actual code will
+   need to be re-implemented from this description against the last known
+   good `main` commit `c1e26de`. Sergii has NOT yet been asked whether/how to
+   merge this branch into `main` — ask him once A05 is fully finished and
+   tested end-to-end (backend + widget).
 
 ## Reference: standing rules for this whole effort (do not relax any of these)
 
