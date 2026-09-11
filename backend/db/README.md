@@ -1,4 +1,29 @@
-# Aviaframe Database Schema
+> ## ⚠️ ORPHANED / LEGACY DOCUMENT — DOES NOT MATCH THE LIVE SCHEMA
+>
+> This document (and the `schema.sql` / `seed.sql` / `migrations/` files in this
+> folder) describe an **early draft schema** (`organizations`, `bookings`,
+> `users`, `roles`, `drct_request_logs`, `audit_logs`) that is **not the schema
+> actually running in production**.
+>
+> The live schema uses `agencies`, `orders`, and `profiles` (not
+> `organizations`/`bookings`/`users`), and the **only authoritative migration
+> line is `backend/supabase/migrations/`**. That directory is what is actually
+> applied to the Supabase project and what the application code queries
+> against.
+>
+> **Do not** apply `backend/db/schema.sql`, run anything under
+> `backend/db/migrations/`, or add new migrations to `backend/db/migrations/`
+> (as the "📝 Миграции" section below still suggests) — doing so would create
+> tables/columns that do not match, and could conflict with, the real schema.
+> New migrations belong in `backend/supabase/migrations/`, following that
+> directory's existing `0NN_description.sql` naming convention.
+>
+> Confirmed orphaned as of 2026-09-11: no application code, build script, CI
+> config, or other documentation references `backend/db/schema.sql`,
+> `backend/db/seed.sql`, or `backend/db/migrations/`. This folder is kept only
+> for historical reference.
+
+# Aviaframe Database Schema (historical draft — see warning above)
 
 Эта папка содержит SQL-скрипты для создания структуры базы данных Aviaframe в Supabase (PostgreSQL).
 
@@ -193,13 +218,9 @@ WHERE organization_id = 'your-uuid'
 
 ## 📝 Миграции
 
-Для будущих изменений схемы рекомендуется использовать миграции:
-
-```bash
-# Создать миграцию
-mkdir -p backend/db/migrations
-touch backend/db/migrations/001_add_column_xyz.sql
-```
+⚠️ **Устарело.** Реальные миграции живут в `backend/supabase/migrations/` —
+см. предупреждение в начале файла. Не создавайте новые файлы в
+`backend/db/migrations/`.
 
 ## 🆘 Troubleshooting
 

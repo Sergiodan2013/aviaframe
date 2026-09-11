@@ -8,6 +8,7 @@ const drctService = require('../services/drctService');
 const emailService = require('../services/emailService');
 const { ensureTicketPdfForOrder } = require('../services/orderService');
 const { config } = require('../config');
+const { enforceOrderOwnershipIfAuthenticated } = require('../middleware/auth');
 const {
   sanitizeCardNumber,
   normalizeCompany,
@@ -268,7 +269,7 @@ function paymentPricingErrorForQuote(quote = {}) {
 async function loadOrderForPayment(orderId) {
   const { data: order, error: orderErr } = await supabase
     .from('orders')
-    .select('id, order_number, total_price, currency, drct_order_id, payment_status, metadata, raw_offer_data')
+    .select('id, order_number, user_id, agency_id, total_price, currency, drct_order_id, payment_status, metadata, raw_offer_data')
     .eq('id', orderId)
     .maybeSingle();
 
@@ -352,6 +353,9 @@ router.post('/api/payments/card-scheme-check', express.json(), async (req, res) 
     return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' } });
   }
 
+  const ownership = await enforceOrderOwnershipIfAuthenticated(req, res, order);
+  if (!ownership.ok) return;
+
   const moyasarConfig = getMoyasarConfigForOrder(order);
   if (!moyasarConfig.secretConfigured) {
     const code = moyasarConfig.mode === 'test' ? 'MOYASAR_TEST_NOT_CONFIGURED' : 'CONFIG_ERROR';
@@ -403,6 +407,9 @@ router.post('/api/payments/initiate', express.json(), async (req, res) => {
   if (order.payment_status === 'paid') {
     return res.status(400).json({ error: { code: 'ALREADY_PAID', message: 'Order is already paid' } });
   }
+
+  const ownership = await enforceOrderOwnershipIfAuthenticated(req, res, order);
+  if (!ownership.ok) return;
 
   const currency = (order.currency || 'SAR').toUpperCase();
   const callback_url = `${BACKEND_URL}/api/payments/callback`;

@@ -16,8 +16,31 @@ const {
   generateOrderNumber
 } = require('../utils/helpers');
 const { resolveAuthContextFromToken } = require('../middleware/auth');
+const { isAdminRole } = require('../utils/helpers');
 const { saveCustomerProfile } = require('../services/customerProfile');
 const { isAgencyDemoPaymentMode, resolveAgencyPaymentMode } = require('../services/agencyPaymentMode');
+
+// A13: the admin-preview origin exception below (`allowAdminPreview`) used
+// to be granted purely from client-supplied signals — `preview_mode: true`
+// in the body plus an `origin_host`/Origin/Referer value equal to
+// 'admin.aviaframe.com' — none of which the caller needs a real session to
+// produce. A plain script (no browser, no login) could set both and get a
+// widget session for ANY agency without ever passing that agency's real
+// domain allowlist, defeating Rule 5 (domain allowlist) entirely. This
+// verifies an actual admin/super_admin bearer session before honoring the
+// preview flag; a spoofed origin/preview flag with no valid admin token
+// now falls straight through to the normal allowlist check below.
+async function requestHasVerifiedAdminSession(req) {
+  const authHeader = String(req.headers.authorization || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  if (!bearerToken) return false;
+  try {
+    const auth = await resolveAuthContextFromToken(bearerToken);
+    return Boolean(auth && !auth.error && isAdminRole(auth.profile?.role));
+  } catch (_) {
+    return false;
+  }
+}
 
 function isMissingColumnError(error, columnName) {
   const message = String(error?.message || '').toLowerCase();
@@ -414,7 +437,9 @@ router.post('/api/widget/session', widgetSessionRateLimiter, async (req, res) =>
     }
 
     const requestHost = normalizeHost(originHostFromBody) || getRequestOriginHost(req);
-    const allowAdminPreview = Boolean(previewMode) && requestHost === 'admin.aviaframe.com';
+    const allowAdminPreview = Boolean(previewMode)
+      && requestHost === 'admin.aviaframe.com'
+      && await requestHasVerifiedAdminSession(req);
     if (!allowAdminPreview && !isWidgetOriginAllowed(agency, requestHost)) {
       return res.status(403).json({
         error: {

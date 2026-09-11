@@ -13,7 +13,8 @@ import { getAirportByCode } from './data/airports.js';
 import { Plane, AlertCircle, TestTube2, User, LogOut, CheckCircle, BookOpen, Shield } from 'lucide-react';
 import { mockFlightData } from './mock/flightData';
 import { formatDRCTError, calculateBaggagePrice } from './lib/drctApi';
-import { supabase, getProfile, createPortalOrder } from './lib/supabase';
+import { supabase, getProfile, createPortalOrder, signOut } from './lib/supabase';
+import { performLogout } from './lib/logout';
 import {
   buildCachedOrderRecord,
   buildInitialPassengerFormData,
@@ -822,8 +823,17 @@ function App() {
   };
 
   // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    // See src/lib/logout.js: this used to only clear the local `user`
+    // mirror and component state — it never ended the real Supabase
+    // session, and left several caches of the departing user's data
+    // (orders cache, in-progress booking, pending payments) behind for
+    // the next person on this device.
+    await performLogout({
+      signOut,
+      storage: localStorage,
+      onSignOutError: (err) => console.error('Sign out request failed (clearing local session state anyway):', err)
+    });
     setUser(null);
     // Reset booking flow
     setCurrentStep('search');

@@ -165,6 +165,48 @@ async function resolveAuthContext(req) {
   return resolveAuthContextFromToken(token);
 }
 
+// Some payment routes (guest checkout: the widget and the anonymous parts of the
+// booking flow) are only reachable today with the order_id itself as the sole
+// piece of proof-of-possession — no login is required to pay for an order that
+// was just created. Requiring a login for those routes would break that guest
+// checkout flow, so this helper does NOT reject requests that carry no
+// Authorization header at all: it preserves that existing behavior exactly.
+//
+// What it DOES close: when a request *does* carry a Bearer token (i.e. the
+// caller is an authenticated portal/agency user), it verifies that identity
+// actually owns or can access the order before letting the request proceed —
+// closing the gap where any logged-in user could pay for, price-check, or
+// cancel/refund an order belonging to a different customer or a different
+// agency simply by knowing its order_id.
+//
+// Returns { ok: true, auth } when the request may proceed (auth is null for
+// anonymous/guest requests). Returns { ok: false } after already writing the
+// appropriate 401/403 response when the request must be rejected.
+async function enforceOrderOwnershipIfAuthenticated(req, res, order) {
+  const authHeader = String(req.headers.authorization || '');
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+
+  if (!token) {
+    // No credentials presented — leave the existing guest-checkout behavior
+    // (order_id as the capability) untouched.
+    return { ok: true, auth: null };
+  }
+
+  const auth = await resolveAuthContextFromToken(token);
+  if (auth.error) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: auth.error } });
+    return { ok: false };
+  }
+
+  const allowed = await canAccessOrder(auth, order);
+  if (!allowed) {
+    forbidden(res, 'You do not have access to this order');
+    return { ok: false };
+  }
+
+  return { ok: true, auth };
+}
+
 module.exports = {
   forbidden,
   requireInternalToken,
@@ -173,5 +215,6 @@ module.exports = {
   ensureStaff,
   canAccessOrder,
   resolveAuthContext,
-  resolveAuthContextFromToken
+  resolveAuthContextFromToken,
+  enforceOrderOwnershipIfAuthenticated
 };

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "build": "echo \"Building backend...\" && mkdir -p dist && cp -R src/* dist/ || true",
+    "build": "echo \"Building backend...\" && mkdir -p dist && cp -R src/. dist/",
     "check:security-config": "node scripts/check-security-config.js",
     "test": "jest --runInBand",
     "test:security-cutover": "jest --runInBand tests/security/drct-legacy-proxy-telemetry.test.js tests/security/legacy-proxy-consumer-detection.test.js tests/security/n8n-proxy-fallback.test.js tests/security/internal-surfaces.test.js tests/security/portal-order-actions.test.js tests/security/public-airport-search.test.js",

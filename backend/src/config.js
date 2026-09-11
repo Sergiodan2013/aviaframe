@@ -97,6 +97,20 @@ const config = {
   airportAutocompleteUrl: process.env.AIRPORT_AUTOCOMPLETE_URL || 'https://autocomplete.travelpayouts.com/places2',
   airportAutocompleteTimeoutMs: Number(process.env.AIRPORT_AUTOCOMPLETE_TIMEOUT_MS || 3500),
   publicSearchDrctEnabled: process.env.FEATURE_PUBLIC_SEARCH_DRCT === 'true',
+  // Number of reverse-proxy hops in front of this process whose
+  // X-Forwarded-For value should be trusted (Express's `trust proxy`
+  // setting — see app.js). Without this, req.ip falls back to the raw
+  // socket peer, and any hand-rolled X-Forwarded-For parsing (e.g. "take
+  // the first value") trusts whatever the client itself sent, letting a
+  // single request present a different value on every call and bypass any
+  // IP-keyed rate limit entirely. Set to the exact number of trusted
+  // proxies terminating traffic before this app (1 for the typical
+  // single-edge-proxy deployment this app currently runs behind); set it
+  // higher only if another trusted hop is added in front, and to 0 only if
+  // this process is ever exposed with no reverse proxy at all.
+  trustProxyHops: Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
+    ? Number(process.env.TRUST_PROXY_HOPS)
+    : 1,
   publicRateLimitWindowMs: Number(process.env.PUBLIC_RATE_LIMIT_WINDOW_MS || 60 * 1000),
   publicAutocompleteRateLimitMax: Number(process.env.PUBLIC_AUTOCOMPLETE_RATE_LIMIT_MAX || 80),
   publicSearchRateLimitMax: Number(process.env.PUBLIC_SEARCH_RATE_LIMIT_MAX || 20),

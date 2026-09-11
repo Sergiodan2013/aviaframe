@@ -1766,9 +1766,15 @@ import { widgetTokenCss } from '../../packages/tokens/src/widget-tokens.js';
     .aviaframe-passenger-success h3 { color: var(--af-widget-success); font-size: 20px; margin: 0 0 6px; }
     .aviaframe-passenger-success p { color: var(--af-widget-muted); font-size: 14px; margin: 0; }
     .aviaframe-passenger-success .aviaframe-passenger-button { margin-top: 12px; }
-    .aviaframe-passenger-autofill { align-items: center; background: color-mix(in srgb, var(--af-widget-primary) 8%, white); border: 1px solid color-mix(in srgb, var(--af-widget-primary) 24%, white); border-radius: var(--af-widget-radius); display: flex; gap: 12px; grid-column: 1 / -1; justify-content: space-between; margin-top: 4px; padding: 12px 16px; }
+    .aviaframe-passenger-autofill { align-items: center; background: color-mix(in srgb, var(--af-widget-primary) 8%, white); border: 1px solid color-mix(in srgb, var(--af-widget-primary) 24%, white); border-radius: var(--af-widget-radius); display: flex; flex-wrap: wrap; gap: 12px; grid-column: 1 / -1; justify-content: space-between; margin-top: 4px; padding: 12px 16px; }
     .aviaframe-passenger-autofill-message { color: var(--af-widget-primary); font-size: 13px; }
     .aviaframe-passenger-autofill-undo { background: transparent; border: 1px solid color-mix(in srgb, var(--af-widget-primary) 30%, white); border-radius: var(--af-radius-sm, 8px); color: var(--af-widget-primary); cursor: pointer; flex-shrink: 0; font: 600 12px/1 var(--af-widget-font); padding: 6px 10px; }
+    .aviaframe-passenger-autofill-undo:disabled { cursor: default; opacity: 0.55; }
+    .aviaframe-passenger-autofill-row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+    .aviaframe-passenger-autofill-code-input { background: var(--af-widget-surface); border: 1px solid var(--af-widget-border); border-radius: var(--af-radius-sm, 8px); color: var(--af-widget-text); font: 600 14px/1 var(--af-widget-font); letter-spacing: 2px; min-height: 36px; padding: 6px 10px; width: 96px; }
+    .aviaframe-passenger-autofill-code-input:focus { border-color: var(--af-widget-primary); outline: none; }
+    .aviaframe-passenger-autofill-close { background: transparent; border: 0; color: var(--af-widget-muted); cursor: pointer; flex-shrink: 0; font: 600 16px/1 var(--af-widget-font); padding: 2px 4px; }
+    .aviaframe-passenger-autofill-error { color: var(--af-widget-danger); flex-basis: 100%; font-size: 12px; }
 
     @media (max-width: 640px) {
       .aviaframe-passenger-step { padding: 16px; }
@@ -3377,6 +3383,247 @@ import { widgetTokenCss } from '../../packages/tokens/src/widget-tokens.js';
             return C.widgetSessionPromise;
           };
 
+          // A05 security fix: GET /public/customer-profile now requires proof
+          // the caller owns the email (a verified_token from the request-code/
+          // verify-code handshake below) — a widget session token alone used
+          // to be enough to read a stranger's saved PII by just typing their
+          // email. See backend/src/routes/public.js for the server side.
+          function _afStorageScope() {
+            const _afWidgetEl = document.getElementById('aviaframe-widget');
+            return _afWidgetEl
+              ? String(_afWidgetEl.dataset.agencyKey || _afWidgetEl.dataset.agencyDomain || window.location.hostname || 'default').trim()
+              : 'default';
+          }
+          function _afVerifiedTokenKey(email) {
+            return `af_verified_profile:${_afStorageScope()}:${String(email).toLowerCase()}`;
+          }
+          function _afLoadVerifiedToken(email) {
+            try { return localStorage.getItem(_afVerifiedTokenKey(email)) || ''; } catch (_afStorageErr) { return ''; }
+          }
+          function _afSaveVerifiedToken(email, token) {
+            try { localStorage.setItem(_afVerifiedTokenKey(email), token); } catch (_afStorageErr) { /* best-effort only */ }
+          }
+          function _afClearVerifiedToken(email) {
+            try { localStorage.removeItem(_afVerifiedTokenKey(email)); } catch (_afStorageErr) { /* best-effort only */ }
+          }
+
+          function _afRemoveBanner() {
+            const _afPrev = $.querySelector('#_af_banner');
+            if (_afPrev) _afPrev.remove();
+          }
+
+          function _afInsertBanner(_afBanner) {
+            _afRemoveBanner();
+            const _afEmailLabel = _afEmailEl.closest('label');
+            if (_afEmailLabel) _afEmailLabel.insertAdjacentElement('afterend', _afBanner);
+            else $.insertBefore(_afBanner, $.firstChild);
+            return _afBanner;
+          }
+
+          // Fills the passenger form from a verified profile and shows the
+          // confirmation banner with Undo — unchanged from the original
+          // autofill behavior once a profile is actually available.
+          function _afApplyAutofill(profile) {
+            const _afIsAr = _wLang === 'ar';
+            const _afFirst = profile.first_name || '';
+            const _afForm = document.getElementById('aviaframe-passenger-form') || $;
+            const _afFieldMap = {
+              phone: profile.phone,
+              gender: profile.gender,
+              dateOfBirth: profile.date_of_birth,
+              firstName: profile.first_name,
+              lastName: profile.last_name,
+            };
+            const _afPrevVals = {};
+            Object.entries(_afFieldMap).forEach(([_afName, _afVal]) => {
+              if (!_afVal) return;
+              const _afEl = _afForm.querySelector(`[name="${_afName}"]`);
+              if (!_afEl) return;
+              _afPrevVals[_afName] = _afEl.value;
+              _afEl.value = _afName === "dateOfBirth" ? formatDateOfBirth(_afVal) : _afVal;
+              _afEl.dispatchEvent(new Event('input', { bubbles: true }));
+              _afEl.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            const _afBanner = _afInsertBanner(document.createElement('div'));
+            _afBanner.id = '_af_banner';
+            _afBanner.className = 'aviaframe-passenger-autofill';
+            _afBanner.innerHTML = `<span class="aviaframe-passenger-autofill-message">${_afIsAr ? '✓ تم تعبئة بياناتك المحفوظة' : `✓ Prefilled your saved details${_afFirst ? ', ' + c(_afFirst) : ''}`}</span><button type="button" id="_af_undo_btn" class="aviaframe-passenger-autofill-undo">${_afIsAr ? 'تراجع' : 'Undo'}</button>`;
+            _afBanner.querySelector('#_af_undo_btn').addEventListener('click', () => {
+              Object.entries(_afPrevVals).forEach(([_afName, _afOld]) => {
+                const _afEl = _afForm.querySelector(`[name="${_afName}"]`);
+                if (_afEl) { _afEl.value = _afOld; _afEl.dispatchEvent(new Event('input', { bubbles: true })); }
+              });
+              _afBanner.remove();
+            });
+          }
+
+          function _afVerificationErrorMessage(code) {
+            const _afIsAr = _wLang === 'ar';
+            const _afMessages = {
+              TOO_MANY_REQUESTS: _afIsAr ? 'محاولات كثيرة جداً. يرجى المحاولة لاحقاً.' : 'Too many attempts. Please try again later.',
+              EMAIL_DELIVERY_FAILED: _afIsAr ? 'تعذر إرسال الرمز. يرجى المحاولة مرة أخرى.' : "Couldn't send the code. Please try again.",
+              VERIFICATION_INCORRECT_CODE: _afIsAr ? 'رمز غير صحيح. حاول مرة أخرى.' : 'Incorrect code. Please try again.',
+              VERIFICATION_EXPIRED: _afIsAr ? 'انتهت صلاحية هذا الرمز. أرسل رمزاً جديداً.' : 'This code expired. Send a new one.',
+              VERIFICATION_TOO_MANY_ATTEMPTS: _afIsAr ? 'محاولات غير صحيحة كثيرة جداً. أرسل رمزاً جديداً.' : 'Too many incorrect attempts. Send a new code.',
+              VERIFICATION_NOT_REQUESTED: _afIsAr ? 'يرجى طلب رمز جديد.' : 'Please request a new code.',
+            };
+            return _afMessages[code] || (_afIsAr ? 'حدث خطأ ما. يرجى المحاولة مرة أخرى.' : 'Something went wrong. Please try again.');
+          }
+
+          // Shows the 6-digit code entry UI (after request-code succeeded) and
+          // wires up verify + resend + dismiss.
+          function _afShowCodeEntry(_afBase, _afToken, _afEmail) {
+            const _afIsAr = _wLang === 'ar';
+            const _afBanner = _afInsertBanner(document.createElement('div'));
+            _afBanner.id = '_af_banner';
+            _afBanner.className = 'aviaframe-passenger-autofill';
+            _afBanner.innerHTML = `
+              <div class="aviaframe-passenger-autofill-row" style="flex:1 1 auto">
+                <span class="aviaframe-passenger-autofill-message">${_afIsAr ? `أرسلنا رمزاً مكوناً من 6 أرقام إلى ${c(_afEmail)}` : `We sent a 6-digit code to ${c(_afEmail)}`}</span>
+              </div>
+              <div class="aviaframe-passenger-autofill-row">
+                <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" id="_af_code_input" class="aviaframe-passenger-autofill-code-input" placeholder="${_afIsAr ? 'أدخل الرمز' : 'Enter code'}" />
+                <button type="button" id="_af_verify_btn" class="aviaframe-passenger-autofill-undo">${_afIsAr ? 'تحقق' : 'Verify'}</button>
+                <button type="button" id="_af_resend_btn" class="aviaframe-passenger-autofill-undo">${_afIsAr ? 'إعادة الإرسال' : 'Resend'}</button>
+                <button type="button" id="_af_close_btn" class="aviaframe-passenger-autofill-close" aria-label="${_afIsAr ? 'إغلاق' : 'Dismiss'}">×</button>
+              </div>`;
+
+            const _afCodeInput = _afBanner.querySelector('#_af_code_input');
+            const _afVerifyBtn = _afBanner.querySelector('#_af_verify_btn');
+            const _afResendBtn = _afBanner.querySelector('#_af_resend_btn');
+            const _afCloseBtn = _afBanner.querySelector('#_af_close_btn');
+
+            function _afShowError(message) {
+              const _afOld = _afBanner.querySelector('.aviaframe-passenger-autofill-error');
+              if (_afOld) _afOld.remove();
+              const _afErrEl = document.createElement('span');
+              _afErrEl.className = 'aviaframe-passenger-autofill-error';
+              _afErrEl.textContent = message;
+              _afBanner.appendChild(_afErrEl);
+            }
+
+            function _afStartResendCooldown() {
+              let _afSecondsLeft = 30;
+              _afResendBtn.disabled = true;
+              _afResendBtn.textContent = `${_afIsAr ? 'إعادة الإرسال' : 'Resend'} (${_afSecondsLeft}s)`;
+              const _afInterval = setInterval(() => {
+                _afSecondsLeft -= 1;
+                if (_afSecondsLeft <= 0) {
+                  clearInterval(_afInterval);
+                  _afResendBtn.disabled = false;
+                  _afResendBtn.textContent = _afIsAr ? 'إعادة الإرسال' : 'Resend';
+                  return;
+                }
+                _afResendBtn.textContent = `${_afIsAr ? 'إعادة الإرسال' : 'Resend'} (${_afSecondsLeft}s)`;
+              }, 1000);
+            }
+            _afStartResendCooldown();
+
+            _afCloseBtn.addEventListener('click', () => _afBanner.remove());
+
+            _afResendBtn.addEventListener('click', async () => {
+              if (_afResendBtn.disabled) return;
+              try {
+                const _afResp = await fetch(`${_afBase}/public/customer-profile/request-code`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_afToken}` },
+                  body: JSON.stringify({ email: _afEmail }),
+                });
+                if (!_afResp.ok) {
+                  const _afErrData = await _afResp.json().catch(() => ({}));
+                  _afShowError(_afVerificationErrorMessage(_afErrData?.error?.code));
+                  return;
+                }
+                _afStartResendCooldown();
+              } catch (_afResendErr) {
+                _afShowError(_afVerificationErrorMessage());
+              }
+            });
+
+            async function _afSubmitCode() {
+              const _afCode = _afCodeInput.value.trim();
+              if (!/^\d{6}$/.test(_afCode)) {
+                _afShowError(_afVerificationErrorMessage('VERIFICATION_INCORRECT_CODE'));
+                return;
+              }
+              _afVerifyBtn.disabled = true;
+              try {
+                const _afResp = await fetch(`${_afBase}/public/customer-profile/verify-code`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_afToken}` },
+                  body: JSON.stringify({ email: _afEmail, code: _afCode }),
+                });
+                const _afData = await _afResp.json().catch(() => ({}));
+                if (!_afResp.ok) {
+                  _afVerifyBtn.disabled = false;
+                  _afShowError(_afVerificationErrorMessage(_afData?.error?.code));
+                  return;
+                }
+                if (_afData.verified_token) _afSaveVerifiedToken(_afEmail, _afData.verified_token);
+                if (_afData.found && _afData.profile) {
+                  _afApplyAutofill(_afData.profile);
+                } else {
+                  _afBanner.remove();
+                }
+              } catch (_afVerifyErr) {
+                _afVerifyBtn.disabled = false;
+                _afShowError(_afVerificationErrorMessage());
+              }
+            }
+
+            _afVerifyBtn.addEventListener('click', _afSubmitCode);
+            _afCodeInput.addEventListener('keydown', (_afKeyEvent) => {
+              if (_afKeyEvent.key === 'Enter') { _afKeyEvent.preventDefault(); _afSubmitCode(); }
+            });
+          }
+
+          // Shows the initial, explicit opt-in prompt (deliberately NOT
+          // automatic — sending a verification email on every blur would let
+          // a scripted visit mail-bomb an arbitrary victim's inbox just by
+          // typing their address; one click is enough friction to prevent
+          // that while staying effectively free for a genuine customer).
+          function _afShowVerifyPrompt(_afBase, _afToken, _afEmail) {
+            const _afIsAr = _wLang === 'ar';
+            const _afBanner = _afInsertBanner(document.createElement('div'));
+            _afBanner.id = '_af_banner';
+            _afBanner.className = 'aviaframe-passenger-autofill';
+            _afBanner.innerHTML = `
+              <span class="aviaframe-passenger-autofill-message">${_afIsAr ? 'هل لديك بيانات محفوظة؟' : 'Have a saved profile?'}</span>
+              <div class="aviaframe-passenger-autofill-row">
+                <button type="button" id="_af_start_btn" class="aviaframe-passenger-autofill-undo">${_afIsAr ? 'تعبئة بياناتي المحفوظة' : 'Autofill my details'}</button>
+                <button type="button" id="_af_close_btn" class="aviaframe-passenger-autofill-close" aria-label="${_afIsAr ? 'إغلاق' : 'Dismiss'}">×</button>
+              </div>`;
+
+            _afBanner.querySelector('#_af_close_btn').addEventListener('click', () => _afBanner.remove());
+            _afBanner.querySelector('#_af_start_btn').addEventListener('click', async () => {
+              const _afStartBtn = _afBanner.querySelector('#_af_start_btn');
+              _afStartBtn.disabled = true;
+              _afStartBtn.textContent = _afIsAr ? 'جارٍ إرسال الرمز...' : 'Sending code...';
+              try {
+                const _afResp = await fetch(`${_afBase}/public/customer-profile/request-code`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_afToken}` },
+                  body: JSON.stringify({ email: _afEmail }),
+                });
+                if (!_afResp.ok) {
+                  const _afErrData = await _afResp.json().catch(() => ({}));
+                  _afStartBtn.disabled = false;
+                  _afStartBtn.textContent = _afIsAr ? 'تعبئة بياناتي المحفوظة' : 'Autofill my details';
+                  const _afErrEl = document.createElement('span');
+                  _afErrEl.className = 'aviaframe-passenger-autofill-error';
+                  _afErrEl.textContent = _afVerificationErrorMessage(_afErrData?.error?.code);
+                  _afBanner.appendChild(_afErrEl);
+                  return;
+                }
+                _afShowCodeEntry(_afBase, _afToken, _afEmail);
+              } catch (_afStartErr) {
+                _afStartBtn.disabled = false;
+                _afStartBtn.textContent = _afIsAr ? 'تعبئة بياناتي المحفوظة' : 'Autofill my details';
+              }
+            });
+          }
+
           _afEmailEl.addEventListener('blur', async function () {
             const _afEmail = this.value.trim();
             if (!_afEmail || !_afEmail.includes('@')) return;
@@ -3387,54 +3634,26 @@ import { widgetTokenCss } from '../../packages/tokens/src/widget-tokens.js';
               const _afBase = new URL(_afApiUrl).origin;
               const _afToken = await _afEnsureSessionToken();
               if (!_afToken) return;
-              const _afResp = await fetch(
-                `${_afBase}/public/customer-profile?email=${encodeURIComponent(_afEmail)}`,
-                { headers: { Authorization: `Bearer ${_afToken}` } }
-              );
-              if (!_afResp.ok) return;
-              const _afData = await _afResp.json();
-              if (!_afData.found || !_afData.profile) return;
-              // Remove previous banner
-              const _afPrev = $.querySelector('#_af_banner');
-              if (_afPrev) _afPrev.remove();
-              // Build banner
-              const _afBanner = document.createElement('div');
-              _afBanner.id = '_af_banner';
-              _afBanner.className = 'aviaframe-passenger-autofill';
-              const _afFirst = _afData.profile.first_name || '';
-              const _afIsAr = _wLang === 'ar';
-              _afBanner.innerHTML = `<span class="aviaframe-passenger-autofill-message">⏳ ${_afIsAr ? 'جارٍ تعبئة البيانات...' : 'Prefilling your saved details...'}</span>`;
-              const _afEmailLabel = _afEmailEl.closest('label');
-              if (_afEmailLabel) _afEmailLabel.insertAdjacentElement('afterend', _afBanner);
-              else $.insertBefore(_afBanner, $.firstChild);
-              // Auto-fill immediately on profile found
-              const _afForm = document.getElementById('aviaframe-passenger-form') || $;
-              const _afFieldMap = {
-                phone: _afData.profile.phone,
-                gender: _afData.profile.gender,
-                dateOfBirth: _afData.profile.date_of_birth,
-                firstName: _afData.profile.first_name,
-                lastName: _afData.profile.last_name,
-              };
-              const _afPrevVals = {};
-              Object.entries(_afFieldMap).forEach(([_afName, _afVal]) => {
-                if (!_afVal) return;
-                const _afEl = _afForm.querySelector(`[name="${_afName}"]`);
-                if (!_afEl) return;
-                _afPrevVals[_afName] = _afEl.value;
-                _afEl.value = _afName === "dateOfBirth" ? formatDateOfBirth(_afVal) : _afVal;
-                _afEl.dispatchEvent(new Event('input', { bubbles: true }));
-                _afEl.dispatchEvent(new Event('change', { bubbles: true }));
-              });
-              // Update banner: show confirmation with undo option
-              _afBanner.innerHTML = `<span class="aviaframe-passenger-autofill-message">${_afIsAr ? '✓ تم تعبئة بياناتك المحفوظة' : `✓ Prefilled your saved details${_afFirst ? ', ' + c(_afFirst) : ''}`}</span><button type="button" id="_af_undo_btn" class="aviaframe-passenger-autofill-undo">${_afIsAr ? 'تراجع' : 'Undo'}</button>`;
-              _afBanner.querySelector('#_af_undo_btn').addEventListener('click', () => {
-                Object.entries(_afPrevVals).forEach(([_afName, _afOld]) => {
-                  const _afEl = _afForm.querySelector(`[name="${_afName}"]`);
-                  if (_afEl) { _afEl.value = _afOld; _afEl.dispatchEvent(new Event('input', { bubbles: true })); }
-                });
-                _afBanner.remove();
-              });
+
+              const _afCachedVerified = _afLoadVerifiedToken(_afEmail);
+              if (_afCachedVerified) {
+                // Returning, already-verified visitor on this device — same
+                // zero-friction experience as before this fix.
+                const _afResp = await fetch(
+                  `${_afBase}/public/customer-profile?email=${encodeURIComponent(_afEmail)}&verified_token=${encodeURIComponent(_afCachedVerified)}`,
+                  { headers: { Authorization: `Bearer ${_afToken}` } }
+                );
+                if (_afResp.ok) {
+                  const _afData = await _afResp.json();
+                  if (_afData.found && _afData.profile) _afApplyAutofill(_afData.profile);
+                  return;
+                }
+                // Cached token rejected (expired/invalid) — clear it and fall
+                // through to the opt-in verification prompt below.
+                _afClearVerifiedToken(_afEmail);
+              }
+
+              _afShowVerifyPrompt(_afBase, _afToken, _afEmail);
             } catch (_afErr) { /* fail silently */ }
           });
         }

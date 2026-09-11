@@ -10,8 +10,10 @@ const { getAirportAutocomplete } = require('../services/airportAutocompleteServi
 const { getDisplayFxSnapshot } = require('../services/displayFxService');
 const { createMemoryRateLimiter, hasValidInternalToken } = require('../middleware/requestGuards');
 const { lookupCustomerProfile } = require('../services/customerProfile');
-const { parseWidgetToken, getRequestOriginHost, normalizeHost } = require('../utils/helpers');
+const { parseWidgetToken, issueWidgetToken, getRequestOriginHost, normalizeHost, normalizeEmail } = require('../utils/helpers');
 const { hexToRgb, darkenHex, getContrastColor, ALL_SERVICES } = require('../services/agencyProvision');
+const customerProfileVerification = require('../services/customerProfileVerification');
+const { sendCustomerProfileVerificationCode } = require('../services/emailService');
 
 const PUBLIC_SEARCH_CACHE_TTL_MS = Number(process.env.PUBLIC_SEARCH_CACHE_TTL_MS || 90 * 1000);
 const PUBLIC_SEARCH_MAX_PAIRS = Number(process.env.PUBLIC_SEARCH_MAX_PAIRS || 25);
@@ -445,64 +447,190 @@ function extractWidgetToken(req) {
   if (authHeader.startsWith('Bearer ')) {
     return authHeader.slice(7).trim();
   }
-  return String(req.query.widget_token || '').trim();
+  return String(req.query.widget_token || req.body?.widget_token || '').trim();
 }
 
-// GET /public/customer-profile?email=X&widget_token=Y
-// Used by the widget to autofill passenger form for returning customers.
-router.get('/customer-profile', profileLookupLimiter, async (req, res) => {
-  const { email } = req.query;
+// Shared widget-session validation used by all three customer-profile
+// endpoints below. Returns { agencyId } on success, or writes the
+// appropriate 401/403 response and returns null.
+function requireValidWidgetSession(req, res) {
   const widgetToken = extractWidgetToken(req);
+  if (!widgetToken) {
+    res.status(401).json({
+      error: { code: 'WIDGET_TOKEN_REQUIRED', message: 'A valid widget session token is required' }
+    });
+    return null;
+  }
 
+  const parsed = parseWidgetToken(widgetToken);
+  if (parsed.error || parsed.payload?.typ !== 'widget_session' || !parsed.payload?.agency_id) {
+    res.status(401).json({
+      error: { code: 'INVALID_WIDGET_TOKEN', message: 'Invalid or expired widget session token' }
+    });
+    return null;
+  }
+
+  const requestHost = getRequestOriginHost(req);
+  const tokenHost = normalizeHost(parsed.payload.origin_host || '');
+  if (requestHost && tokenHost && requestHost !== tokenHost) {
+    res.status(403).json({
+      error: { code: 'WIDGET_ORIGIN_MISMATCH', message: 'Widget token origin does not match request origin' }
+    });
+    return null;
+  }
+
+  return { agencyId: parsed.payload.agency_id };
+}
+
+const CUSTOMER_PROFILE_VERIFIED_TYP = 'customer_profile_verified';
+const CUSTOMER_PROFILE_VERIFIED_TOKEN_TTL_SEC = 30 * 24 * 60 * 60; // 30 days
+
+function issueCustomerProfileVerifiedToken({ agencyId, email }) {
+  return issueWidgetToken({
+    typ: CUSTOMER_PROFILE_VERIFIED_TYP,
+    agency_id: agencyId,
+    email,
+    exp: Math.floor(Date.now() / 1000) + CUSTOMER_PROFILE_VERIFIED_TOKEN_TTL_SEC
+  });
+}
+
+function extractVerifiedProfileToken(req) {
+  return String(req.query.verified_token || req.body?.verified_token || '').trim();
+}
+
+async function fetchProfileForVerifiedEmail(agencyId, email) {
+  const profile = await lookupCustomerProfile({ agencyId, email });
+  if (!profile) return { found: false };
+  return {
+    found: true,
+    profile: {
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      phone: profile.phone,
+      gender: profile.gender,
+      date_of_birth: profile.date_of_birth,
+    },
+  };
+}
+
+const requestCodeLimiter = createMemoryRateLimiter({
+  bucket: 'public-profile-request-code',
+  max: 5,
+  windowMs: 60_000,
+});
+
+// POST /public/customer-profile/request-code
+// Body: { email, widget_token }
+// Sends a one-time 6-digit code to the given email. Always responds
+// generically (does not reveal whether a profile exists for that email) to
+// avoid turning this into an email-existence oracle.
+router.post('/customer-profile/request-code', requestCodeLimiter, async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
 
-  if (!email || !widgetToken) {
-    return res.status(401).json({
-      error: {
-        code: 'WIDGET_TOKEN_REQUIRED',
-        message: 'A valid widget session token is required'
-      }
+  const session = requireValidWidgetSession(req, res);
+  if (!session) return;
+
+  const email = normalizeEmail(req.body?.email || req.query.email);
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: { code: 'INVALID_EMAIL', message: 'A valid email is required' } });
+  }
+
+  if (!customerProfileVerification.canSendCode(session.agencyId, email)) {
+    return res.status(429).json({
+      error: { code: 'TOO_MANY_REQUESTS', message: 'Too many verification codes requested for this email. Please try again later.' }
     });
   }
 
   try {
-    const parsed = parseWidgetToken(widgetToken);
-    if (parsed.error || parsed.payload?.typ !== 'widget_session' || !parsed.payload?.agency_id) {
-      return res.status(401).json({
-        error: {
-          code: 'INVALID_WIDGET_TOKEN',
-          message: 'Invalid or expired widget session token'
-        }
+    const code = customerProfileVerification.issueVerificationCode(session.agencyId, email);
+    const emailResult = await sendCustomerProfileVerificationCode({ to: email, code });
+    if (!emailResult.sent) {
+      logger.error({ reason: emailResult.error }, 'customer-profile verification email failed to send');
+      return res.status(503).json({
+        error: { code: 'EMAIL_DELIVERY_FAILED', message: 'Could not send the verification email right now. Please try again shortly.' }
       });
     }
+    return res.json({ sent: true });
+  } catch (err) {
+    logger.error({ err: err.message }, 'customer-profile request-code failed');
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+  }
+});
 
-    const requestHost = getRequestOriginHost(req);
-    const tokenHost = normalizeHost(parsed.payload.origin_host || '');
-    if (requestHost && tokenHost && requestHost !== tokenHost) {
-      return res.status(403).json({
-        error: {
-          code: 'WIDGET_ORIGIN_MISMATCH',
-          message: 'Widget token origin does not match request origin'
-        }
-      });
-    }
+// POST /public/customer-profile/verify-code
+// Body: { email, widget_token, code }
+// Verifies the one-time code. On success, returns the saved profile (if any)
+// plus a signed verified_token the client can reuse on later visits to skip
+// the code step again for this email/device.
+router.post('/customer-profile/verify-code', profileLookupLimiter, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
 
-    const profile = await lookupCustomerProfile({
-      agencyId: parsed.payload.agency_id,
-      email: String(email)
+  const session = requireValidWidgetSession(req, res);
+  if (!session) return;
+
+  const email = normalizeEmail(req.body?.email || req.query.email);
+  const code = String(req.body?.code || '').trim();
+  if (!email || !email.includes('@') || !code) {
+    return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'email and code are required' } });
+  }
+
+  const result = customerProfileVerification.verifyCode(session.agencyId, email, code);
+  if (!result.valid) {
+    const statusByReason = { TOO_MANY_ATTEMPTS: 429 };
+    return res.status(statusByReason[result.reason] || 401).json({
+      error: { code: `VERIFICATION_${result.reason}`, message: 'The verification code is invalid or has expired.' }
     });
-    if (!profile) return res.json({ found: false });
+  }
 
-    return res.json({
-      found: true,
-      profile: {
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        phone: profile.phone,
-        gender: profile.gender,
-        date_of_birth: profile.date_of_birth,
-      },
+  try {
+    const profileResult = await fetchProfileForVerifiedEmail(session.agencyId, email);
+    const verifiedToken = issueCustomerProfileVerifiedToken({ agencyId: session.agencyId, email });
+    return res.json({ ...profileResult, verified_token: verifiedToken });
+  } catch (err) {
+    logger.error({ err: err.message }, 'customer-profile verify-code lookup failed');
+    return res.json({ found: false, verified_token: issueCustomerProfileVerifiedToken({ agencyId: session.agencyId, email }) });
+  }
+});
+
+// GET /public/customer-profile?email=X&widget_token=Y&verified_token=Z
+// Used by the widget to autofill the passenger form for a RETURNING customer
+// who has already completed the request-code/verify-code handshake on this
+// device (verified_token proves that). A widget session token alone is not
+// proof of email ownership, so it is no longer sufficient on its own — see
+// requireValidWidgetSession above and the two endpoints before this one.
+router.get('/customer-profile', profileLookupLimiter, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+
+  const session = requireValidWidgetSession(req, res);
+  if (!session) return;
+
+  const email = normalizeEmail(req.query.email);
+  if (!email) {
+    return res.status(400).json({ error: { code: 'INVALID_EMAIL', message: 'A valid email is required' } });
+  }
+
+  const verifiedToken = extractVerifiedProfileToken(req);
+  if (!verifiedToken) {
+    return res.status(401).json({
+      error: { code: 'VERIFICATION_REQUIRED', message: 'Email verification is required before this profile can be returned' }
     });
+  }
+
+  const parsedVerified = parseWidgetToken(verifiedToken);
+  if (
+    parsedVerified.error
+    || parsedVerified.payload?.typ !== CUSTOMER_PROFILE_VERIFIED_TYP
+    || parsedVerified.payload?.agency_id !== session.agencyId
+    || normalizeEmail(parsedVerified.payload?.email) !== email
+  ) {
+    return res.status(401).json({
+      error: { code: 'VERIFICATION_REQUIRED', message: 'Email verification is required before this profile can be returned' }
+    });
+  }
+
+  try {
+    const profileResult = await fetchProfileForVerifiedEmail(session.agencyId, email);
+    return res.json(profileResult);
   } catch (err) {
     logger.error({ err: err.message }, 'customer-profile lookup failed');
     return res.json({ found: false });

@@ -1070,4 +1070,17 @@ async function sendPartnerApiWelcomeEmail({
   return { sent: false, error: 'EMAIL_NOT_CONFIGURED' };
 }
 
-module.exports = { isConfigured, sendTicketEmail, sendSupportEmail, sendAgencyOnboardingEmail, sendAgencyLeadEmail, sendPartnerApiWelcomeEmail };
+async function sendCustomerProfileVerificationCode({ to, code, agencyName = '' }) {
+  const brand = agencyName ? String(agencyName).trim() : 'AviaFrame';
+  const subject = `${code} is your verification code`;
+  const text = [
+    `Your verification code is: ${code}`,
+    '',
+    `Enter this code to confirm it's you and prefill your saved traveler details on ${brand}.`,
+    'This code expires in 10 minutes. If you did not request this, you can safely ignore this email.'
+  ].join('\n');
+
+  return sendSupportEmail({ to, subject, text });
+}
+
+module.exports = { isConfigured, sendTicketEmail, sendSupportEmail, sendAgencyOnboardingEmail, sendAgencyLeadEmail, sendPartnerApiWelcomeEmail, sendCustomerProfileVerificationCode };
