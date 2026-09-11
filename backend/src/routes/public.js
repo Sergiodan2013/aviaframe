@@ -14,6 +14,12 @@ const { parseWidgetToken, issueWidgetToken, getRequestOriginHost, normalizeHost,
 const { hexToRgb, darkenHex, getContrastColor, ALL_SERVICES } = require('../services/agencyProvision');
 const customerProfileVerification = require('../services/customerProfileVerification');
 const { sendCustomerProfileVerificationCode } = require('../services/emailService');
+const { OAuth2Client } = require('google-auth-library');
+
+// Verifies Google ID tokens presented by the centralized Google Sign-In
+// relay page (aviaframe-site/auth/google.html). A single shared client
+// works for every agency/domain — see config.googleClientId for why.
+const googleAuthClient = new OAuth2Client();
 
 const PUBLIC_SEARCH_CACHE_TTL_MS = Number(process.env.PUBLIC_SEARCH_CACHE_TTL_MS || 90 * 1000);
 const PUBLIC_SEARCH_MAX_PAIRS = Number(process.env.PUBLIC_SEARCH_MAX_PAIRS || 25);
@@ -509,6 +515,9 @@ async function fetchProfileForVerifiedEmail(agencyId, email) {
       phone: profile.phone,
       gender: profile.gender,
       date_of_birth: profile.date_of_birth,
+      passport_number: profile.passport_number,
+      passport_expiry: profile.passport_expiry,
+      nationality: profile.nationality,
     },
   };
 }
@@ -589,6 +598,66 @@ router.post('/customer-profile/verify-code', profileLookupLimiter, async (req, r
   } catch (err) {
     logger.error({ err: err.message }, 'customer-profile verify-code lookup failed');
     return res.json({ found: false, verified_token: issueCustomerProfileVerifiedToken({ agencyId: session.agencyId, email }) });
+  }
+});
+
+const verifyGoogleLimiter = createMemoryRateLimiter({
+  bucket: 'public-profile-verify-google',
+  max: 10,
+  windowMs: 60_000,
+});
+
+// POST /public/customer-profile/verify-google
+// Body: { credential, widget_token }
+// `credential` is the Google ID token obtained by the centralized Google
+// Sign-In relay page (aviaframe-site/auth/google.html) and handed back to
+// the widget's own page via postMessage — see that file for the flow. This
+// request is always made from the WIDGET's own origin (same as
+// request-code/verify-code above), never from the relay page itself, so
+// the existing requireValidWidgetSession tenant/origin checks apply
+// unchanged. Verifying the token proves the visitor owns the Google
+// account for that email; from there this behaves exactly like a
+// successful verify-code — same profile shape, same verified_token.
+router.post('/customer-profile/verify-google', verifyGoogleLimiter, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+
+  const session = requireValidWidgetSession(req, res);
+  if (!session) return;
+
+  if (!config.googleClientId) {
+    logger.error('customer-profile verify-google called but GOOGLE_CLIENT_ID is not configured');
+    return res.status(503).json({
+      error: { code: 'GOOGLE_SIGNIN_NOT_CONFIGURED', message: 'Google sign-in is not available right now' }
+    });
+  }
+
+  const credential = String(req.body?.credential || '').trim();
+  if (!credential) {
+    return res.status(400).json({ error: { code: 'INVALID_CREDENTIAL', message: 'A Google credential is required' } });
+  }
+
+  let payload;
+  try {
+    const ticket = await googleAuthClient.verifyIdToken({ idToken: credential, audience: config.googleClientId });
+    payload = ticket.getPayload();
+  } catch (err) {
+    logger.warn({ err: err.message }, 'customer-profile verify-google: token verification failed');
+    return res.status(401).json({ error: { code: 'INVALID_CREDENTIAL', message: 'Could not verify this Google sign-in' } });
+  }
+
+  if (!payload || !payload.email || payload.email_verified !== true) {
+    return res.status(401).json({ error: { code: 'INVALID_CREDENTIAL', message: 'Could not verify this Google sign-in' } });
+  }
+
+  const email = normalizeEmail(payload.email);
+
+  try {
+    const profileResult = await fetchProfileForVerifiedEmail(session.agencyId, email);
+    const verifiedToken = issueCustomerProfileVerifiedToken({ agencyId: session.agencyId, email });
+    return res.json({ ...profileResult, email, verified_token: verifiedToken });
+  } catch (err) {
+    logger.error({ err: err.message }, 'customer-profile verify-google lookup failed');
+    return res.json({ found: false, email, verified_token: issueCustomerProfileVerifiedToken({ agencyId: session.agencyId, email }) });
   }
 });
 

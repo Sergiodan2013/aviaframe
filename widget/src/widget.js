@@ -3407,6 +3407,105 @@ import { widgetTokenCss } from '../../packages/tokens/src/widget-tokens.js';
             try { localStorage.removeItem(_afVerifiedTokenKey(email)); } catch (_afStorageErr) { /* best-effort only */ }
           }
 
+          // Continue-with-Google is always served from this single Aviaframe
+          // domain, never from the agency's own domain — that's what lets
+          // Google sign-in work for every white-label partner without
+          // registering each partner's domain in Google Cloud Console. The
+          // relay page never talks to our backend itself; it only hands the
+          // raw Google ID token back to THIS page via postMessage, and this
+          // page (running on the widget's own origin, with its own
+          // widget_token) makes the actual verify-google call — see
+          // backend/src/routes/public.js for why that matters for the
+          // existing tenant/origin checks.
+          const AF_GOOGLE_AUTH_RELAY_URL = 'https://aviaframe.com/auth/google.html';
+          const AF_GOOGLE_AUTH_RELAY_ORIGIN = 'https://aviaframe.com';
+
+          function _afAppendBannerError(_afBanner, _afMessage) {
+            const _afOld = _afBanner.querySelector('.aviaframe-passenger-autofill-error');
+            if (_afOld) _afOld.remove();
+            const _afErrEl = document.createElement('span');
+            _afErrEl.className = 'aviaframe-passenger-autofill-error';
+            _afErrEl.textContent = _afMessage;
+            _afBanner.appendChild(_afErrEl);
+          }
+
+          // Opens the Google sign-in popup, waits for the credential via
+          // postMessage, then verifies it with our backend exactly like a
+          // successful 6-digit code — same autofill, same verified_token.
+          function _afStartGoogleSignIn(_afBase, _afToken, _afBanner) {
+            const _afReturnOrigin = window.location.origin;
+            const _afPopupUrl = `${AF_GOOGLE_AUTH_RELAY_URL}?return_origin=${encodeURIComponent(_afReturnOrigin)}`;
+            const _afPopup = window.open(_afPopupUrl, 'aviaframe_google_signin', 'width=460,height=580');
+            if (!_afPopup) {
+              _afAppendBannerError(_afBanner, _wLang === 'ar'
+                ? 'يرجى السماح بالنوافذ المنبثقة للمتابعة عبر جوجل.'
+                : 'Please allow pop-ups to continue with Google.');
+              return;
+            }
+
+            let _afSettled = false;
+            function _afStopWaiting() {
+              if (_afSettled) return;
+              _afSettled = true;
+              clearTimeout(_afTimeoutId);
+              clearInterval(_afClosedPollId);
+              window.removeEventListener('message', _afOnMessage);
+            }
+            const _afTimeoutId = setTimeout(() => {
+              if (_afSettled) return;
+              _afStopWaiting();
+              try { _afPopup.close(); } catch (_afCloseErr) { /* best-effort only */ }
+            }, 120000);
+            // The user closing the popup themselves (no message ever sent)
+            // would otherwise leave the banner waiting silently until the
+            // 2-minute timeout above — detect that and surface it sooner.
+            const _afClosedPollId = setInterval(() => {
+              if (_afSettled || !_afPopup.closed) return;
+              _afStopWaiting();
+              _afAppendBannerError(_afBanner, _afVerificationErrorMessage());
+            }, 500);
+
+            async function _afOnMessage(_afEvent) {
+              // Only ever trust our own relay page — this is the boundary
+              // that keeps a compromised/unrelated window from injecting a
+              // fake "verified" credential.
+              if (_afEvent.origin !== AF_GOOGLE_AUTH_RELAY_ORIGIN) return;
+              const _afMsg = _afEvent.data;
+              if (!_afMsg || _afMsg.source !== 'aviaframe_google_signin') return;
+              if (_afSettled) return;
+              _afStopWaiting();
+              try { _afPopup.close(); } catch (_afCloseErr) { /* best-effort only */ }
+
+              if (_afMsg.status !== 'success' || !_afMsg.credential) {
+                _afAppendBannerError(_afBanner, _afVerificationErrorMessage());
+                return;
+              }
+
+              try {
+                const _afResp = await fetch(`${_afBase}/public/customer-profile/verify-google`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_afToken}` },
+                  body: JSON.stringify({ credential: _afMsg.credential }),
+                });
+                const _afData = await _afResp.json().catch(() => ({}));
+                if (!_afResp.ok) {
+                  _afAppendBannerError(_afBanner, _afVerificationErrorMessage(_afData?.error?.code));
+                  return;
+                }
+                if (_afData.verified_token && _afData.email) _afSaveVerifiedToken(_afData.email, _afData.verified_token);
+                if (_afData.found && _afData.profile) {
+                  _afApplyAutofill(_afData.profile);
+                } else {
+                  _afBanner.remove();
+                }
+              } catch (_afVerifyErr) {
+                _afAppendBannerError(_afBanner, _afVerificationErrorMessage());
+              }
+            }
+
+            window.addEventListener('message', _afOnMessage);
+          }
+
           function _afRemoveBanner() {
             const _afPrev = $.querySelector('#_af_banner');
             if (_afPrev) _afPrev.remove();
@@ -3433,6 +3532,8 @@ import { widgetTokenCss } from '../../packages/tokens/src/widget-tokens.js';
               dateOfBirth: profile.date_of_birth,
               firstName: profile.first_name,
               lastName: profile.last_name,
+              passportNumber: profile.passport_number,
+              passportExpiry: profile.passport_expiry,
             };
             const _afPrevVals = {};
             Object.entries(_afFieldMap).forEach(([_afName, _afVal]) => {
@@ -3467,6 +3568,8 @@ import { widgetTokenCss } from '../../packages/tokens/src/widget-tokens.js';
               VERIFICATION_EXPIRED: _afIsAr ? 'انتهت صلاحية هذا الرمز. أرسل رمزاً جديداً.' : 'This code expired. Send a new one.',
               VERIFICATION_TOO_MANY_ATTEMPTS: _afIsAr ? 'محاولات غير صحيحة كثيرة جداً. أرسل رمزاً جديداً.' : 'Too many incorrect attempts. Send a new code.',
               VERIFICATION_NOT_REQUESTED: _afIsAr ? 'يرجى طلب رمز جديد.' : 'Please request a new code.',
+              INVALID_CREDENTIAL: _afIsAr ? 'تعذر التحقق من تسجيل الدخول عبر جوجل.' : "Couldn't verify that Google sign-in. Please try again.",
+              GOOGLE_SIGNIN_NOT_CONFIGURED: _afIsAr ? 'تسجيل الدخول عبر جوجل غير متاح حالياً.' : 'Google sign-in is not available right now.',
             };
             return _afMessages[code] || (_afIsAr ? 'حدث خطأ ما. يرجى المحاولة مرة أخرى.' : 'Something went wrong. Please try again.');
           }
@@ -3591,11 +3694,15 @@ import { widgetTokenCss } from '../../packages/tokens/src/widget-tokens.js';
             _afBanner.innerHTML = `
               <span class="aviaframe-passenger-autofill-message">${_afIsAr ? 'هل لديك بيانات محفوظة؟' : 'Have a saved profile?'}</span>
               <div class="aviaframe-passenger-autofill-row">
+                <button type="button" id="_af_google_btn" class="aviaframe-passenger-autofill-undo">${_afIsAr ? 'المتابعة عبر جوجل' : 'Continue with Google'}</button>
                 <button type="button" id="_af_start_btn" class="aviaframe-passenger-autofill-undo">${_afIsAr ? 'تعبئة بياناتي المحفوظة' : 'Autofill my details'}</button>
                 <button type="button" id="_af_close_btn" class="aviaframe-passenger-autofill-close" aria-label="${_afIsAr ? 'إغلاق' : 'Dismiss'}">×</button>
               </div>`;
 
             _afBanner.querySelector('#_af_close_btn').addEventListener('click', () => _afBanner.remove());
+            _afBanner.querySelector('#_af_google_btn').addEventListener('click', () => {
+              _afStartGoogleSignIn(_afBase, _afToken, _afBanner);
+            });
             _afBanner.querySelector('#_af_start_btn').addEventListener('click', async () => {
               const _afStartBtn = _afBanner.querySelector('#_af_start_btn');
               _afStartBtn.disabled = true;

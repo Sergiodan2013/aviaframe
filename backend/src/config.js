@@ -93,6 +93,15 @@ const config = {
   internalQaMaxActiveTickets: Number(process.env.INTERNAL_QA_MAX_ACTIVE_TICKETS || 5),
   internalQaVoidWindowHours: Number(process.env.INTERNAL_QA_VOID_WINDOW_HOURS || 20),
   emailWebhookSecret: process.env.EMAIL_WEBHOOK_SECRET || '',
+  // OAuth 2.0 Client ID (Web application) for the centralized Google
+  // Sign-In relay page (aviaframe-site/auth/google.html, served only from
+  // aviaframe.com). Only that one domain is ever registered as an
+  // "Authorized JavaScript origin" in Google Cloud Console — partner
+  // white-label domains never talk to Google directly, so no per-agency
+  // Google configuration is ever required. Not set = Google sign-in is
+  // disabled (verify-google responds 503) without affecting the existing
+  // OTP-code / magic-link paths.
+  googleClientId: String(process.env.GOOGLE_CLIENT_ID || '').trim(),
   allowPdfOnlyTicketIssuance: process.env.ALLOW_PDF_ONLY_TICKET_ISSUANCE === 'true',
   airportAutocompleteUrl: process.env.AIRPORT_AUTOCOMPLETE_URL || 'https://autocomplete.travelpayouts.com/places2',
   airportAutocompleteTimeoutMs: Number(process.env.AIRPORT_AUTOCOMPLETE_TIMEOUT_MS || 3500),

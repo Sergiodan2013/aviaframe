@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign in with Google — Aviaframe</title>
+<meta name="robots" content="noindex, nofollow" />
+<!--
+  Centralized Google Sign-In relay.
+
+  Why this page exists: Google requires every "Authorized JavaScript
+  origin" that calls its Sign-In library to be pre-registered in Google
+  Cloud Console. Aviaframe's widget is embedded on many different
+  white-label partner domains, and there is no API to register those
+  domains automatically (verified — no such Google API exists as of
+  2026-09). Registering every partner domain by hand does not scale.
+
+  So instead, ONLY this one domain (aviaframe.com) is ever registered
+  with Google. The widget, running on the partner's own domain, opens
+  this page in a popup. This page runs the actual Google Sign-In flow,
+  then hands the resulting Google ID token back to the widget's window
+  via postMessage and closes itself. It never talks to the Aviaframe
+  backend directly — the widget's own page (on its own origin, holding
+  its own widget_token) is what calls
+  POST /public/customer-profile/verify-google with that token. That
+  keeps all existing tenant/origin enforcement in
+  backend/src/routes/public.js completely unchanged; this page only ever
+  proves "this visitor owns this Google account".
+
+  Configuration: replace GOOGLE_CLIENT_ID below with the real OAuth 2.0
+  Web application Client ID from Google Cloud Console, with
+  "Authorized JavaScript origins" set to https://aviaframe.com (and
+  https://www.aviaframe.com if that's also served). No other
+  configuration, and no changes here, are needed when a new partner
+  agency is added — that is the entire point of this design.
+-->
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0b1220;
+    color: #e6ebf5;
+  }
+  .af-wrap {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 24px;
+    box-sizing: border-box;
+    text-align: center;
+  }
+  .af-logo {
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    opacity: 0.85;
+  }
+  #af-google-btn { min-height: 40px; }
+  #af-status {
+    font-size: 14px;
+    color: #9fb0cc;
+    max-width: 320px;
+  }
+  #af-status.af-error { color: #ff8080; }
+</style>
+</head>
+<body>
+  <div class="af-wrap">
+    <div class="af-logo">Aviaframe</div>
+    <div id="af-google-btn"></div>
+    <div id="af-status">Loading Google sign-in…</div>
+  </div>
+
+  <script src="https://accounts.google.com/gsi/client"></script>
+  <script>
+    (function () {
+      // TODO: replace with the real Client ID once created in Google Cloud
+      // Console (Authorized JavaScript origins = https://aviaframe.com).
+      // Until this is set, the page shows a clear "not configured" message
+      // instead of failing silently.
+      var GOOGLE_CLIENT_ID = 'REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com';
+
+      var statusEl = document.getElementById('af-status');
+      var btnEl = document.getElementById('af-google-btn');
+
+      function setStatus(text, isError) {
+        statusEl.textContent = text;
+        statusEl.className = isError ? 'af-error' : '';
+      }
+
+      var params = new URLSearchParams(window.location.search);
+      var returnOrigin = params.get('return_origin') || '';
+      var validReturnOrigin = /^https:\/\/[^\s/]+$/i.test(returnOrigin);
+
+      function postToOpener(payload) {
+        if (!window.opener || !validReturnOrigin) return;
+        try {
+          window.opener.postMessage(
+            Object.assign({ source: 'aviaframe_google_signin' }, payload),
+            returnOrigin
+          );
+        } catch (e) {
+          // best-effort only
+        }
+      }
+
+      if (!validReturnOrigin) {
+        setStatus('This page was opened incorrectly. Please close this window and try again from the booking form.', true);
+        return;
+      }
+
+      if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.indexOf('REPLACE_WITH') === 0) {
+        setStatus('Google sign-in is not configured yet.', true);
+        postToOpener({ status: 'error', error: 'NOT_CONFIGURED' });
+        return;
+      }
+
+      function onCredential(response) {
+        setStatus('Signed in — you can close this window.');
+        postToOpener({ status: 'success', credential: response.credential });
+        setTimeout(function () {
+          try { window.close(); } catch (e) { /* best-effort only */ }
+        }, 500);
+      }
+
+      var attemptsLeft = 40; // ~10s at 250ms
+      function tryInit() {
+        if (window.google && window.google.accounts && window.google.accounts.id) {
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: onCredential,
+          });
+          window.google.accounts.id.renderButton(btnEl, {
+            theme: 'outline',
+            size: 'large',
+            type: 'standard',
+            text: 'continue_with',
+          });
+          setStatus('Choose your Google account to continue.');
+          return;
+        }
+        attemptsLeft -= 1;
+        if (attemptsLeft <= 0) {
+          setStatus('Could not load Google sign-in. Please check your connection and try again.', true);
+          postToOpener({ status: 'error', error: 'GOOGLE_SCRIPT_LOAD_FAILED' });
+          return;
+        }
+        setTimeout(tryInit, 250);
+      }
+
+      tryInit();
+    })();
+  </script>
+</body>
+</html>

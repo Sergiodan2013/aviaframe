@@ -240,12 +240,13 @@ describe('POST /public/customer-profile/verify-code', () => {
     expect(res.body.error.code).toBe('VERIFICATION_NOT_REQUESTED');
   });
 
-  test('a correct code returns the profile plus a verified_token, and that token then unlocks GET /customer-profile', async () => {
+  test('a correct code returns the profile (including passport fields) plus a verified_token, and that token then unlocks GET /customer-profile', async () => {
     const sendFn = jest.fn().mockResolvedValue({ sent: true, error: null });
     mockCommonDeps({
       lookupCustomerProfile: jest.fn().mockResolvedValue({
         first_name: 'Jane', last_name: 'Doe', phone: '+966500000000',
-        gender: 'F', date_of_birth: '1990-01-01', passport_number: 'SECRET',
+        gender: 'F', date_of_birth: '1990-01-01',
+        passport_number: 'AB1234567', passport_expiry: '2030-05-12', nationality: 'SA',
       }),
       sendCustomerProfileVerificationCode: sendFn
     });
@@ -267,11 +268,16 @@ describe('POST /public/customer-profile/verify-code', () => {
 
     expect(verifyRes.statusCode).toBe(200);
     expect(verifyRes.body.found).toBe(true);
+    // Passport fields are intentionally included here — this endpoint is
+    // ONLY reachable after email-ownership is proven via the OTP code (or,
+    // for the GET endpoint below, a verified_token derived from it), so
+    // returning passport data is no more sensitive than the other PII this
+    // endpoint already returns (name/phone/DOB/gender).
     expect(verifyRes.body.profile).toEqual({
       first_name: 'Jane', last_name: 'Doe', phone: '+966500000000',
       gender: 'F', date_of_birth: '1990-01-01',
+      passport_number: 'AB1234567', passport_expiry: '2030-05-12', nationality: 'SA',
     });
-    expect(verifyRes.body.profile.passport_number).toBeUndefined();
     expect(typeof verifyRes.body.verified_token).toBe('string');
     expect(verifyRes.body.verified_token.length).toBeGreaterThan(0);
 
@@ -285,6 +291,31 @@ describe('POST /public/customer-profile/verify-code', () => {
     expect(getRes.statusCode).toBe(200);
     expect(getRes.body.found).toBe(true);
     expect(getRes.body.profile.first_name).toBe('Jane');
+    expect(getRes.body.profile.passport_number).toBe('AB1234567');
+    expect(getRes.body.profile.passport_expiry).toBe('2030-05-12');
+    expect(getRes.body.profile.nationality).toBe('SA');
+  });
+
+  test('passport fields are never exposed before verification — GET /customer-profile still requires a valid verified_token', async () => {
+    mockCommonDeps({
+      lookupCustomerProfile: jest.fn().mockResolvedValue({
+        first_name: 'Jane', last_name: 'Doe', phone: '+966500000000',
+        gender: 'F', date_of_birth: '1990-01-01',
+        passport_number: 'AB1234567', passport_expiry: '2030-05-12', nationality: 'SA',
+      }),
+    });
+    const { issueWidgetToken } = require('../../src/utils/helpers');
+    const router = require('../../src/routes/public');
+    const app = jsonApp(router);
+    const widgetToken = buildValidWidgetToken(issueWidgetToken);
+
+    const res = await request(app)
+      .get('/customer-profile')
+      .set('Authorization', `Bearer ${widgetToken}`)
+      .query({ email: 'traveler@example.com' }); // no verified_token at all
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.profile).toBeUndefined();
   });
 
   test('a code is single-use — verifying twice with the same code fails the second time', async () => {

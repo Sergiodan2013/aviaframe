@@ -199,7 +199,7 @@ describe('public airport autocomplete and search', () => {
     expect(res.body.error.code).toBe('VERIFICATION_REQUIRED');
   });
 
-  test('customer-profile lookup returns limited profile fields once a matching verified_token is presented', async () => {
+  test('customer-profile lookup returns the full saved profile (including passport data) once a matching verified_token is presented', async () => {
     mockCustomerProfileCommonDeps({
       lookupCustomerProfile: jest.fn().mockResolvedValue({
         first_name: 'Jane',
@@ -208,6 +208,8 @@ describe('public airport autocomplete and search', () => {
         gender: 'F',
         date_of_birth: '1990-01-01',
         passport_number: 'AB123456',
+        passport_expiry: '2030-05-12',
+        nationality: 'SA',
       })
     });
 
@@ -230,6 +232,11 @@ describe('public airport autocomplete and search', () => {
       .query({ email: 'traveler@example.com', verified_token: verifiedToken });
 
     expect(res.statusCode).toBe(200);
+    // Passport fields are included by design here: this endpoint only ever
+    // returns data after the caller has proven email ownership via the
+    // verified_token (see the surrounding tests for the 401 paths when that
+    // token is missing/mismatched), so passport data is no more exposed
+    // than the rest of the PII this endpoint already returns.
     expect(res.body).toEqual({
       found: true,
       profile: {
@@ -238,9 +245,11 @@ describe('public airport autocomplete and search', () => {
         phone: '+966500000000',
         gender: 'F',
         date_of_birth: '1990-01-01',
+        passport_number: 'AB123456',
+        passport_expiry: '2030-05-12',
+        nationality: 'SA',
       }
     });
-    expect(res.body.profile.passport_number).toBeUndefined();
   });
 
   test('a verified_token issued for a DIFFERENT email cannot be reused to read someone else\'s profile', async () => {
