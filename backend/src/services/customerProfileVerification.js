@@ -131,7 +131,13 @@ function verifyCode(agencyId, email, submittedCode) {
   if (!matches) {
     entry.attempts += 1;
     if (entry.attempts >= MAX_VERIFY_ATTEMPTS) {
+      // This wrong guess is the one that crosses the limit — report it as
+      // TOO_MANY_ATTEMPTS (not INCORRECT_CODE) since the entry is invalidated
+      // right here. Without this, TOO_MANY_ATTEMPTS could never actually be
+      // observed: the entry would already be gone by the next call, which
+      // would instead (misleadingly) report NOT_REQUESTED.
       store.delete(key);
+      return { valid: false, reason: 'TOO_MANY_ATTEMPTS' };
     }
     return { valid: false, reason: 'INCORRECT_CODE' };
   }
