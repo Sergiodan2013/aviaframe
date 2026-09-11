@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "build": "echo \"Building portal...\" && mkdir -p dist && cp -R src/* dist/ || true",
+    "build": "echo \"Building portal...\" && mkdir -p dist && cp -R src/. dist/",
     "test": "jest --runInBand",
     "lint": "eslint src tests"
   },

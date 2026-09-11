@@ -138,7 +138,13 @@ describe('public airport autocomplete and search', () => {
     expect(res.body.error.code).toBe('WIDGET_TOKEN_REQUIRED');
   });
 
-  test('customer-profile lookup returns limited profile fields for a valid widget token', async () => {
+  // A05 fix: a widget session token alone used to be enough to read a
+  // stranger's PII by guessing their email. Now the caller must also present
+  // a verified_token proving they completed the request-code/verify-code
+  // email-ownership handshake for that exact email — this is exercised with
+  // the REAL utils/helpers signing/parsing (not mocked) so the test proves
+  // the actual production token contract, not a stubbed shortcut.
+  function mockCustomerProfileCommonDeps({ lookupCustomerProfile } = {}) {
     jest.doMock('../../src/config', () => ({
       config: {
         nodeEnv: 'test',
@@ -148,6 +154,7 @@ describe('public airport autocomplete and search', () => {
         publicAutocompleteRateLimitMax: 20,
         publicSearchRateLimitMax: 20,
         publicRateLimitWindowMs: 60_000,
+        widgetTokenSecret: 'test-widget-token-secret',
       }
     }));
     jest.doMock('../../src/lib/logger', () => ({
@@ -162,6 +169,38 @@ describe('public airport autocomplete and search', () => {
       searchOffers: jest.fn()
     }));
     jest.doMock('../../src/services/customerProfile', () => ({
+      lookupCustomerProfile: lookupCustomerProfile || jest.fn().mockResolvedValue(null)
+    }));
+  }
+
+  test('a valid widget token WITHOUT a verified_token is rejected — closes the A05 PII leak', async () => {
+    mockCustomerProfileCommonDeps({
+      lookupCustomerProfile: jest.fn().mockResolvedValue({
+        first_name: 'Jane', last_name: 'Doe', phone: '+966500000000',
+        gender: 'F', date_of_birth: '1990-01-01', passport_number: 'AB123456',
+      })
+    });
+
+    const { issueWidgetToken } = require('../../src/utils/helpers');
+    const router = require('../../src/routes/public');
+    const app = jsonApp(router);
+
+    const widgetToken = issueWidgetToken({
+      typ: 'widget_session', agency_id: 'agency-1', origin_host: 'agency.example.com',
+      exp: Math.floor(Date.now() / 1000) + 300
+    });
+
+    const res = await request(app)
+      .get('/customer-profile')
+      .set('Authorization', `Bearer ${widgetToken}`)
+      .query({ email: 'traveler@example.com' });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error.code).toBe('VERIFICATION_REQUIRED');
+  });
+
+  test('customer-profile lookup returns limited profile fields once a matching verified_token is presented', async () => {
+    mockCustomerProfileCommonDeps({
       lookupCustomerProfile: jest.fn().mockResolvedValue({
         first_name: 'Jane',
         last_name: 'Doe',
@@ -170,26 +209,25 @@ describe('public airport autocomplete and search', () => {
         date_of_birth: '1990-01-01',
         passport_number: 'AB123456',
       })
-    }));
-    jest.doMock('../../src/utils/helpers', () => ({
-      parseWidgetToken: jest.fn(() => ({
-        payload: {
-          typ: 'widget_session',
-          agency_id: 'agency-1',
-          origin_host: 'agency.example.com',
-        }
-      })),
-      getRequestOriginHost: jest.fn(() => 'agency.example.com'),
-      normalizeHost: jest.fn((value) => String(value || '').trim().toLowerCase()),
-    }));
+    });
 
+    const { issueWidgetToken } = require('../../src/utils/helpers');
     const router = require('../../src/routes/public');
     const app = jsonApp(router);
 
+    const widgetToken = issueWidgetToken({
+      typ: 'widget_session', agency_id: 'agency-1', origin_host: 'agency.example.com',
+      exp: Math.floor(Date.now() / 1000) + 300
+    });
+    const verifiedToken = issueWidgetToken({
+      typ: 'customer_profile_verified', agency_id: 'agency-1', email: 'traveler@example.com',
+      exp: Math.floor(Date.now() / 1000) + 300
+    });
+
     const res = await request(app)
       .get('/customer-profile')
-      .set('Authorization', 'Bearer test-widget-token')
-      .query({ email: 'traveler@example.com' });
+      .set('Authorization', `Bearer ${widgetToken}`)
+      .query({ email: 'traveler@example.com', verified_token: verifiedToken });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({
@@ -203,6 +241,38 @@ describe('public airport autocomplete and search', () => {
       }
     });
     expect(res.body.profile.passport_number).toBeUndefined();
+  });
+
+  test('a verified_token issued for a DIFFERENT email cannot be reused to read someone else\'s profile', async () => {
+    mockCustomerProfileCommonDeps({
+      lookupCustomerProfile: jest.fn().mockResolvedValue({
+        first_name: 'Real', last_name: 'Owner', phone: '+966500000001',
+        gender: 'M', date_of_birth: '1985-05-05',
+      })
+    });
+
+    const { issueWidgetToken } = require('../../src/utils/helpers');
+    const router = require('../../src/routes/public');
+    const app = jsonApp(router);
+
+    const widgetToken = issueWidgetToken({
+      typ: 'widget_session', agency_id: 'agency-1', origin_host: 'agency.example.com',
+      exp: Math.floor(Date.now() / 1000) + 300
+    });
+    // Attacker verified their OWN email, then tries to reuse that token to
+    // read a victim's profile by just changing the email query param.
+    const verifiedTokenForAttackerEmail = issueWidgetToken({
+      typ: 'customer_profile_verified', agency_id: 'agency-1', email: 'attacker@example.com',
+      exp: Math.floor(Date.now() / 1000) + 300
+    });
+
+    const res = await request(app)
+      .get('/customer-profile')
+      .set('Authorization', `Bearer ${widgetToken}`)
+      .query({ email: 'victim@example.com', verified_token: verifiedTokenForAttackerEmail });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error.code).toBe('VERIFICATION_REQUIRED');
   });
 
   test('autocomplete falls back to local dataset when upstream fails', async () => {

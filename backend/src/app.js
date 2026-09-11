@@ -17,6 +17,13 @@ const drctDirectClient = require('./services/drctDirectClient');
 const { filterBookableOffers } = require('./utils/offerFilters');
 
 const app = express();
+// See config.trustProxyHops (config.js) for why this matters: without it,
+// req.ip is just the raw socket peer, and rate limiting fell back to
+// hand-parsing X-Forwarded-For and trusting the client's own first value
+// (see requestGuards.js normalizeClientIp) — trivially spoofable per
+// request. This makes Express resolve req.ip using the real, proxy-
+// appended hop instead. https://expressjs.com/en/guide/behind-proxies.html
+app.set('trust proxy', config.trustProxyHops);
 const SANDBOX_WIDGET_HOSTS = new Set(
   String(process.env.DRCT_SANDBOX_HOSTS || 'sandbox.aviaframe.com,aviaframe.com,www.aviaframe.com')
     .split(',')
@@ -149,11 +156,50 @@ app.use(helmet({
   crossOriginResourcePolicy: false,
 }));
 
+// Query-string params that carry a secret/session token on at least one
+// route in this app (widget/customer session tokens, API keys). Redaction
+// on `req.headers` alone does not cover these, since they travel in the
+// URL itself (e.g. GET /public/customer-profile?widget_token=...). Stripped
+// here rather than relying on downstream redact paths, since the value is
+// part of a single querystring, not a nested object field pino can target.
+const SENSITIVE_QUERY_PARAMS = new Set([
+  'token', 'widget_token', 'access_token', 'customer_access_token',
+  'internal_token', 'api_key', 'apikey', 'key', 'secret', 'verified_token', 'code'
+]);
+
+function sanitizeUrlForLogging(rawUrl) {
+  if (!rawUrl) return rawUrl;
+  const [path, query] = String(rawUrl).split('?');
+  if (!query) return rawUrl;
+  const params = new URLSearchParams(query);
+  let redacted = false;
+  for (const name of params.keys()) {
+    if (SENSITIVE_QUERY_PARAMS.has(name.toLowerCase())) {
+      params.set(name, '[REDACTED]');
+      redacted = true;
+    }
+  }
+  return redacted ? `${path}?${params.toString()}` : rawUrl;
+}
+
 // Structured request logging via pino-http
 app.use(pinoHttp({
   logger,
   autoLogging: {
     ignore: (req) => req.url === '/healthz'
+  },
+  // Wrap the standard req serializer so the logged copy has its sensitive
+  // query params scrubbed. This only touches the object being logged
+  // (built fresh by pino.stdSerializers.req) — the live req.url used by
+  // Express routing/handlers is untouched.
+  serializers: {
+    req(req) {
+      const serialized = pinoHttp.stdSerializers.req(req);
+      if (serialized && typeof serialized.url === 'string') {
+        serialized.url = sanitizeUrlForLogging(serialized.url);
+      }
+      return serialized;
+    }
   }
 }));
 

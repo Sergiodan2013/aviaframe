@@ -17,11 +17,18 @@ function toPositiveNumber(value, fallback) {
 }
 
 function normalizeClientIp(req) {
-  const forwarded = String(req.headers['x-forwarded-for'] || '')
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)[0];
-  return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
+  // `req.ip` is resolved by Express according to the app's `trust proxy`
+  // setting (see config.trustProxyHops / app.js) — it walks exactly that
+  // many trusted hops in from the socket peer and returns the resulting
+  // address, ignoring anything a client prepended to X-Forwarded-For
+  // themselves. This used to instead hand-parse the raw header and take
+  // its FIRST value, which is exactly the part of the header the client
+  // controls: sending a different value on every request bypassed any
+  // IP-keyed rate limit outright (reproduced locally: 3 distinct
+  // X-Forwarded-For values from one socket connection = 3 separate
+  // limiter buckets instead of 1). Do not reintroduce manual XFF parsing
+  // here — resolve trust at the `trust proxy` setting, once, in one place.
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
 function normalizeHostLike(value) {

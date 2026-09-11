@@ -76,6 +76,61 @@ const CITY_PHOTO_LIBRARY = {
   'Washington':    'https://kirvqjgyxjyvwflghchw.supabase.co/storage/v1/object/public/agency-assets/media/shared/destination-washington-united-states.jpg',
 };
 
+// ── HTML/CSS escaping for agency-controlled content ─────────────────────
+// generateAgencySiteFiles() below bakes agency-supplied text (name, about,
+// hero copy, destinations, reviews, contact details, social links, ...)
+// directly into a static HTML file that is served to every visitor of that
+// agency's site. Without escaping, an agency admin (or anyone who
+// compromises an agency admin account) could store `<script>...</script>`
+// in any of these fields and have it execute in every visitor's browser —
+// a stored XSS, scoped to that agency's own site origin. `escapeHtml` is
+// the single point that must be applied to every such field before it is
+// interpolated into the template below.
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Only http(s) URLs are ever legitimate here (logo, hero image, Google Maps
+// embed, social links) — anything else (javascript:, data:, vbscript:, a
+// malformed value) is dropped rather than rendered, since it has no
+// legitimate use in these positions and `javascript:` URLs are executable
+// when placed in an href/src.
+function sanitizeExternalUrl(value) {
+  if (!value) return '';
+  try {
+    const parsed = new URL(String(value).trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    return parsed.toString();
+  } catch (_) {
+    return '';
+  }
+}
+
+// For a URL embedded inside `style="...url('VALUE')..."`: the value sits
+// inside single quotes, which themselves sit inside a double-quoted HTML
+// attribute. escapeHtml() alone is not enough here — the browser HTML-
+// decodes the attribute value (turning `&#39;` back into `'`) *before*
+// handing it to the CSS parser, so an escaped quote would still terminate
+// the CSS url('...') token early. Percent-encode the characters that are
+// meaningful to either layer first, then escape for the outer HTML
+// attribute.
+function escapeCssUrlAttr(value) {
+  const encoded = String(value || '')
+    .replace(/\\/g, '%5C')
+    .replace(/'/g, '%27')
+    .replace(/"/g, '%22')
+    .replace(/\(/g, '%28')
+    .replace(/\)/g, '%29')
+    .replace(/[\r\n]/g, '');
+  return escapeHtml(encoded);
+}
+
 function resolveDestPhoto(dest) {
   if (!dest) return null;
   const url = dest.image_url;
@@ -148,7 +203,7 @@ function getContrastColor(hex) {
 
 function safeThemeColor(value, fallback) {
   const color = String(value || '').trim();
-  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+  return /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(color) ? color : fallback;
 }
 
 // ── Site template resolver ────────────────────────────────────────────────────
@@ -283,29 +338,51 @@ function generateAgencySiteFiles(opts) {
     footerBg = ''
   } = opts;
 
+  // `language` ends up inside a single-quoted JS string literal in an
+  // inline <script> below (`... || '${language}'`), not just an HTML
+  // attribute — HTML-escaping would not stop a value like `'; alert(1); '`
+  // from breaking out of that string. Collapsing to a closed two-value
+  // enum here removes the injection surface entirely rather than trying to
+  // escape for a JS-string context.
+  const safeLanguage = language === 'ar' ? 'ar' : 'en';
+
   // ── Resolve effective content (agency data or defaults) ─────────────────
   const effectiveDestinations = (Array.isArray(destinations) && destinations.length > 0) ? destinations : DEFAULT_DESTINATIONS;
   const effectiveReviews = (Array.isArray(reviews) && reviews.length > 0) ? reviews : DEFAULT_REVIEWS;
   const effectiveAirlines = (Array.isArray(featuredAirlines) && featuredAirlines.length > 0) ? featuredAirlines : DEFAULT_AIRLINES;
   const effectiveTagline = heroTagline || 'Book Flights Worldwide at the Best Prices';
   const effectiveHeroDesc = heroDescription || 'Compare hundreds of airlines. Secure booking. Real travel agents available 24/7.';
+  const safeHeroImageUrl = sanitizeExternalUrl(heroImageUrl);
 
   const effectiveAboutEn = aboutEn || `${agencyName} is your trusted travel partner. Our professional team offers flight bookings, hotel reservations, visa assistance, and full travel packages for individuals, families, and corporate clients — with personal service you can count on.`;
   const effectiveAboutAr = aboutAr || `${agencyNameAr || agencyName} هي شريككم الموثوق في السفر.`;
 
   // ── Colors ──────────────────────────────────────────────────────────────
-  const brandDark = darkenHex(brandColor, 45);
-  const brandRgb = hexToRgb(brandColor);
-  const accentRgb = hexToRgb(accentColor);
-  const widgetPrimary = safeThemeColor(accentColor, '#2468c4');
+  // brandColor/accentColor/headerBg/footerBg are meant to always be hex
+  // strings (the PATCH /me/content route validates them as such), but this
+  // generator is the single place all callers funnel through and these
+  // values land raw inside a <style> block below. An unvalidated value
+  // containing `</style>` would close that block early and let arbitrary
+  // HTML/script follow it — so validate here too rather than trust that
+  // every caller already did. An invalid value falls back to the same
+  // defaults the rest of this function already uses for a missing color.
+  const safeBrandColor = safeThemeColor(brandColor, '#1a3c8e');
+  const safeAccentColor = safeThemeColor(accentColor, '#2468c4');
+  const safeHeaderBg = headerBg ? safeThemeColor(headerBg, '') : '';
+  const safeFooterBg = footerBg ? safeThemeColor(footerBg, '') : '';
+
+  const brandDark = darkenHex(safeBrandColor, 45);
+  const brandRgb = hexToRgb(safeBrandColor);
+  const accentRgb = hexToRgb(safeAccentColor);
+  const widgetPrimary = safeThemeColor(safeAccentColor, '#2468c4');
   const widgetPrimaryHover = safeThemeColor(brandDark, '#1a3c8e');
 
   // ── Header / footer computed colors ─────────────────────────────────────
-  const effectiveHeaderBg = headerBg || 'rgba(255,255,255,0.97)';
-  const effectiveFooterBg = footerBg || brandColor;
-  const headerTextColor = getContrastColor(headerBg || '#ffffff');
-  const headerLogoColor = (headerBg && getLuminance(headerBg) < 0.5) ? '#ffffff' : brandColor;
-  const footerTextColor = getContrastColor(footerBg || brandColor);
+  const effectiveHeaderBg = safeHeaderBg || 'rgba(255,255,255,0.97)';
+  const effectiveFooterBg = safeFooterBg || safeBrandColor;
+  const headerTextColor = getContrastColor(safeHeaderBg || '#ffffff');
+  const headerLogoColor = (safeHeaderBg && getLuminance(safeHeaderBg) < 0.5) ? '#ffffff' : safeBrandColor;
+  const footerTextColor = getContrastColor(safeFooterBg || safeBrandColor);
   const footerMuted = footerTextColor === '#ffffff' ? 'rgba(255,255,255,.65)' : 'rgba(10,22,40,.55)';
   const footerDim = footerTextColor === '#ffffff' ? 'rgba(255,255,255,.45)' : 'rgba(10,22,40,.35)';
   const footerDivider = footerTextColor === '#ffffff' ? 'rgba(255,255,255,.1)' : 'rgba(10,22,40,.1)';
@@ -319,9 +396,10 @@ function generateAgencySiteFiles(opts) {
   const waPhone = (whatsappPhone || contactPhone).replace(/\D/g, '');
 
   // ── Logo ────────────────────────────────────────────────────────────────
-  const logoInitial = (agencyName || 'A').charAt(0).toUpperCase();
-  const logoHtml = logoUrl
-    ? `<img class="av-logo-img" src="${logoUrl}" alt="${agencyName}" />`
+  const logoInitial = escapeHtml((agencyName || 'A').charAt(0).toUpperCase());
+  const safeLogoUrl = sanitizeExternalUrl(logoUrl);
+  const logoHtml = safeLogoUrl
+    ? `<img class="av-logo-img" src="${escapeHtml(safeLogoUrl)}" alt="${escapeHtml(agencyName)}" />`
     : `<div class="av-logo-icon-text">${logoInitial}</div>`;
 
   // ── Social links ────────────────────────────────────────────────────────
@@ -333,39 +411,48 @@ function generateAgencySiteFiles(opts) {
     if (v.includes('/')) return `https://${v}`;
     return `${baseUrl}/${v}`;
   }
-  const igUrl = normalizeSocialUrl(instagram, 'https://www.instagram.com');
-  const twUrl = normalizeSocialUrl(twitter, 'https://x.com');
-  const scUrl = normalizeSocialUrl(snapchat, 'https://www.snapchat.com/add');
-  const fbUrl = normalizeSocialUrl(facebook, 'https://www.facebook.com');
+  // normalizeSocialUrl() always yields a literal https://... prefix, so a
+  // scheme like javascript: can't come out of it — but the value can still
+  // contain a stray quote/angle-bracket that would break out of the href
+  // attribute, so it still goes through sanitizeExternalUrl + escapeHtml
+  // like every other URL here.
+  const igUrl = sanitizeExternalUrl(normalizeSocialUrl(instagram, 'https://www.instagram.com'));
+  const twUrl = sanitizeExternalUrl(normalizeSocialUrl(twitter, 'https://x.com'));
+  const scUrl = sanitizeExternalUrl(normalizeSocialUrl(snapchat, 'https://www.snapchat.com/add'));
+  const fbUrl = sanitizeExternalUrl(normalizeSocialUrl(facebook, 'https://www.facebook.com'));
 
   const socialItems = [
-    igUrl ? `<a class="av-social-link" href="${igUrl}" target="_blank" rel="noreferrer" aria-label="Instagram">📸</a>` : '',
-    twUrl ? `<a class="av-social-link" href="${twUrl}" target="_blank" rel="noreferrer" aria-label="Twitter/X">🐦</a>` : '',
-    scUrl ? `<a class="av-social-link" href="${scUrl}" target="_blank" rel="noreferrer" aria-label="Snapchat">👻</a>` : '',
-    fbUrl ? `<a class="av-social-link" href="${fbUrl}" target="_blank" rel="noreferrer" aria-label="Facebook">📘</a>` : ''
+    igUrl ? `<a class="av-social-link" href="${escapeHtml(igUrl)}" target="_blank" rel="noreferrer" aria-label="Instagram">📸</a>` : '',
+    twUrl ? `<a class="av-social-link" href="${escapeHtml(twUrl)}" target="_blank" rel="noreferrer" aria-label="Twitter/X">🐦</a>` : '',
+    scUrl ? `<a class="av-social-link" href="${escapeHtml(scUrl)}" target="_blank" rel="noreferrer" aria-label="Snapchat">👻</a>` : '',
+    fbUrl ? `<a class="av-social-link" href="${escapeHtml(fbUrl)}" target="_blank" rel="noreferrer" aria-label="Facebook">📘</a>` : ''
   ].filter(Boolean).join('\n');
 
   // ── Trust badges ────────────────────────────────────────────────────────
   const trustItems = [
-    licenseNumber ? `<span class="av-trust-badge">License: ${licenseNumber}</span>` : '',
-    iataNumber ? `<span class="av-trust-badge">IATA: ${iataNumber}</span>` : '',
-    foundedYear ? `<span class="av-trust-badge">Est. ${foundedYear}</span>` : '',
+    licenseNumber ? `<span class="av-trust-badge">License: ${escapeHtml(licenseNumber)}</span>` : '',
+    iataNumber ? `<span class="av-trust-badge">IATA: ${escapeHtml(iataNumber)}</span>` : '',
+    foundedYear ? `<span class="av-trust-badge">Est. ${escapeHtml(foundedYear)}</span>` : '',
     '<span class="av-trust-badge">Secure Payment</span>',
     '<span class="av-trust-badge">24/7 Support</span>'
   ].filter(Boolean).join('\n');
 
   // ── Destinations HTML ───────────────────────────────────────────────────
+  // Destinations, reviews and airlines are all agency-editable content
+  // (same trust level as the fields above) — every text field is escaped
+  // and the photo URL goes through the same CSS-url-in-attribute handling
+  // as heroImageUrl below.
   const destinationsHtml = effectiveDestinations.slice(0, 6).map(d => {
-    const city = d.city || '';
-    const country = d.country || '';
-    const landmark = d.landmark || country;
-    const resolvedPhoto = resolveDestPhoto(d);
+    const city = escapeHtml(d.city || '');
+    const country = escapeHtml(d.country || '');
+    const landmark = escapeHtml(d.landmark || d.country || '');
+    const resolvedPhoto = sanitizeExternalUrl(resolveDestPhoto(d));
     const priceLabel = d.price
-      ? `<span class="av-dest-price-kicker">From SAR</span><span class="av-dest-price-value">${d.price}</span>`
+      ? `<span class="av-dest-price-kicker">From SAR</span><span class="av-dest-price-value">${escapeHtml(d.price)}</span>`
       : '<span class="av-dest-price-fallback">Fare on request</span>';
     const bgStyle = resolvedPhoto
-      ? `background-image:url('${resolvedPhoto}');background-size:cover;background-position:center`
-      : `background:${d.gradient || 'linear-gradient(160deg,#1a3c8e,#0d2355)'}`;
+      ? `background-image:url('${escapeCssUrlAttr(resolvedPhoto)}');background-size:cover;background-position:center`
+      : `background:${escapeHtml(d.gradient || 'linear-gradient(160deg,#1a3c8e,#0d2355)')}`;
     return `<div class="av-dest-card${resolvedPhoto ? ' av-dest-card--photo' : ''}">
         <div class="av-dest-bg" style="${bgStyle}"></div>
         <div class="av-dest-overlay"></div>
@@ -387,15 +474,15 @@ function generateAgencySiteFiles(opts) {
   const reviewAccentColors = ['var(--av-brand)', 'var(--av-accent)', '#0ea5e9'];
   const reviewsHtml = effectiveReviews.slice(0, 3).map((r, i) => {
     const stars = '★'.repeat(Math.max(1, Math.min(5, r.rating || 5)));
-    const initials = (r.name || 'A').split(/[\s.]+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const initials = escapeHtml((r.name || 'A').split(/[\s.]+/).slice(0, 2).map(w => w[0]).join('').toUpperCase());
     return `<div class="av-review" style="border-left-color:${reviewAccentColors[i] || 'var(--av-brand)'}${i === 1 ? ';margin-top:18px' : ''}">
         <div class="av-review-stars">${stars}</div>
-        <div class="av-review-text">"${(r.text || '').replace(/"/g, '&quot;')}"</div>
+        <div class="av-review-text">"${escapeHtml(r.text || '')}"</div>
         <div class="av-reviewer">
           <div class="av-reviewer-av">${initials}</div>
           <div>
-            <div class="av-reviewer-name">${r.name || ''}</div>
-            <div class="av-reviewer-loc">${r.location || ''}</div>
+            <div class="av-reviewer-name">${escapeHtml(r.name || '')}</div>
+            <div class="av-reviewer-loc">${escapeHtml(r.location || '')}</div>
           </div>
         </div>
       </div>`;
@@ -403,7 +490,7 @@ function generateAgencySiteFiles(opts) {
 
   // ── Airlines HTML ─────────────────────────────────────────────────────────
   const airlinesHtml = effectiveAirlines.slice(0, 12).map(a =>
-    `<div class="av-airline">✈ ${a}</div>`
+    `<div class="av-airline">✈ ${escapeHtml(a)}</div>`
   ).join('\n');
 
   // ── Why choose us (derived from services + hardcoded UX advantages) ──────
@@ -428,9 +515,13 @@ function generateAgencySiteFiles(opts) {
   ).join('\n');
 
   // ── Google Maps embed ────────────────────────────────────────────────────
-  const isValidMapsUrl = googleMapsUrl && /google\.com\/maps/i.test(googleMapsUrl);
+  // sanitizeExternalUrl() enforces http(s); the pre-existing google.com/maps
+  // substring check is kept as a belt-and-braces restriction to Google's
+  // own embed domain specifically, on top of the general scheme check.
+  const safeGoogleMapsUrl = sanitizeExternalUrl(googleMapsUrl);
+  const isValidMapsUrl = safeGoogleMapsUrl && /google\.com\/maps/i.test(safeGoogleMapsUrl);
   const mapsHtml = isValidMapsUrl
-    ? `<div class="av-maps-embed"><iframe src="${googleMapsUrl}" width="100%" height="200" style="border:0;border-radius:10px" allowfullscreen loading="lazy"></iframe></div>`
+    ? `<div class="av-maps-embed"><iframe src="${escapeHtml(safeGoogleMapsUrl)}" width="100%" height="200" style="border:0;border-radius:10px" allowfullscreen loading="lazy"></iframe></div>`
     : '';
 
   // ── FAQ items ────────────────────────────────────────────────────────────
@@ -439,7 +530,7 @@ function generateAgencySiteFiles(opts) {
     { q: 'How do refunds work?', a: 'Approved refunds are processed within 7–14 business days, depending on your bank and the airline\'s policy. Our team handles the refund claim on your behalf.' },
     { q: 'Can I change my flight date or route?', a: 'Flight changes are possible for most fares, subject to availability and any difference in fare plus the airline\'s change fee. Contact our support team via WhatsApp for rebooking.' },
     { q: 'Do prices include taxes and fees?', a: 'Yes. All prices shown include all taxes, airport fees and our service charge. The price you see is the total price you pay — no surprises at checkout.' },
-    { q: 'How can I contact customer support?', a: `We're available 24/7 via WhatsApp${contactPhone ? ', phone (' + contactPhone + ')' : ''}, and email. WhatsApp is the fastest channel — most queries answered within minutes.` }
+    { q: 'How can I contact customer support?', a: `We're available 24/7 via WhatsApp${contactPhone ? ', phone (' + escapeHtml(contactPhone) + ')' : ''}, and email. WhatsApp is the fastest channel — most queries answered within minutes.` }
   ];
   const faqHtml = faqItems.map((f, i) => `<div class="av-faq-item${i === 0 ? ' open' : ''}">
         <div class="av-faq-q" onclick="avToggleFaq(this)">
@@ -470,20 +561,20 @@ function generateAgencySiteFiles(opts) {
 
   // ── HTML template ────────────────────────────────────────────────────────
   const html = `<!doctype html>
-<html lang="${language}">
+<html lang="${safeLanguage}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${agencyName} | Flights &amp; Travel</title>
+  <title>${escapeHtml(agencyName)} | Flights &amp; Travel</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml" />
   <script src="/config.js"></script>
   <link rel="stylesheet" href="./styles.css" />
   <style>
     :root {
-      --av-brand: ${brandColor};
+      --av-brand: ${safeBrandColor};
       --av-brand-dark: ${brandDark};
       --av-brand-rgb: ${brandRgb};
-      --av-accent: ${accentColor};
+      --av-accent: ${safeAccentColor};
       --av-accent-rgb: ${accentRgb};
       --av-header-bg: ${effectiveHeaderBg};
       --av-header-text: ${headerTextColor};
@@ -504,17 +595,17 @@ function generateAgencySiteFiles(opts) {
   <header class="av-header">
     <div class="av-header-inner">
       <a href="/" class="av-logo">
-        <div id="av-logo-icon" class="av-logo-icon${logoUrl ? ' av-logo-icon--img' : ''}">${logoHtml}</div>
+        <div id="av-logo-icon" class="av-logo-icon${safeLogoUrl ? ' av-logo-icon--img' : ''}">${logoHtml}</div>
         <div class="av-logo-text">
-          <div id="av-logo-ar" class="av-logo-ar en-hidden"${agencyNameAr ? '' : ' style="display:none"'}>${agencyNameAr}</div>
-          <div id="av-logo-name" class="av-logo-name">${agencyName}</div>
+          <div id="av-logo-ar" class="av-logo-ar en-hidden"${agencyNameAr ? '' : ' style="display:none"'}>${escapeHtml(agencyNameAr)}</div>
+          <div id="av-logo-name" class="av-logo-name">${escapeHtml(agencyName)}</div>
         </div>
       </a>
       <div class="av-header-nav">
         <div id="customer-auth-nav"></div>
       </div>
       <div id="av-header-contacts" class="av-header-contacts">
-        <span id="av-header-phone" class="av-phone-display"${contactPhone ? '' : ' style="display:none"'}>${contactPhone}</span>
+        <span id="av-header-phone" class="av-phone-display"${contactPhone ? '' : ' style="display:none"'}>${escapeHtml(contactPhone)}</span>
         <a id="av-header-wa" class="av-wa-btn" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer"${waPhone ? '' : ' style="display:none"'}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
           WhatsApp
@@ -524,10 +615,10 @@ function generateAgencySiteFiles(opts) {
   </header>
 
   <!-- HERO -->
-  <section id="av-hero" class="av-hero"${heroImageUrl ? ` style="background:linear-gradient(rgba(0,0,0,.58),rgba(0,0,0,.42)),url('${heroImageUrl}') center/cover no-repeat"` : ''}>
-    <div class="av-hero-badge">✈ ${subdomain}.aviaframe.com</div>
-    <h1 id="av-hero-h1" class="av-hero-h1">${effectiveTagline}</h1>
-    <p id="av-hero-sub" class="av-hero-sub">${effectiveHeroDesc}</p>
+  <section id="av-hero" class="av-hero"${safeHeroImageUrl ? ` style="background:linear-gradient(rgba(0,0,0,.58),rgba(0,0,0,.42)),url('${escapeCssUrlAttr(safeHeroImageUrl)}') center/cover no-repeat"` : ''}>
+    <div class="av-hero-badge">✈ ${escapeHtml(subdomain)}.aviaframe.com</div>
+    <h1 id="av-hero-h1" class="av-hero-h1">${escapeHtml(effectiveTagline)}</h1>
+    <p id="av-hero-sub" class="av-hero-sub">${escapeHtml(effectiveHeroDesc)}</p>
     <div class="av-trust-badges">
       ${trustItems}
     </div>
@@ -549,12 +640,12 @@ function generateAgencySiteFiles(opts) {
         data-aviaframe-widget
         data-api-url="${BACKEND_URL}/webhook/drct/search"
         data-checkout-url="/booking.html"
-        data-agency-key="${apiKey}"
-        data-brand-name="${agencyName}"
-        data-brand-color="${brandColor}"
-        data-accent-color="${accentColor}"
+        data-agency-key="${escapeHtml(apiKey)}"
+        data-brand-name="${escapeHtml(agencyName)}"
+        data-brand-color="${safeBrandColor}"
+        data-accent-color="${safeAccentColor}"
         data-title="Search Flights"
-        data-primary-color="${accentColor}"
+        data-primary-color="${safeAccentColor}"
         style="--af-primary:${widgetPrimary};--af-primary-hover:${widgetPrimaryHover};--af-radius:12px;--af-font:inherit"
       ></div>
     </div>
@@ -656,23 +747,23 @@ function generateAgencySiteFiles(opts) {
           <h3><span class="en-text">Contact Information</span><span class="ar-text" style="display:none">معلومات التواصل</span></h3>
           <div id="av-phones" class="av-phones">
             ${waPhone ? `<a class="av-phone-link av-phone-wa" href="https://wa.me/${waPhone}" target="_blank" rel="noreferrer">
-              <span>💬</span> ${contactPhone}
-            </a>` : contactPhone ? `<div class="av-phone-link"><span>📞</span> ${contactPhone}</div>` : ''}
-            ${contactPhone2 ? `<div class="av-phone-link"><span>📞</span> ${contactPhone2}</div>` : ''}
-            ${contactEmail ? `<a class="av-phone-link" href="mailto:${contactEmail}"><span>✉️</span> ${contactEmail}</a>` : ''}
+              <span>💬</span> ${escapeHtml(contactPhone)}
+            </a>` : contactPhone ? `<div class="av-phone-link"><span>📞</span> ${escapeHtml(contactPhone)}</div>` : ''}
+            ${contactPhone2 ? `<div class="av-phone-link"><span>📞</span> ${escapeHtml(contactPhone2)}</div>` : ''}
+            ${contactEmail ? `<a class="av-phone-link" href="mailto:${escapeHtml(contactEmail)}"><span>✉️</span> ${escapeHtml(contactEmail)}</a>` : ''}
           </div>
-          <div id="av-address" class="av-address"${address ? '' : ' style="display:none"'}><span>📍</span> <span>${address}</span></div>
-          <div id="av-working" class="av-working"${workingHours ? '' : ' style="display:none"'}><span>🕐</span> <span class="en-text">${workingHours}</span>${workingHoursAr ? `<span class="ar-text" style="display:none">${workingHoursAr}</span>` : ''}</div>
+          <div id="av-address" class="av-address"${address ? '' : ' style="display:none"'}><span>📍</span> <span>${escapeHtml(address)}</span></div>
+          <div id="av-working" class="av-working"${workingHours ? '' : ' style="display:none"'}><span>🕐</span> <span class="en-text">${escapeHtml(workingHours)}</span>${workingHoursAr ? `<span class="ar-text" style="display:none">${escapeHtml(workingHoursAr)}</span>` : ''}</div>
           <div id="av-social-bar" class="av-social-bar"${socialItems ? '' : ' style="display:none"'}>${socialItems}</div>
         </div>
         <div class="av-contact-card">
           <h3><span class="en-text">About Us</span><span class="ar-text" style="display:none">عنّا</span></h3>
           <p class="av-about-text">
-            <span id="av-about-en" class="en-text">${effectiveAboutEn}</span>
-            <span id="av-about-ar" class="ar-text" style="display:none">${effectiveAboutAr}</span>
+            <span id="av-about-en" class="en-text">${escapeHtml(effectiveAboutEn)}</span>
+            <span id="av-about-ar" class="ar-text" style="display:none">${escapeHtml(effectiveAboutAr)}</span>
           </p>
           <ul id="av-services-list" class="av-services-list"${serviceList.length > 0 ? '' : ' style="display:none"'}>${servicesListHtml}</ul>
-          <div id="av-supervisor" class="av-supervisor"${supervisorName ? '' : ' style="display:none"'}><strong>${supervisorName}</strong>${supervisorEmail ? ` · <a href="mailto:${supervisorEmail}">${supervisorEmail}</a>` : ''}</div>
+          <div id="av-supervisor" class="av-supervisor"${supervisorName ? '' : ' style="display:none"'}><strong>${escapeHtml(supervisorName)}</strong>${supervisorEmail ? ` · <a href="mailto:${escapeHtml(supervisorEmail)}">${escapeHtml(supervisorEmail)}</a>` : ''}</div>
         </div>
       </div>
       ${mapsHtml ? `<div style="margin-top:20px">${mapsHtml}</div>` : ''}
@@ -700,8 +791,8 @@ function generateAgencySiteFiles(opts) {
     <div class="av-section-inner">
       <div class="av-footer-grid">
         <div class="av-footer-brand">
-          <div class="av-footer-brand-name">${agencyName}${agencyNameAr ? ` · ${agencyNameAr}` : ''}</div>
-          <p class="av-footer-desc">${effectiveAboutEn.slice(0, 120)}...</p>
+          <div class="av-footer-brand-name">${escapeHtml(agencyName)}${agencyNameAr ? ` · ${escapeHtml(agencyNameAr)}` : ''}</div>
+          <p class="av-footer-desc">${escapeHtml(effectiveAboutEn.slice(0, 120))}...</p>
           ${socialItems ? `<div class="av-footer-social">${socialItems}</div>` : ''}
         </div>
         <div class="av-footer-col">
@@ -723,8 +814,8 @@ function generateAgencySiteFiles(opts) {
         </div>
       </div>
       <div class="av-footer-bottom">
-        <span>© ${new Date().getFullYear()} ${agencyName}. All rights reserved.</span>
-        <span class="av-footer-subdomain">${subdomain}.aviaframe.com</span>
+        <span>© ${new Date().getFullYear()} ${escapeHtml(agencyName)}. All rights reserved.</span>
+        <span class="av-footer-subdomain">${escapeHtml(subdomain)}.aviaframe.com</span>
       </div>
     </div>
   </footer>
@@ -737,7 +828,7 @@ function generateAgencySiteFiles(opts) {
     }
 
     // Language switcher
-    var _avLang = localStorage.getItem('aviaframe_lang') || '${language}';
+    var _avLang = localStorage.getItem('aviaframe_lang') || '${safeLanguage}';
     function avApplyLang(lang) {
       _avLang = lang;
       localStorage.setItem('aviaframe_lang', lang);

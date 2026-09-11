@@ -662,6 +662,24 @@ router.patch('/api/orders/:orderId/status', async (req, res) => {
     });
   }
 
+  // `additionalData` used to be spread straight into the DB update with no
+  // field allowlist, so any caller (including a client updating their own
+  // order) could overwrite total_price, payment_status, agency_id or
+  // drct_order_id by passing them here — a mass-assignment hole entirely
+  // separate from the status value itself. The only real caller (the admin
+  // dashboard) never sends a non-empty additionalData, so there is nothing
+  // legitimate to preserve: reject it outright instead of guessing a safe
+  // allowlist. confirmed_at/cancelled_at continue to be set by the server
+  // below, exactly as before.
+  if (additionalData && typeof additionalData === 'object' && Object.keys(additionalData).length > 0) {
+    return res.status(400).json({
+      error: {
+        code: 'ADDITIONAL_DATA_NOT_SUPPORTED',
+        message: 'additionalData is not supported on this endpoint; only status is accepted'
+      }
+    });
+  }
+
   try {
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -689,6 +707,19 @@ router.patch('/api/orders/:orderId/status', async (req, res) => {
     }
 
     const normalizedStatus = String(nextStatus).toLowerCase();
+
+    // The order's own owner (a plain client/user) is not staff: they may
+    // cancel their own booking, but they must never be able to move it into
+    // a paid/issued state themselves — that has to come from an admin/agent
+    // action (or the real payment/issue flow). Without this check, any
+    // authenticated customer could call this endpoint directly (bypassing
+    // the portal UI, which only ever exposes this control to admins) and
+    // self-mark their own pending order 'confirmed' then 'ticketed' without
+    // ever paying or a real ticket being issued by DRCT.
+    if (!canAdmin && !canAgent && normalizedStatus !== 'cancelled') {
+      return forbidden(res, 'Only staff can set this order status');
+    }
+
     if (normalizedStatus === 'ticketed' && String(order.status || '').toLowerCase() !== 'confirmed') {
       return res.status(422).json({
         error: {
@@ -699,10 +730,12 @@ router.patch('/api/orders/:orderId/status', async (req, res) => {
     }
 
     const nowIso = new Date().toISOString();
+    // No `...additionalData` here: the guard above already rejects a
+    // non-empty additionalData, so the only fields this endpoint ever
+    // writes are the ones the server computes itself below.
     const updateData = {
       status: normalizedStatus,
-      updated_at: nowIso,
-      ...additionalData
+      updated_at: nowIso
     };
 
     if (normalizedStatus === 'confirmed' && !updateData.confirmed_at) {
@@ -763,8 +796,17 @@ router.post('/api/orders/:orderId/mark-paid', async (req, res) => {
       .select('id,order_number,agency_id,drct_order_id,payment_status,payment_method,status,contact_email,origin,destination,total_price,currency')
       .eq('id', orderId);
 
-    // Agents can only mark orders for their own agency
-    if (auth.profile.role === 'agent' && auth.profile.agency_id) {
+    // Agents can only mark orders for their own agency. Fail closed: an
+    // agent profile with no agency_id (broken/incomplete membership) used to
+    // fall through this check entirely, leaving the query unfiltered by
+    // agency — meaning such an agent could mark ANY order in the system as
+    // paid (and trigger real DRCT ticket issuance for it) just by knowing
+    // its order ID. Never silently widen the query when agency_id is
+    // missing; reject instead.
+    if (auth.profile.role === 'agent') {
+      if (!auth.profile.agency_id) {
+        return forbidden(res, 'Agent has no agency assigned');
+      }
       orderQuery = orderQuery.eq('agency_id', auth.profile.agency_id);
     }
 

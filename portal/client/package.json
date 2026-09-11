@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/lib/passengerBooking.test.js src/lib/airportInput.test.js src/lib/checkoutFlow.test.js src/lib/partnerApiTester.test.js",
+    "test": "node --test src/lib/passengerBooking.test.js src/lib/airportInput.test.js src/lib/checkoutFlow.test.js src/lib/partnerApiTester.test.js src/lib/logout.test.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },

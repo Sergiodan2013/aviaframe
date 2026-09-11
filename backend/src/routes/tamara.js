@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { config } = require('../config');
-const { resolveAuthContext } = require('../middleware/auth');
+const { resolveAuthContext, canAccessOrder, forbidden, enforceOrderOwnershipIfAuthenticated } = require('../middleware/auth');
 const tamaraClient = require('../services/tamara/client');
 const { buildCheckoutPayload } = require('../services/tamara/mapper');
 const { validateWebhookToken, persistWebhookEvent, markEventProcessed, logOperation } = require('../services/tamara/webhook');
@@ -39,6 +39,10 @@ router.post('/tamara/checkout-session', async (req, res) => {
   if (orderError || !order) {
     return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' } });
   }
+
+  const ownership = await enforceOrderOwnershipIfAuthenticated(req, res, order);
+  if (!ownership.ok) return;
+
   const tamaraRuntime = getTamaraConfigForOrder(order);
   if (!tamaraRuntime.enabled) {
     return res.status(503).json({ error: { code: 'TAMARA_DISABLED', message: 'Tamara is not enabled for this host' } });
@@ -223,13 +227,16 @@ router.get('/tamara/status/:orderId', async (req, res) => {
 
   const { data: order, error } = await supabase
     .from('orders')
-    .select('id,status,payment_provider,payment_provider_status,payment_provider_order_id,order_number,total_price,currency,contact_email')
+    .select('id,user_id,agency_id,status,payment_provider,payment_provider_status,payment_provider_order_id,order_number,total_price,currency,contact_email')
     .eq('id', orderId)
     .single();
 
   if (error || !order) {
     return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
   }
+
+  const ownership = await enforceOrderOwnershipIfAuthenticated(req, res, order);
+  if (!ownership.ok) return;
 
   return res.json({
     order_id: order.id,
@@ -268,6 +275,9 @@ router.post('/tamara/:orderId/cancel', async (req, res) => {
   if (!order || order.payment_provider !== 'tamara') {
     return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
   }
+  if (!(await canAccessOrder(auth, order))) {
+    return forbidden(res, 'You do not have access to this order');
+  }
   const tamaraRuntime = getTamaraConfigForOrder(order);
 
   try {
@@ -302,6 +312,9 @@ router.post('/tamara/:orderId/refund', async (req, res) => {
 
   if (!order || order.payment_provider !== 'tamara') {
     return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+  }
+  if (!(await canAccessOrder(auth, order))) {
+    return forbidden(res, 'You do not have access to this order');
   }
   const tamaraRuntime = getTamaraConfigForOrder(order);
 
