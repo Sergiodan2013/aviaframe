@@ -53,10 +53,13 @@
   const stagingConfig = {
     ...liveConfig,
     environment: 'staging',
-    // TEMP TEST OVERRIDE (not for commit): route testenvavia at the isolated
-    // staging backend/Supabase project so this test round exercises the fixed
-    // backend code instead of production. Revert before merging to main.
-    backendUrl: 'https://peaceful-amazement-staging-staging.up.railway.app',
+    // testenvavia routes to the GitHub-connected staging backend service
+    // (peaceful-amazement-staging.up.railway.app), which auto-deploys from
+    // main. The other Railway service in this environment
+    // (peaceful-amazement-staging-staging.up.railway.app) has no source
+    // connected at all and can never receive new code — do not point
+    // anything at it again without first wiring it to GitHub.
+    backendUrl: 'https://peaceful-amazement-staging.up.railway.app',
     supabaseUrl: 'https://hvlxvzjioaiiquekecpp.supabase.co',
     supabaseAnonKey: 'sb_publishable_xdHrudkMA6uLh97vMQc0jg_iQ4qv3LV',
     moyasarPublicKey: 'pk_test_8FRQCpWq1UkQ55WexM6UEZ2moe711bwveGhyjg8i',
